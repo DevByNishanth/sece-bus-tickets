@@ -1,9 +1,7 @@
-const App = () => {
-  return (
-    <>
-      <h1 className="text-4xl font-extrabold ">Iniya Perundhu payanam.. Ellarum vanga.. sandhosamaa ponga</h1>
-    </>
-  )
+import LoginPage from './pages/LoginPage.jsx'
+
+function App() {
+  return <LoginPage />
 }
 
 export default App

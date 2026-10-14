@@ -1,29 +1,29 @@
 
 import React from 'react';
 import { Bell, ChevronDown } from 'lucide-react';
-import logo from '../assets/logo.svg';
+import logo from '../assets/logo2.svg';
 
 const Navbar = () => {
     return (
-        <nav className="flex h-14 w-full items-center justify-between border-b border-slate-200 bg-black sm:px-4">
+        <nav className="flex h-14 w-full items-center justify-between border-b border-slate-200 bg-white sm:px-4">
 
             {/* Logo */}
-            <div className="flex items-center gap-2">
+            <div className="container-1">
                 <img
                     src={logo}
                     alt="BusGo Logo"
-                    className="h-10 w-[150px] object-contain"
+                    className="h-10 w-[120px] object-contain"
                 />
             </div>
 
             {/* Right Actions */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 mr-4">
 
                 {/* Notification */}
                 <button
                     type="button"
                     aria-label="Notifications"
-                    className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50"
+                    className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-[#F5FBFF] text-slate-600 transition hover:bg-slate-50"
                 >
                     <Bell size={15} strokeWidth={1.8} />
                 </button>
@@ -39,14 +39,10 @@ const Navbar = () => {
                         className="h-6 w-6 rounded-full object-cover"
                     />
 
-                    <span className="text-xs font-medium text-slate-700">
+                    <span className="text-sm font-semibold text-[#334155]">
                         User Profile
                     </span>
 
-                    <ChevronDown
-                        size={13}
-                        className="hidden text-slate-500 sm:block"
-                    />
                 </button>
 
             </div>

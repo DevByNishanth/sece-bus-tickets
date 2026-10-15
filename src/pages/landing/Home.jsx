@@ -9,7 +9,7 @@ const Home = () => {
         <>
             <Navbar />
             <Hero />
-            <WhyTravelWithUs/>
+            {/* <WhyTravelWithUs/> */}
             <CTA/>
             <Footer/>
         </>

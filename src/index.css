@@ -7,3 +7,22 @@ body {
   margin: 0;
   font-family: 'DM Sans', sans-serif;
 }
+
+.btn-grd{
+  background: linear-gradient(90deg, #0F766E 0%, #0D9488 50%, #14B8A6 100%);
+}
+
+/* Custom sleek scrollbar for sticky filter container */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}

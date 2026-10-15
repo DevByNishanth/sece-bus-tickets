@@ -20,18 +20,24 @@ export default function BusListingCards({
   return (
     <div className="w-full flex flex-col space-y-4">
       {/* Results Header: Count & Sort Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1">
+      <div className="bg-white py-3 px-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-slate-200/80">
         <div>
-          <span className="font-bold text-slate-900 text-sm">
-            {buses.length} buses{' '}
-          </span>
-          <span className="text-slate-500 text-sm">available on this route</span>
+          <div>
+            <span className="font-bold text-[#1A7D75] text-lg">
+              {buses.length} buses{' '}
+            </span>
+            <span className="text-black font-semibold text-md">available on this route</span>
+            
+          </div>
+          <div className='text-xs  text-gray-400'>
+            <p>All prices include road tools & GST </p>
+          </div>
         </div>
 
         {/* Sort Tabs */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
-          <span className="text-xs font-medium text-slate-400 mr-1 shrink-0">
-            Sort by:
+          <span className="text-xs font-semibold text-slate-400 ">
+            Sort :
           </span>
           {sortOptions.map((opt) => {
             const isActive = sortBy === opt.id;
@@ -42,8 +48,8 @@ export default function BusListingCards({
                 onClick={() => onSortChange && onSortChange(opt.id)}
                 className={`text-xs px-3.5 py-1.5 rounded-full transition-all shrink-0 cursor-pointer font-medium ${
                   isActive
-                    ? 'bg-[#E6F4F1] text-[#0A6A69] font-bold shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                    ? 'bg-[#0F766E] text-white font-semibold shadow-xs'
+                    : 'text-slate-600 bg-slate-50'
                 }`}
               >
                 {opt.label}

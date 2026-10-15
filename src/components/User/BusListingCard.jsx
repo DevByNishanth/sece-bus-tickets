@@ -1,5 +1,5 @@
 import React from 'react';
-import { Star, Wifi, Zap, Bus, ArrowUpRight } from 'lucide-react';
+import { Star, Wifi, Zap, Bus, ArrowRight } from 'lucide-react';
 
 export default function BusListingCard({
   bus,
@@ -125,13 +125,13 @@ export default function BusListingCard({
         <div className="flex-1 flex items-center justify-between sm:justify-start gap-3 sm:gap-6">
           {/* Departure */}
           <div>
-            <div className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight leading-none">
+            <div className="text-1xl sm:text-2xl font-semibold text-slate-900 tracking-tight leading-none">
               {bus.departureTime}
             </div>
-            <div className="text-sm font-bold text-slate-800 mt-1">
+            <div className="text-sm font-semibold text-slate-800 mt-1">
               {bus.departureCity}
             </div>
-            <div className="text-xs text-slate-500 font-medium">
+            <div className="text-xs text-slate-400 font-medium">
               {bus.departurePoint}
             </div>
           </div>
@@ -175,13 +175,13 @@ export default function BusListingCard({
 
           {/* Arrival */}
           <div className="text-right sm:text-left">
-            <div className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight leading-none">
+            <div className="text-1xl sm:text-2xl font-semibold text-slate-900 tracking-tight leading-none">
               {bus.arrivalTime}
             </div>
-            <div className="text-sm font-bold text-slate-800 mt-1">
+            <div className="text-sm font-semibold text-slate-800 mt-1">
               {bus.arrivalCity}
             </div>
-            <div className="text-xs text-slate-500 font-medium">
+            <div className="text-xs text-slate-400 font-medium">
               {bus.droppingPoint}
             </div>
           </div>
@@ -192,7 +192,7 @@ export default function BusListingCard({
           <span className="text-[10px] font-bold text-slate-400 tracking-wider uppercase">
             STARTING FROM
           </span>
-          <div className="text-2xl sm:text-3xl font-black text-slate-900 leading-tight">
+          <div className="text-1xl sm:text-2xl font-bold text-slate-900">
             ₹{bus.price}
           </div>
           <span className="text-[11px] font-medium text-slate-400">
@@ -246,13 +246,13 @@ export default function BusListingCard({
           <button
             type="button"
             onClick={() => onViewSeats && onViewSeats(bus)}
-            className="w-full sm:w-auto bg-[#0A6A69] hover:bg-[#085453] active:scale-[0.98] transition-all duration-200 text-white font-medium rounded-full pl-5 pr-1.5 py-1.5 flex items-center justify-center gap-3 cursor-pointer shadow-sm hover:shadow group"
+            className="w-full sm:w-auto btn-grd hover:bg-[#085453] active:scale-[0.98] transition-all duration-200 text-white font-medium rounded-2xl px-4 py-2.5 flex items-center justify-center gap-2 cursor-pointer shadow-sm hover:shadow-md group"
           >
             <span className="text-[14px] font-semibold tracking-wide">
               View seats
             </span>
-            <div className="w-7 h-7 rounded-full bg-white flex items-center justify-center text-[#0A6A69] shadow-xs group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform duration-200">
-              <ArrowUpRight size={15} strokeWidth={2.4} />
+            <div>
+              <ArrowRight className="w-5 h-5 group-hover:translate-x-0.5 transition-transform duration-200" />
             </div>
           </button>
         </div>

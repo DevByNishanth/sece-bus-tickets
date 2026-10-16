@@ -38,7 +38,7 @@ const VendorBookingPiechart = () => {
     ];
 
     return (
-        <div className="w-full col-span-4 rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
+        <div className="w-full col-span-3 rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
 
             {/* Card Header */}
             <div className="flex items-center justify-between">

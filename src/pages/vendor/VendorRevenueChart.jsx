@@ -25,7 +25,7 @@ const VendorRevenueChart = () => {
     ];
 
     return (
-        <div className="col-span-8 w-full rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
+        <div className="col-span-9 w-full rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
 
             {/* Chart Header */}
             <div className="flex items-start justify-between">

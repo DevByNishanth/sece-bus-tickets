@@ -228,7 +228,7 @@ const VendorNavbar = () => {
                             {/* Add Button */}
                             <button
                                 type="button"
-                                className="flex h-10 w-10 items-center justify-center rounded-full bg-[#107F8C] text-white transition-colors hover:bg-[#0D6D78]"
+                                className="flex h-10 w-10 items-center justify-center rounded-full bg-[#0E7A88] text-white transition-colors hover:bg-[#0D6D78]"
                             >
                                 <Plus size={14} className="text-white" />
                             </button>

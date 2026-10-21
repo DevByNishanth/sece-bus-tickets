@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 // import Navbar from '../../components/Navbar';
 import FromToSearch from './FromToSearch';
 import BusFilters from '../../components/User/BusFilters';
@@ -166,8 +167,10 @@ export default function BusListing() {
     (filters.boardingPoints?.length || 0) +
     (filters.droppingPoints?.length || 0);
 
+  const navigate = useNavigate();
+
   const handleViewSeats = (bus) => {
-    alert(`Selecting seats for ${bus.operatorName} (${bus.busType}) - ₹${bus.price}`);
+    navigate('/ticket-booking', { state: { bus, searchParams } });
   };
 
   return (

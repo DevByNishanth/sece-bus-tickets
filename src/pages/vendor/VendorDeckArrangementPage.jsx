@@ -3,7 +3,6 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   Check,
   ChevronRight,
-  CircleHelp,
   Eye,
   FileText,
   Minus,
@@ -13,6 +12,7 @@ import {
   UserRound,
 } from "lucide-react";
 import VendorNavbar from "./VendorNavbar";
+import AddRowModal from "./AddRowModal";
 import seatImage from "../../assets/seat.svg";
 import sleeperImage from "../../assets/sleeper.svg";
 
@@ -35,24 +35,65 @@ const availableComponentForLayout = (layoutType, component) => {
   return component === "sleepers" ? "sleepers" : "seats";
 };
 
-const makeRows = (side, count, component) => {
+const makeRows = (side, count, component, subtype, units = 1) => {
   return Array.from({ length: count }, (_, index) => ({
     id: `${side}-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 7)}`,
     component,
-    units: 1,
+    subtype,
+    units,
     selected: false,
   }));
 };
 
-const getCapacityForRow = (row, seatType, sleeperType) => {
+const getPlaceCountForRow = (row, seatType, sleeperType) => {
   if (row.component === "seats") {
-    const seatCapacity =
-      seatType === "Triple Seater" ? 3 : seatType === "Double Seater" ? 2 : 1;
-    return row.units * seatCapacity;
+    const rowSeatType = row.subtype || seatType;
+    return rowSeatType === "Triple Seater" ? 3 : rowSeatType === "Double Seater" ? 2 : 1;
   }
 
-  const sleeperCapacity = sleeperType === "Double Sleeper" ? 2 : 1;
-  return row.units * sleeperCapacity;
+  const rowSleeperType = row.subtype || sleeperType;
+  return rowSleeperType === "Double Sleeper" ? 2 : 1;
+};
+
+const getCapacityForRow = (row, seatType, sleeperType) => {
+  return row.units * getPlaceCountForRow(row, seatType, sleeperType);
+};
+
+const getRowStartingNumber = (
+  allDeckRows,
+  deckOrder,
+  deckKey,
+  sideName,
+  rowNumber,
+  seatType,
+  sleeperType,
+) => {
+  let nextNumber = 1;
+
+  // Number row by row, starting opposite-side then driver-side, lower deck first.
+  for (const currentDeckKey of deckOrder) {
+    const deckConfig = allDeckRows[currentDeckKey];
+    const rowCount = Math.max(deckConfig.opposite.length, deckConfig.driver.length);
+
+    for (let index = 0; index < rowCount; index += 1) {
+      for (const side of ["opposite", "driver"]) {
+        const row = deckConfig[side][index];
+        if (!row) continue;
+
+        if (
+          currentDeckKey === deckKey &&
+          side === sideName &&
+          index === rowNumber
+        ) {
+          return nextNumber;
+        }
+
+        nextNumber += getCapacityForRow(row, seatType, sleeperType);
+      }
+    }
+  }
+
+  return nextNumber;
 };
 
 // -------------------- Page Component --------------------
@@ -84,6 +125,7 @@ const VendorDeckArrangementPage = () => {
     : "Single Sleeper";
   const busId = searchParams.get("busId") || "bus";
   const deckNames = deckType === "double" ? ["Lower Deck", "Upper Deck"] : ["Lower Deck"];
+  const deckOrder = deckType === "double" ? ["lower", "upper"] : ["lower"];
 
   // -------------------- States --------------------
 
@@ -93,15 +135,16 @@ const VendorDeckArrangementPage = () => {
     const upperDriverCount = getValidCount(searchParams.get("upperDriver"), 4);
     const upperOppositeCount = getValidCount(searchParams.get("upperOpposite"), 4);
     const defaultComponent = getDefaultComponent(layoutType);
+    const defaultSubtype = defaultComponent === "seats" ? seatType : sleeperType;
 
     const initialRows = {
       lower: {
-        driver: makeRows("lower-driver", lowerDriverCount, defaultComponent),
-        opposite: makeRows("lower-opposite", lowerOppositeCount, defaultComponent),
+        driver: makeRows("lower-driver", lowerDriverCount, defaultComponent, defaultSubtype),
+        opposite: makeRows("lower-opposite", lowerOppositeCount, defaultComponent, defaultSubtype),
       },
       upper: {
-        driver: makeRows("upper-driver", deckType === "double" ? upperDriverCount : 0, defaultComponent),
-        opposite: makeRows("upper-opposite", deckType === "double" ? upperOppositeCount : 0, defaultComponent),
+        driver: makeRows("upper-driver", deckType === "double" ? upperDriverCount : 0, defaultComponent, defaultSubtype),
+        opposite: makeRows("upper-opposite", deckType === "double" ? upperOppositeCount : 0, defaultComponent, defaultSubtype),
       },
     };
 
@@ -110,15 +153,45 @@ const VendorDeckArrangementPage = () => {
       const savedDraft = window.localStorage.getItem(`bus-layout-draft-${busId}`);
       if (savedDraft) {
         const savedData = JSON.parse(savedDraft);
-        savedData.decks.forEach((deck) => {
-          const deckKey = deck.name === "Lower Deck" ? "lower" : "upper";
+        const savedDecks = savedData.decks || [
+          ...(savedData.lowerDeck
+            ? [{
+              deckId: "lower",
+              name: "Lower Deck",
+              driverSide: savedData.lowerDeck.driverSide,
+              oppositeSide: savedData.lowerDeck.oppositeSide,
+            }]
+            : []),
+          ...(savedData.upperDeck
+            ? [{
+              deckId: "upper",
+              name: "Upper Deck",
+              driverSide: savedData.upperDeck.driverSide,
+              oppositeSide: savedData.upperDeck.oppositeSide,
+            }]
+            : []),
+        ];
+
+        savedDecks.forEach((deck) => {
+          const deckKey = deck.deckId || (deck.name === "Lower Deck" ? "lower" : "upper");
           if (deckKey === "upper" && deckType !== "double") return;
 
-          deck.sides.forEach((side) => {
+          const savedSides = deck.sides || [
+            { name: "driver", rows: deck.driverSide?.rows || [] },
+            { name: "opposite", rows: deck.oppositeSide?.rows || [] },
+          ];
+
+          savedSides.forEach((side) => {
             const sideKey = side.name === "driver" ? "driver" : "opposite";
             initialRows[deckKey][sideKey] = side.rows.map((row) => ({
               id: row.rowId,
-              component: availableComponentForLayout(layoutType, row.componentType),
+              component: availableComponentForLayout(
+                layoutType,
+                row.componentType || row.component,
+              ),
+              subtype: row.componentSubtype || (
+                (row.componentType || row.component) === "seats" ? seatType : sleeperType
+              ),
               units: getValidCount(String(row.units), 1),
               selected: false,
             }));
@@ -140,6 +213,14 @@ const VendorDeckArrangementPage = () => {
   const [zoom, setZoom] = useState(100);
   const [message, setMessage] = useState("");
   const [savePayload, setSavePayload] = useState(null);
+  const [isAddRowModalOpen, setIsAddRowModalOpen] = useState(false);
+  const [modalSide, setModalSide] = useState("driver");
+  const [modalRowCount, setModalRowCount] = useState(1);
+  const [modalComponentType, setModalComponentType] = useState(getDefaultComponent(layoutType));
+  const [modalComponentSubtype, setModalComponentSubtype] = useState(
+    getDefaultComponent(layoutType) === "seats" ? seatType : sleeperType,
+  );
+  const [modalUnits, setModalUnits] = useState(1);
 
   // -------------------- Data --------------------
 
@@ -160,11 +241,6 @@ const VendorDeckArrangementPage = () => {
     return deckTotal + sideCapacity;
   }, 0);
 
-  const activeCapacity = [...activeRows.driver, ...activeRows.opposite].reduce(
-    (total, row) => total + getCapacityForRow(row, seatType, sleeperType),
-    0,
-  );
-
   // -------------------- Functions --------------------
 
   const updateRows = (side, updateFunction) => {
@@ -177,12 +253,39 @@ const VendorDeckArrangementPage = () => {
     }));
   };
 
-  const addRow = (side) => {
+  const openAddRowModal = (side) => {
     const component = getDefaultComponent(layoutType);
-    updateRows(side, (rows) => [
-      ...rows,
-      ...makeRows(`${activeDeck}-${side}`, 1, component),
-    ]);
+    setModalSide(side);
+    setModalRowCount(1);
+    setModalComponentType(component);
+    setModalComponentSubtype(component === "seats" ? seatType : sleeperType);
+    setModalUnits(1);
+    setIsAddRowModalOpen(true);
+  };
+
+  const closeAddRowModal = () => {
+    setIsAddRowModalOpen(false);
+  };
+
+  const handleAddRows = (rowSettings) => {
+    const deckKey = rowSettings.deckType === "upper" ? "upper" : "lower";
+    const sideKey = rowSettings.side === "driverSide" ? "driver" : "opposite";
+    const newRows = makeRows(
+      `${deckKey}-${sideKey}`,
+      rowSettings.rowCount,
+      rowSettings.componentType,
+      rowSettings.componentSubtype,
+      rowSettings.units,
+    );
+
+    setDeckRows((currentRows) => ({
+      ...currentRows,
+      [deckKey]: {
+        ...currentRows[deckKey],
+        [sideKey]: [...currentRows[deckKey][sideKey], ...newRows],
+      },
+    }));
+    setIsAddRowModalOpen(false);
     setMessage("");
   };
 
@@ -192,7 +295,11 @@ const VendorDeckArrangementPage = () => {
       const updatedValue = key === "component" && !availableComponents.includes(value)
         ? availableComponents[0]
         : value;
-      return { ...row, [key]: updatedValue };
+      const updatedRow = { ...row, [key]: updatedValue };
+      if (key === "component") {
+        updatedRow.subtype = updatedValue === "seats" ? seatType : sleeperType;
+      }
+      return updatedRow;
     }));
     setMessage("");
   };
@@ -216,31 +323,81 @@ const VendorDeckArrangementPage = () => {
   };
 
   const createSavePayload = () => {
+    const createSidePayload = (deckKey, side) => {
+      const rows = deckRows[deckKey][side];
+
+      return {
+        rowCount: rows.length,
+        passengerCapacity: rows.reduce(
+          (total, row) => total + getCapacityForRow(row, seatType, sleeperType),
+          0,
+        ),
+        rows: rows.map((row, rowIndex) => {
+          const placeCount = getPlaceCountForRow(row, seatType, sleeperType);
+          const rowStartingNumber = getRowStartingNumber(
+            deckRows,
+            deckOrder,
+            deckKey,
+            side,
+            rowIndex,
+            seatType,
+            sleeperType,
+          );
+          const passengerPlaces = Array.from(
+            { length: row.units * placeCount },
+            (_, placeIndex) => ({
+              seatNumber: rowStartingNumber + placeIndex,
+              unitNumber: Math.floor(placeIndex / placeCount) + 1,
+              placeNumberInUnit: (placeIndex % placeCount) + 1,
+            }),
+          );
+
+          return {
+            rowId: row.id,
+            rowNumber: rowIndex + 1,
+            rowLabel: `R${rowIndex + 1}`,
+            componentType: row.component,
+            componentSubtype: row.subtype || (row.component === "seats" ? seatType : sleeperType),
+            units: row.units,
+            passengerCapacity: getCapacityForRow(row, seatType, sleeperType),
+            seats: row.component === "seats" ? passengerPlaces : [],
+            sleepers: row.component === "sleepers"
+              ? passengerPlaces.map((place) => ({
+                sleeperNumber: place.seatNumber,
+                unitNumber: place.unitNumber,
+                placeNumberInUnit: place.placeNumberInUnit,
+              }))
+              : [],
+          };
+        }),
+      };
+    };
+
+    const createDeckPayload = (deckKey) => {
+      const deckCapacity = ["driver", "opposite"].reduce(
+        (total, side) => total + deckRows[deckKey][side].reduce(
+          (sideTotal, row) => sideTotal + getCapacityForRow(row, seatType, sleeperType),
+          0,
+        ),
+        0,
+      );
+
+      return {
+        passengerCapacity: deckCapacity,
+        driverSide: createSidePayload(deckKey, "driver"),
+        oppositeSide: createSidePayload(deckKey, "opposite"),
+      };
+    };
+
     return {
       busId,
       deckType,
       layoutType,
       seatType,
       sleeperType,
-      decks: deckNames.map((deckName) => {
-        const deckKey = deckName === "Lower Deck" ? "lower" : "upper";
-        const deckConfig = deckRows[deckKey];
-        return {
-          name: deckName,
-          sides: ["driver", "opposite"].map((side) => ({
-            name: side,
-            rows: deckConfig[side].map((row, index) => ({
-              rowId: row.id,
-              rowNumber: index + 1,
-              componentType: row.component,
-              subtype: row.component === "seats" ? seatType : sleeperType,
-              units: row.units,
-              passengerCapacity: getCapacityForRow(row, seatType, sleeperType),
-            })),
-          })),
-        };
-      }),
-      totalCapacity,
+      totalPassengerCapacity: totalCapacity,
+      lowerDeck: createDeckPayload("lower"),
+      ...(deckType === "double" ? { upperDeck: createDeckPayload("upper") } : {}),
     };
   };
 
@@ -256,15 +413,26 @@ const VendorDeckArrangementPage = () => {
 
   const handleSaveLayout = () => {
     const payload = createSavePayload();
-    setSavePayload(payload);
-    if (payload.decks.some((deck) => deck.sides.some((side) => side.rows.length === 0))) {
-      setMessage("Add at least one row on each side before saving the layout.");
+    if (payload.totalPassengerCapacity === 0) {
+      setMessage("Add at least one seat or sleeper before saving the layout.");
       return;
     }
 
-    // No layout-save API exists in this project yet. Keep the prepared payload
-    // in page state and clearly report that it has not been sent to a backend.
-    setMessage("Layout is ready, but no backend save service is configured yet.");
+    // No layout-save API exists yet, so download the backend-ready JSON as text.
+    const payloadFile = new Blob([JSON.stringify(payload, null, 2)], {
+      type: "text/plain;charset=utf-8",
+    });
+    const downloadUrl = window.URL.createObjectURL(payloadFile);
+    const downloadLink = document.createElement("a");
+    const safeBusId = busId.replace(/[^a-zA-Z0-9_-]/g, "-");
+    downloadLink.href = downloadUrl;
+    downloadLink.download = `bus-layout-${safeBusId}.txt`;
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    downloadLink.remove();
+    window.setTimeout(() => window.URL.revokeObjectURL(downloadUrl), 1000);
+    setSavePayload(payload);
+    setMessage("Layout payload downloaded as a text file. It has not been sent to a backend.");
   };
 
   const changeZoom = (change) => {
@@ -288,7 +456,7 @@ const VendorDeckArrangementPage = () => {
 
           <button
             type="button"
-            onClick={() => addRow(side)}
+            onClick={() => openAddRowModal(side)}
             className="flex h-6 items-center gap-1 rounded-md border border-[#b9dfe3] px-2 text-[12px] font-medium text-[#087f8c] hover:bg-[#f0fafa]"
           >
             <Plus size={11} />
@@ -426,35 +594,36 @@ const VendorDeckArrangementPage = () => {
     );
   };
 
-  const renderPreviewRow = (row, index, side) => {
-    const unitCount = Math.max(1, row.units);
-    return (
-      <div key={row.id} className={`flex min-h-10 items-center gap-1 ${side === "opposite" ? "justify-end" : "justify-start"}`}>
-        {side === "driver" && <span className="w-5 text-[9px] text-slate-400">R{index + 1}</span>}
-        <div className="flex flex-wrap items-center gap-1">
-          {row.units === 0 ? (
-            <div className="flex h-9 min-w-14 items-center justify-center rounded border border-dashed border-slate-300 text-[9px] text-slate-400">Empty</div>
-          ) : Array.from({ length: unitCount }, (_, unitIndex) => (
-            <div key={`${row.id}-unit-${unitIndex}`} className="flex min-h-9 items-center justify-center gap-0.5 rounded border border-[#dce4eb] bg-white px-1 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
-              {row.component === "seats" ? (
-                Array.from({
-                  length: seatType === "Triple Seater" ? 3 : seatType === "Double Seater" ? 2 : 1,
-                }, (_, seatIndex) => <img key={`${row.id}-${unitIndex}-seat-${seatIndex}`} src={seatImage} alt="Seat" className="h-[25px] w-[17px]" />)
-              ) : sleeperType === "Double Sleeper" ? (
-                <div className="flex flex-col gap-0.5">
-                  <img src={sleeperImage} alt="Upper sleeper berth" className="h-[13px] w-[28px]" />
-                  <img src={sleeperImage} alt="Lower sleeper berth" className="h-[13px] w-[28px]" />
-                </div>
-              ) : (
-                <img src={sleeperImage} alt="Sleeper berth" className="h-[22px] w-[38px]" />
-              )}
-              <span className="ml-0.5 text-[8px] text-slate-400">{index + 1}.{unitIndex + 1}</span>
-            </div>
-          ))}
+  const renderComponentPlaces = (row, rowIndex, unitIndex, side) => {
+    const placeCount = getPlaceCountForRow(row, seatType, sleeperType);
+
+    return Array.from({ length: placeCount }, (_, placeIndex) => {
+      const rowStartingNumber = getRowStartingNumber(
+        deckRows,
+        deckOrder,
+        activeDeck,
+        side,
+        rowIndex,
+        seatType,
+        sleeperType,
+      );
+      const seatNumber = rowStartingNumber + unitIndex * placeCount + placeIndex;
+      const componentName = row.component === "seats" ? "Seat" : "Sleeper";
+      const seatDescription = `${componentName} ${seatNumber}, ${side} side, ${activeDeck} deck, row ${rowIndex + 1}`;
+
+      return (
+        <div key={seatNumber} title={seatDescription} className={`relative flex items-center justify-center ${row.component === "sleepers" && (row.subtype || sleeperType) === "Double Sleeper" ? "h-[37px] w-[43px]" : "h-[37px] w-[33px]"}`}>
+          <img
+            src={row.component === "seats" ? seatImage : sleeperImage}
+            alt={`${row.component === "seats" ? "Seat" : "Sleeper"} ${seatNumber}`}
+            className={row.component === "seats" ? "h-[37px] w-[33px] object-contain" : "h-[37px] w-[43px] object-contain"}
+          />
+          <span className="absolute bottom-0 rounded bg-white/90 px-0.5 text-[6px] font-semibold leading-tight text-slate-600">
+            {seatNumber}
+          </span>
         </div>
-        {side === "opposite" && <span className="w-5 text-right text-[9px] text-slate-400">R{index + 1}</span>}
-      </div>
-    );
+      );
+    });
   };
 
   // -------------------- UI --------------------
@@ -658,84 +827,10 @@ const VendorDeckArrangementPage = () => {
                     transformOrigin: "top center",
                   }}
                 >
-                  <div className="grid grid-cols-[minmax(0,1fr)_12px_minmax(0,1fr)] gap-2">
-                    {/* Driver-side components */}
-                    <div className="space-y-2">
-                      {activeRows.driver.map((row, index) => (
-                        <button
-                          key={row.id}
-                          type="button"
-                          onClick={() =>
-                            updateRow("driver", row.id, "selected", !row.selected)
-                          }
-                          className={`flex min-h-[40px] w-full items-center justify-center gap-1 rounded-md border px-1 transition ${row.selected
-                            ? "border-[#087f8c] bg-[#f0fafa]"
-                            : "border-transparent bg-white"
-                            }`}
-                        >
-                          {row.units === 0 ? (
-                            <span className="text-[7px] text-slate-400">Empty</span>
-                          ) : (
-                            <div className="flex flex-wrap items-center justify-center gap-1">
-                              {Array.from(
-                                { length: row.units },
-                                (_, unitIndex) => (
-                                  <div
-                                    key={`${row.id}-${unitIndex}`}
-                                    className="flex min-h-[48px] items-center justify-center gap-0.5 rounded-md border-[#dce4eb] bg-white px-1"
-                                  >
-                                    {row.component === "seats" ? (
-                                      Array.from(
-                                        {
-                                          length:
-                                            seatType === "Triple Seater"
-                                              ? 3
-                                              : seatType === "Double Seater"
-                                                ? 2
-                                                : 1,
-                                        },
-                                        (_, seatIndex) => (
-                                          <img
-                                            key={seatIndex}
-                                            src={seatImage}
-                                            alt="Seat"
-                                            className="h-[37px] w-[33px] object-contain"
-                                          />
-                                        )
-                                      )
-                                    ) : (
-                                      <img
-                                        src={sleeperImage}
-                                        alt="Sleeper berth"
-                                        className="h-[37px]  w-[43px] object-"
-                                      />
-                                    )}
-
-                                    <span className="text-[11px] font-medium text-slate-600">
-                                      {index + 1}
-                                    </span>
-                                  </div>
-                                )
-                              )}
-                            </div>
-                          )}
-                        </button>
-                      ))}
-
-                      {activeRows.driver.length === 0 && (
-                        <p className="py-5 text-center text-[8px] text-slate-400">
-                          No rows
-                        </p>
-                      )}
-                    </div>
-
-                    {/* Center aisle */}
-                    <div className="relative flex justify-center">
-                      <div className="absolute inset-y-0 border-l border-dashed border-slate-200" />
-                    </div>
-
+                  {/* Bus layout */}
+                  <div className="grid grid-cols-[max-content_12px_max-content] items-start justify-between gap-2 ">
                     {/* Opposite-side components */}
-                    <div className="space-y-2">
+                    <div className="col-start-1 flex min-w-0 flex-col items-center gap-2">
                       {activeRows.opposite.map((row, index) => (
                         <button
                           key={row.id}
@@ -752,65 +847,67 @@ const VendorDeckArrangementPage = () => {
                             <span className="text-[7px] text-slate-400">Empty</span>
                           ) : (
                             <div className="flex flex-wrap items-center justify-center gap-1">
-                              {Array.from(
-                                { length: row.units },
-                                (_, unitIndex) => (
-                                  <div
-                                    key={`${row.id}-${unitIndex}`}
-                                    className="flex min-h-[38px] items-center justify-center gap-0.5 rounded border border-[#dce4eb] bg-white px-1"
-                                  >
-                                    {row.component === "seats" ? (
-                                      Array.from(
-                                        {
-                                          length:
-                                            seatType === "Triple Seater"
-                                              ? 3
-                                              : seatType === "Double Seater"
-                                                ? 2
-                                                : 1,
-                                        },
-                                        (_, seatIndex) => (
-                                          <img
-                                            key={seatIndex}
-                                            src={seatImage}
-                                            alt="Seat"
-                                            className="h-[37px] w-[33px] object-"
-                                          />
-                                        )
-                                      )
-                                    ) : sleeperType === "Double Sleeper" ? (
-                                      <div className="flex flex-col gap-0.5">
-                                        <img
-                                          src={sleeperImage}
-                                          alt="Upper berth"
-                                          className="h-[37px]  w-[43px] -"
-                                        />
-                                        <img
-                                          src={sleeperImage}
-                                          alt="Lower berth"
-                                          className="h-[37px]  w-[43px] "
-                                        />
-                                      </div>
-                                    ) : (
-                                      <img
-                                        src={sleeperImage}
-                                        alt="Sleeper berth"
-                                        className="h-[37px] w-[43px] "
-                                      />
-                                    )}
-
-                                    <span className="text-[7px] font-medium text-slate-600">
-                                      {index + 1}
-                                    </span>
+                              {Array.from({ length: row.units }, (_, unitIndex) => (
+                                <div
+                                  key={`${row.id}-${unitIndex}`}
+                                  className="flex min-h-[38px] items-center justify-center gap-0.5 rounded border-[#dce4eb] bg-white px-1"
+                                >
+                                  <div className={`flex items-center justify-center gap-0.5 ${row.component === "sleepers" && (row.subtype || sleeperType) === "Double Sleeper" ? "flex-col" : "flex-row"}`}>
+                                    {renderComponentPlaces(row, index, unitIndex, "opposite")}
                                   </div>
-                                )
-                              )}
+                                </div>
+                              ))}
                             </div>
                           )}
                         </button>
                       ))}
 
                       {activeRows.opposite.length === 0 && (
+                        <p className="py-5 text-center text-[8px] text-slate-400">
+                          No rows
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Center aisle */}
+                    <div className="relative col-start-2 flex min-h-full justify-center">
+                      <div className="absolute inset-y-0 border-l border-dashed border-slate-200" />
+                    </div>
+
+                    {/* Driver-side components */}
+                    <div className="col-start-3 flex min-w-0 flex-col items-center gap-2">
+                      {activeRows.driver.map((row, index) => (
+                        <button
+                          key={row.id}
+                          type="button"
+                          onClick={() =>
+                            updateRow("driver", row.id, "selected", !row.selected)
+                          }
+                          className={`flex min-h-[40px] w-full items-center justify-center gap-1 rounded-md border px-1 transition ${row.selected
+                            ? "border-[#087f8c] bg-[#f0fafa]"
+                            : "border-transparent bg-white"
+                            }`}
+                        >
+                          {row.units === 0 ? (
+                            <span className="text-[7px] text-slate-400">Empty</span>
+                          ) : (
+                            <div className="flex flex-wrap items-center justify-center gap-1">
+                              {Array.from({ length: row.units }, (_, unitIndex) => (
+                                <div
+                                  key={`${row.id}-${unitIndex}`}
+                                  className="flex min-h-[48px] items-center justify-center gap-0.5 rounded-md  border-[#dce4eb] bg-white px-1"
+                                >
+                                  <div className={`flex items-center justify-center gap-0.5 ${row.component === "sleepers" && (row.subtype || sleeperType) === "Double Sleeper" ? "flex-col" : "flex-row"}`}>
+                                    {renderComponentPlaces(row, index, unitIndex, "driver")}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </button>
+                      ))}
+
+                      {activeRows.driver.length === 0 && (
                         <p className="py-5 text-center text-[8px] text-slate-400">
                           No rows
                         </p>
@@ -838,6 +935,24 @@ const VendorDeckArrangementPage = () => {
           </div>
         </div>
       </main>
+
+      {/* Add Row Modal */}
+      <AddRowModal
+        isOpen={isAddRowModalOpen}
+        onClose={closeAddRowModal}
+        deckType={activeDeck}
+        side={modalSide === "driver" ? "driverSide" : "oppositeSide"}
+        rowCount={modalRowCount}
+        componentType={modalComponentType}
+        componentSubtype={modalComponentSubtype}
+        units={modalUnits}
+        availableComponents={availableComponents}
+        onRowCountChange={setModalRowCount}
+        onComponentTypeChange={setModalComponentType}
+        onComponentSubtypeChange={setModalComponentSubtype}
+        onUnitsChange={setModalUnits}
+        onSubmit={handleAddRows}
+      />
     </div>
   );
 };

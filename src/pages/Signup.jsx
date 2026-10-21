@@ -101,7 +101,7 @@ export default function Signup() {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+        className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
         onClick={() => navigate('/')}
         aria-hidden="true"
       />
@@ -117,7 +117,7 @@ export default function Signup() {
             backgroundPosition: 'center',
           }}
         >
-          <div className="absolute inset-0 bg-slate-950/75" />
+          <div className="absolute inset-0 bg-slate-950/25" />
 
           {/* Brand badge — top */}
           <div className="relative z-10 p-8">

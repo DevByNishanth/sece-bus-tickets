@@ -4,6 +4,7 @@ import Home from './pages/landing/Home.jsx'
 import LoginPage from './pages/LoginPage.jsx'
 import Signup from './pages/Signup.jsx'
 import AgentSignup from './pages/AgentSignup.jsx'
+import TravelAgentDashboard from './pages/TravelAgentDashboard.jsx'
 
 /**
  * The landing page always renders as the "background" at /, /login and /signup
@@ -20,6 +21,7 @@ function App() {
     return (
       <AuthProvider>
         <Routes>
+          <Route path="/travelagent" element={<TravelAgentDashboard />} />
           <Route path="/agent-signup" element={<AgentSignup />} />
         </Routes>
       </AuthProvider>

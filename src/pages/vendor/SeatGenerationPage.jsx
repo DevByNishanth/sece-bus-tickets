@@ -9,7 +9,9 @@ import doubleDeck from '../../assets/doubleDeck.svg'
 const SeatGenerationPage = () => {
 
     const [busType, setBusType] = useState("single");
+    const [modal, setModal] = useState(false
 
+    )
     return (
         <>
             <div className="main-container min-h-screen bg-[#f7f9fa]">
@@ -73,6 +75,7 @@ const SeatGenerationPage = () => {
                         {/* Select Bus Button */}
                         <button
                             type="button"
+                            onClick={()=>setModal(true)}
                             className="mt-5 inline-flex items-center gap-2 rounded-md bg-[#0E7A88] px-3 py-2 text-[14px] font-medium text-white transition-colors hover:bg-[#0d6f7b] focus:outline-none focus:ring-2 focus:ring-[#108392] focus:ring-offset-2"
                         >
                             <img src={seatLayoutImg} />
@@ -84,7 +87,7 @@ const SeatGenerationPage = () => {
             </div>
 
 
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-[4px] p-4">
+            {modal && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-[4px] p-4">
                 <div className="w-[50%] overflow-hidden rounded-xl bg-white shadow-xl">
 
                     {/* Header */}
@@ -98,7 +101,7 @@ const SeatGenerationPage = () => {
                             </p>
                         </div>
 
-                        <button type="button" className="text-gray-500 hover:text-gray-700">
+                        <button  onClick={()=>setModal(false)} type="button" className="text-gray-500 hover:text-gray-700 cursor-pointer">
                             <X size={16} />
                         </button>
                     </div>
@@ -219,7 +222,7 @@ const SeatGenerationPage = () => {
                     </div>
 
                 </div>
-            </div>
+            </div>}
 
         </>
     )

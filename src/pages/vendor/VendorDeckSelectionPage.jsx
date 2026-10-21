@@ -43,6 +43,12 @@ export const VendorDeckSelectionPage = () => {
       seatType: selectedSeatType,
       sleeperType: selectedSleeperType,
     });
+    ["lowerDriver", "lowerOpposite", "upperDriver", "upperOpposite"].forEach(
+      (key) => {
+        const value = searchParams.get(key);
+        if (value !== null) params.set(key, value);
+      },
+    );
     navigate(`/vendor/seat-layout/rows/${deckType}?${params.toString()}`);
   };
 

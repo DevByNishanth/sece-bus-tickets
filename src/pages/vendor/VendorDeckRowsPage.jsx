@@ -70,6 +70,7 @@ const VendorDeckRowsPage = () => {
   const makePageParams = () => {
     return new URLSearchParams({
       deckPosition: searchParams.get("deckPosition") || "Lower Deck",
+      busId: searchParams.get("busId") || "bus",
       layoutType: searchParams.get("layoutType") || "Seats + Sleepers",
       seatType: searchParams.get("seatType") || "Double Seater",
       sleeperType: searchParams.get("sleeperType") || "Single Sleeper",

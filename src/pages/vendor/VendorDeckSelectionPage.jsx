@@ -1,31 +1,50 @@
 import { ChevronRight, Check } from "lucide-react";
 import VendorNavbar from "./VendorNavbar";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useState } from "react";
 import seat from "../../assets/seat.svg";
 import sleeper from "../../assets/sleeper.svg";
 
 const deckTypeData = ["Lower Deck", "Upper Deck"];
 
-export const   = () => {
+export const VendorDeckSelectionPage = () => {
   // -------------------- Params --------------------
 
-  const { deckType } = useParams();
+  const { deckType, busId } = useParams();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   // -------------------- States --------------------
 
-  const [selectedDeckPostion, setSelectedDeckPostion] = useState("Lower Deck");
+  const [selectedDeckPostion, setSelectedDeckPostion] = useState(
+    searchParams.get("deckPosition") || "Lower Deck",
+  );
 
   // Deck layout type
-  const [selectedLayoutType, setSelectedLayoutType] =
-    useState("Seats + Sleepers");
+  const [selectedLayoutType, setSelectedLayoutType] = useState(
+    searchParams.get("layoutType") || "Seats + Sleepers",
+  );
 
   // Default seat configuration
-  const [selectedSeatType, setSelectedSeatType] = useState("Double Seater");
+  const [selectedSeatType, setSelectedSeatType] = useState(
+    searchParams.get("seatType") || "Double Seater",
+  );
 
   // Sleeper configuration
-  const [selectedSleeperType, setSelectedSleeperType] =
-    useState("Single Sleeper");
+  const [selectedSleeperType, setSelectedSleeperType] = useState(
+    searchParams.get("sleeperType") || "Single Sleeper",
+  );
+
+  const handleContinue = () => {
+    const params = new URLSearchParams({
+      deckPosition: selectedDeckPostion,
+      busId: busId || searchParams.get("busId") || "bus",
+      layoutType: selectedLayoutType,
+      seatType: selectedSeatType,
+      sleeperType: selectedSleeperType,
+    });
+    navigate(`/vendor/seat-layout/rows/${deckType}?${params.toString()}`);
+  };
 
   // -------------------- Data --------------------
 
@@ -433,6 +452,16 @@ export const   = () => {
                 </div>
               </div>
             )}
+          </div>
+
+          <div className="mt-5 flex justify-end">
+            <button
+              type="button"
+              onClick={handleContinue}
+              className="rounded-lg bg-[#0E7A88] px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#0d6f7b]"
+            >
+              Continue
+            </button>
           </div>
         </div>
       </div>

@@ -128,8 +128,8 @@ const SeatGenerationPage = () => {
                             <div
                                 onClick={() => setBusType("single")}
                                 className={`cursor-pointer rounded-xl border p-3 transition ${busType === "single"
-                                        ? "border-2 border-[#078b9b]"
-                                        : "border-gray-200"
+                                    ? "border-2 border-[#078b9b]"
+                                    : "border-gray-200"
                                     }`}
                             >
                                 {/* Radio */}
@@ -167,8 +167,8 @@ const SeatGenerationPage = () => {
                             <div
                                 onClick={() => setBusType("double")}
                                 className={`cursor-pointer rounded-xl border p-3 transition ${busType === "double"
-                                        ? "border-2 border-[#078b9b]"
-                                        : "border-gray-200"
+                                    ? "border-2 border-[#078b9b]"
+                                    : "border-gray-200"
                                     }`}
                             >
                                 {/* Radio */}
@@ -179,8 +179,8 @@ const SeatGenerationPage = () => {
 
                                     <div
                                         className={`absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border ${busType === "double"
-                                                ? "border-[#078b9b]"
-                                                : "border-gray-300"
+                                            ? "border-[#078b9b]"
+                                            : "border-gray-300"
                                             } bg-white`}
                                     >
                                         {busType === "double" && (

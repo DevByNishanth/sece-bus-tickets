@@ -3,6 +3,8 @@ import Home from "./pages/landing/Home.jsx";
 import Dashboard from "./pages/vendor/Dashboard.jsx";
 import SeatGenerationPage from "./pages/vendor/SeatGenerationPage.jsx";
 import { VendorDeckSelectionPage } from "./pages/vendor/VendorDeckSelectionPage.jsx";
+import VendorDeckRowsPage from "./pages/vendor/VendorDeckRowsPage.jsx";
+import VendorDeckArrangementPage from "./pages/vendor/VendorDeckArrangementPage.jsx";
 
 function App() {
   return (
@@ -17,6 +19,14 @@ function App() {
         <Route
           path="/vendor/seatGeneration/:busId/deckSelection/:deckType"
           element={<VendorDeckSelectionPage />}
+        />
+        <Route
+          path="/vendor/seat-layout/rows/:deckType"
+          element={<VendorDeckRowsPage />}
+        />
+        <Route
+          path="/vendor/seat-layout/arrangements/:deckType"
+          element={<VendorDeckArrangementPage />}
         />
       </Routes>
     </>

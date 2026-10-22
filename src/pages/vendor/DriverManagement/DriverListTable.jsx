@@ -3,7 +3,10 @@ import {
     SlidersHorizontal,
     Download,
     ArrowRight,
+    X, AlertTriangle, CircleSlash2,
 } from "lucide-react";
+import { useEffect, useState } from "react";
+import DriverDeleteModal from "./DriverDeleteModal";
 const data = [
     {
         "id": 1,
@@ -153,7 +156,131 @@ const getInitialsStyle = (index) => {
     return colors[index % colors.length];
 };
 
+const rejectionReasons = [
+    {
+        title: "Expired or Invalid Commercial Driving License",
+        description: "Heavy transport endorsement expired or details do not match state RTO registry.",
+    },
+    {
+        title: "Failed Background / Criminal Record Verification",
+        description: "Adverse finding recorded during external police database verification.",
+    },
+    {
+        title: "Insufficient Commercial Heavy Vehicle Experience (<3 years)",
+        description: "Applicant does not meet mandatory intercity sleeper fleet prerequisite.",
+    },
+    {
+        title: "Incomplete or Illegible Documents Submitted",
+        description: "Medical fitness certificate, Aadhaar photocopy, or badge scanned copies are unreadable.",
+    },
+    {
+        title: "Other / Discretionary Reason",
+        description: "Fleet owner management discretion or depot capacity restriction.",
+    },
+];
+
+const RejectDriverModal = ({ driver, onClose, onConfirm }) => {
+    const [selectedReason, setSelectedReason] = useState(0);
+    const [feedback, setFeedback] = useState("");
+    const [notifyDriver, setNotifyDriver] = useState(true);
+
+    useEffect(() => {
+        const handleEscape = (event) => {
+            if (event.key === "Escape") onClose();
+        };
+        window.addEventListener("keydown", handleEscape);
+        return () => window.removeEventListener("keydown", handleEscape);
+    }, [onClose]);
+
+    return (
+        <div className="fixed inset-0 z-50  bg-slate-950/40 p-3 backdrop-blur-[2px] sm:p-5" onMouseDown={(event) => {
+            if (event.target === event.currentTarget) onClose();
+        }}>
+            <section
+               
+                className="flex h-[100vh] w-full max-w-md absolute top-0 right-0 flex-col overflow-hidden border border-slate-200 bg-white shadow-2xl"
+            >
+                <header className="flex items-start justify-between border-b border-slate-100 px-5 py-4 sm:px-6">
+                    <div className="flex items-start gap-3">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-rose-600">
+                            <AlertTriangle size={18} />
+                        </span>
+                        <div>
+                            <h2 id="reject-driver-title" className="text-sm font-semibold text-slate-900 sm:text-base">Reject Driver Application</h2>
+                            <p className="mt-1 text-xs leading-4 text-slate-500">
+                                Specify the primary grounds for rejecting applicant <span className="font-semibold text-slate-800">{driver.name} (DRV-P{String(driver.id).padStart(4, "0")}).</span>
+                            </p>
+                        </div>
+                    </div>
+                    <button type="button" onClick={onClose} aria-label="Close" className="ml-3 rounded-full bg-slate-100 p-2 text-slate-500 transition hover:bg-slate-200">
+                        <X size={14} />
+                    </button>
+                </header>
+
+                <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4 sm:px-6">
+                    <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-teal-600 text-[8px] font-bold text-white">{driver.initials}</span>
+                        <span className="text-xs font-medium text-slate-800">{driver.name}</span>
+                    </div>
+
+                    <fieldset>
+                        <legend className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Reason for rejection <span className="text-rose-600">*</span></legend>
+                        <div className="space-y-1.5">
+                            {rejectionReasons.map((reason, index) => {
+                                const isSelected = selectedReason === index;
+                                return (
+                                    <label key={reason.title} className={`flex cursor-pointer gap-2 rounded-xl border px-3 py-2.5 transition-colors ${isSelected ? "border-rose-300 bg-rose-50/40" : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"}`}>
+                                        <input type="radio" name="rejection-reason" value={index} checked={isSelected} onChange={() => setSelectedReason(index)} className="mt-0.5 h-3.5 w-3.5 accent-rose-600" />
+                                        <span className="min-w-0">
+                                            <span className="block text-[11px] font-semibold leading-4 text-slate-900">{reason.title}</span>
+                                            <span className="mt-0.5 block text-[10px] leading-3.5 text-slate-500">{reason.description}</span>
+                                        </span>
+                                    </label>
+                                );
+                            })}
+                        </div>
+                    </fieldset>
+
+                    <div>
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                            <label htmlFor="rejection-feedback" className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Additional feedback for applicant <span className="font-normal">(optional)</span></label>
+                            <span className="shrink-0 text-[9px] text-slate-400">{feedback.length}/500 characters</span>
+                        </div>
+                        <textarea id="rejection-feedback" value={feedback} onChange={(event) => setFeedback(event.target.value.slice(0, 500))} rows={3} placeholder="Add a message to help explain this decision..." className="w-full resize-none rounded-xl border border-slate-200 px-3 py-2 text-xs leading-4 text-slate-700 outline-none placeholder:text-slate-400 focus:border-teal-500 focus:ring-2 focus:ring-teal-100" />
+                    </div>
+                </div>
+
+                <div className="border-t border-slate-100">
+                    <label className="flex cursor-pointer items-center gap-2 px-5 py-3 text-[11px] text-slate-700 sm:px-6">
+                        <input type="checkbox" checked={notifyDriver} onChange={(event) => setNotifyDriver(event.target.checked)} className="h-3.5 w-3.5 accent-teal-700" />
+                        <span>Notify applicant via <strong>SMS and WhatsApp</strong> with rejection reason</span>
+                    </label>
+                    <footer className="flex flex-col-reverse gap-2 border-t border-slate-100 bg-slate-50/70 px-5 py-3 sm:flex-row sm:justify-end sm:px-6">
+                        <button type="button" onClick={onClose} className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-100">Cancel</button>
+                        <button type="button" onClick={() => onConfirm(driver, { reason: rejectionReasons[selectedReason], feedback, notifyDriver })} className="inline-flex items-center justify-center gap-2 rounded-lg bg-rose-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-rose-700">
+                            <CircleSlash2 size={13} /> Confirm &amp; Reject Application
+                        </button>
+                    </footer>
+                </div>
+            </section>
+        </div>
+    );
+};
+
 const DriverListTable = () => {
+
+    const [deletePopup, setDeletePopup] = useState(false)
+    const [rejectDriver, setRejectDriver] = useState(null);
+    const [drivers, setDrivers] = useState(data);
+
+    const handleReject = (driver) => {
+        setDrivers((currentDrivers) => currentDrivers.map((item) =>
+            item.id === driver.id ? { ...item, status: "Rejected" } : item,
+        ));
+        setRejectDriver(null);
+    };
+
+
     return (
         <>
             <div className="main-container mt-3 border border-slate-200 shadow-md bg-white rounded-2xl p-6">
@@ -223,8 +350,8 @@ const DriverListTable = () => {
                 </header>
 
                 {/* table  */}
-                <div className="w-full overflow-x-auto  rounded-lg max-h-[calc(100vh-180px)] border border-slate-200 bg-white">
-                    <table className="w-full border-collapse text-">
+                <div className="w-full overflow-x-auto  rounded-lg max-h-[calc(100vh-180px)] custom-scroll border border-slate-200 bg-white">
+                    <table className="w-full border-collapse ">
 
                         {/* Table Header */}
                         <thead className="bg-[#E5EBEF] sticky top-0">
@@ -257,7 +384,7 @@ const DriverListTable = () => {
 
                         {/* Table Body */}
                         <tbody>
-                            {data.map((driver, index) => (
+                            {drivers.map((driver, index) => (
                                 <tr
                                     key={driver.id}
                                     className="border-t border-slate-100 transition-colors hover:bg-slate-50"
@@ -315,7 +442,7 @@ const DriverListTable = () => {
                                                 type="button"
                                                 title="View driver"
                                                 onClick={() => console.log("View driver:", driver.id)}
-                                                className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition-colors hover:bg-slate-200"
+                                                className="flex h-8 w-8 items-center justify-center rounded-full  text-slate-600 transition-colors hover:bg-slate-200"
                                             >
                                                 <Eye size={14} />
                                             </button>
@@ -325,7 +452,7 @@ const DriverListTable = () => {
                                                 type="button"
                                                 title="Edit driver"
                                                 onClick={() => console.log("Edit driver:", driver.id)}
-                                                className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 transition-colors hover:bg-emerald-200"
+                                                className="flex h-8 w-8 items-center justify-center rounded-full  text-emerald-700 transition-colors hover:bg-emerald-200"
                                             >
                                                 <Pencil size={14} />
                                             </button>
@@ -334,12 +461,13 @@ const DriverListTable = () => {
                                             <button
                                                 type="button"
                                                 title="Delete driver"
-                                                onClick={() => console.log("Delete driver:", driver.id)}
-                                                className="flex h-8 w-8 items-center justify-center rounded-full bg-rose-100 text-rose-600 transition-colors hover:bg-rose-200"
+                                                onClick={() => setRejectDriver(driver)}
+                                                className="flex h-8 w-8 items-center justify-center rounded-full  text-rose-600 transition-colors hover:bg-rose-200"
                                             >
                                                 <Trash2 size={14} />
                                             </button>
 
+                                           
                                         </div>
                                     </td>
 
@@ -350,6 +478,9 @@ const DriverListTable = () => {
                     </table>
                 </div>
             </div>
+
+            {deletePopup && <DriverDeleteModal onClose={() => { setDeletePopup(false) }} />}
+            {rejectDriver && <RejectDriverModal driver={rejectDriver} onClose={() => setRejectDriver(null)} onConfirm={handleReject} />}
         </>
     )
 }

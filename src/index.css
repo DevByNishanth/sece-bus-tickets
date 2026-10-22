@@ -7,7 +7,7 @@ body{
 
 .custom-scroll {
   scrollbar-width: thin;
-  scrollbar-color: #0e7a88 #e8eef0;
+  scrollbar-color: #a0a0a0 #e8eef0;
 }
 
 .custom-scroll::-webkit-scrollbar {
@@ -20,12 +20,12 @@ body{
   background: #e8eef0;
 }
 
-.custom-scroll::-webkit-scrollbar-thumb {
+.::-webkit-scrollbar-thumb {
   border: 2px solid #e8eef0;
   border-radius: 9999px;
-  background: #0e7a88;
+  background: #3b3b3b;
 }
 
 .custom-scroll::-webkit-scrollbar-thumb:hover {
-  background: #035863;
+  background: #1bc5db;
 }

@@ -5,12 +5,15 @@ import SeatGenerationPage from "./pages/vendor/SeatGenerationPage.jsx";
 import { VendorDeckSelectionPage } from "./pages/vendor/VendorDeckSelectionPage.jsx";
 import VendorDeckRowsPage from "./pages/vendor/VendorDeckRowsPage.jsx";
 import VendorDeckArrangementPage from "./pages/vendor/VendorDeckArrangementPage.jsx";
+import DriverManagementDashboard from "./pages/vendor/DriverManagement/DriverManagementDashboard.jsx";
 
 function App() {
   return (
     <>
       <Routes>
         <Route path="/" element={<Home />} />
+
+        {/* --------------------------------------- vendor routes ------------------------ */}
         <Route path="/vendor" element={<Dashboard />} />
         <Route
           path="/vendor/seatGeneration/:busId"
@@ -28,6 +31,14 @@ function App() {
           path="/vendor/seat-layout/arrangements/:deckType"
           element={<VendorDeckArrangementPage />}
         />
+
+        {/*  vendor driver management routes  */}
+        <Route
+          path="/vendor/driver-management"
+          element={<DriverManagementDashboard />}
+        />
+
+
       </Routes>
     </>
   );

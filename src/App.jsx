@@ -8,6 +8,8 @@ import VendorDeckArrangementPage from "./pages/vendor/VendorDeckArrangementPage.
 import DriverManagementDashboard from "./pages/vendor/DriverManagement/DriverManagementDashboard.jsx";
 import BusManagementDashboard from "./pages/vendor/BusManagement/BusManagementDashboard.jsx";
 import RoomManagementDashboard from "./pages/vendor/RootManagement.jsx/RoomManagementDashboard.jsx";
+import BusDetailsPage from "./pages/vendor/BusManagement/BusDetailsPage.jsx";
+import BusReviewPage from "./pages/vendor/BusManagement/BusReviewPage.jsx";
 
 function App() {
   return (
@@ -45,6 +47,8 @@ function App() {
           path="/vendor/bus-management"
           element={<BusManagementDashboard />}
         />
+        <Route path="/vendor/buses/new" element={<BusDetailsPage />} />
+        <Route path="/vendor/buses/:busId/review" element={<BusReviewPage />} />
         {/*  vendor route management routes  */}
         <Route
           path="/vendor/root-management"

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ChevronRight, Circle, Minus, Plus } from "lucide-react";
 import VendorNavbar from "./VendorNavbar";
+import BusFlowStepper from "./BusManagement/BusFlowStepper";
 
 // -------------------- Helper Function --------------------
 
@@ -103,15 +104,15 @@ const VendorDeckRowsPage = () => {
   return (
     <div className="min-h-screen bg-[#f7f9fa]">
       <VendorNavbar />
+      <div className="mx-auto mt-4 w-[94%] max-w-6xl"><BusFlowStepper currentStep={3} /></div>
 
       {/* Breadcrumb Navigation */}
       <header className="m-auto mt-3 w-[94%]">
         <nav className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-500">
           <span>Fleet</span><ChevronRight size={12} className="text-gray-400" />
           <span>My Buses</span><ChevronRight size={12} className="text-gray-400" />
-          <span>Seat Layout Management</span><ChevronRight size={12} className="text-gray-400" />
-          <span>Seat Layout Management</span><ChevronRight size={12} className="text-gray-400" />
-          <span className="font-medium text-gray-900">Create Layout</span>
+          <span>Bus details</span><ChevronRight size={12} className="text-gray-400" />
+          <span className="font-medium text-gray-900">Rows &amp; arrangement</span>
         </nav>
       </header>
 

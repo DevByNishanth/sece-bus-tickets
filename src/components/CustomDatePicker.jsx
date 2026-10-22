@@ -14,8 +14,9 @@ const parseDateValue = (value) => {
   return new Date(year, month - 1, day);
 };
 
-const CustomDatePicker = ({ label, name, value, onChange, required = false }) => {
+const CustomDatePicker = ({ label, name, value, onChange, required = false, min }) => {
   const selectedDate = parseDateValue(value);
+  const earliestDate = parseDateValue(min);
   const [isOpen, setIsOpen] = useState(false);
   const [displayMonth, setDisplayMonth] = useState(() => {
     const initialDate = selectedDate || new Date();
@@ -58,6 +59,7 @@ const CustomDatePicker = ({ label, name, value, onChange, required = false }) =>
 
   const chooseDate = (day) => {
     const date = new Date(displayMonth.getFullYear(), displayMonth.getMonth(), day);
+    if (earliestDate && date < earliestDate) return;
     onChange?.({ target: { name, value: toDateValue(date) } });
     setIsOpen(false);
   };
@@ -129,7 +131,8 @@ const CustomDatePicker = ({ label, name, value, onChange, required = false }) =>
                 const isSelected = selectedDate?.getFullYear() === displayMonth.getFullYear() && selectedDate?.getMonth() === displayMonth.getMonth() && selectedDate?.getDate() === day;
                 const today = new Date();
                 const isToday = today.getFullYear() === displayMonth.getFullYear() && today.getMonth() === displayMonth.getMonth() && today.getDate() === day;
-                return <button key={day} type="button" onClick={() => chooseDate(day)} aria-pressed={isSelected} className={`m-0.5 h-8 rounded-lg text-xs transition ${isSelected ? "bg-[#0E7A88] font-semibold text-white" : isToday ? "bg-teal-50 font-semibold text-teal-800" : "text-slate-700 hover:bg-teal-50 hover:text-teal-800"}`}>{day}</button>;
+                const isBeforeMinimum = earliestDate && new Date(displayMonth.getFullYear(), displayMonth.getMonth(), day) < earliestDate;
+                return <button key={day} type="button" onClick={() => chooseDate(day)} disabled={isBeforeMinimum} aria-pressed={isSelected} className={`m-0.5 h-8 rounded-lg text-xs transition disabled:cursor-not-allowed disabled:text-slate-300 ${isSelected ? "bg-[#0E7A88] font-semibold text-white" : isToday ? "bg-teal-50 font-semibold text-teal-800" : "text-slate-700 hover:bg-teal-50 hover:text-teal-800"}`}>{day}</button>;
               })}
             </div>
           </div>

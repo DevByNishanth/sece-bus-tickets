@@ -1,8 +1,11 @@
 
 import React from 'react';
+import { useState } from 'react';
 import { MapPin, CalendarDays, ArrowUpRight } from 'lucide-react';
 import locationIcon from '../assets/location-icon.svg'
+import CustomDatePicker from './CustomDatePicker';
 const HeroSearchForm = () => {
+  const [travelDate, setTravelDate] = useState(new Date().toLocaleDateString('en-CA'));
   const handleSearch = (e) => {
     e.preventDefault();
 
@@ -78,21 +81,13 @@ const HeroSearchForm = () => {
         </div>
 
         <div className="min-w-0 flex-1">
-          <label
-            htmlFor="travelDate"
-            className="block text-[12px] font-medium uppercase tracking-wider text-slate-500"
-          >
-            Date
-          </label>
-
-          <input
-            id="travelDate"
+          <CustomDatePicker
+            label="Date"
             name="travelDate"
-            type="date"
+            value={travelDate}
             required
             min={new Date().toLocaleDateString('en-CA')}
-            defaultValue={new Date().toLocaleDateString('en-CA')}
-            className="mt-0.5 w-full bg-transparent text-lg font-medium text-slate-800 outline-none"
+            onChange={(event) => setTravelDate(event.target.value)}
           />
         </div>
       </div>

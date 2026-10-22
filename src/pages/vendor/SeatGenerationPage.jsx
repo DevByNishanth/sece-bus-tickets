@@ -12,6 +12,7 @@ import busSeatBuilderImg from "../../assets/bus-seat-layout-img.svg";
 import seatLayoutImg from "../../assets/seatLayoutImg.svg";
 import singleDeck from "../../assets/singleDeck.svg";
 import doubleDeck from "../../assets/doubleDeck.svg";
+import BusFlowStepper from "./BusManagement/BusFlowStepper";
 
 const SeatGenerationPage = () => {
     const navigate = useNavigate();
@@ -19,7 +20,13 @@ const SeatGenerationPage = () => {
     const [busTypeModal, setBusTypeModal] = useState(false);
 
     //   data
-    const [busType, setBusType] = useState("double");
+    const [busType, setBusType] = useState(() => {
+        try {
+            return JSON.parse(window.localStorage.getItem(`bus-details-draft-${busId}`) || "null")?.deckConfiguration || "double";
+        } catch {
+            return "double";
+        }
+    });
 
     const handleContinue = () => {
         navigate(`/vendor/seatGeneration/${busId}/deckSelection/${busType}`);
@@ -29,6 +36,7 @@ const SeatGenerationPage = () => {
         <>
             <div className="main-container min-h-screen bg-[#f7f9fa]">
                 <VendorNavbar />
+                <div className="mx-auto mt-4 w-[94%] max-w-6xl"><BusFlowStepper currentStep={2} /></div>
                 {/* header  */}
                 <header className="w-[94%] m-auto mt-3">
                     {/* Header Title */}
@@ -50,13 +58,11 @@ const SeatGenerationPage = () => {
 
                         <ChevronRight size={12} className="text-gray-400" />
 
-                        <a href="#" className="transition-colors hover:text-gray-800">
-                            Seat Layout Management
-                        </a>
+                        <span>Bus details</span>
 
                         <ChevronRight size={12} className="text-gray-400" />
 
-                        <span className="font-medium text-gray-900">Create Layout</span>
+                        <span className="font-medium text-gray-900">Deck setup</span>
                     </nav>
                 </header>
 

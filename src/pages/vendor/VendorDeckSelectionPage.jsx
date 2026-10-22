@@ -4,6 +4,7 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useState } from "react";
 import seat from "../../assets/seat.svg";
 import sleeper from "../../assets/sleeper.svg";
+import BusFlowStepper from "./BusManagement/BusFlowStepper";
 
 const deckTypeData = ["Lower Deck", "Upper Deck"];
 
@@ -134,6 +135,7 @@ export const VendorDeckSelectionPage = () => {
     <>
       <div className="main-container min-h-screen bg-[#f7f9fa]">
         <VendorNavbar />
+        <div className="mx-auto mt-4 w-[94%] max-w-6xl"><BusFlowStepper currentStep={2} /></div>
 
         {/* -------------------- Header -------------------- */}
 
@@ -153,13 +155,11 @@ export const VendorDeckSelectionPage = () => {
 
             <ChevronRight size={12} className="text-gray-400" />
 
-            <a href="#" className="transition-colors hover:text-gray-800">
-              Seat Layout Management
-            </a>
+            <span>Bus details</span>
 
             <ChevronRight size={12} className="text-gray-400" />
 
-            <span className="font-medium text-gray-900">Create Layout</span>
+            <span className="font-medium text-gray-900">Deck setup</span>
           </nav>
         </header>
 
@@ -168,7 +168,7 @@ export const VendorDeckSelectionPage = () => {
         <div className="main-container w-[94%] m-auto mt-4 pb-8">
           {/* Step */}
 
-          <h1 className="text-[#007B8A] font-semibold text-sm">STEP 1 OF 3</h1>
+          <h1 className="text-[#007B8A] font-semibold text-sm">STEP 2 OF 4</h1>
 
           {/* Heading */}
 

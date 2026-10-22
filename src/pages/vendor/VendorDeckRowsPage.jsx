@@ -68,7 +68,7 @@ const VendorDeckRowsPage = () => {
   };
 
   const makePageParams = () => {
-    return new URLSearchParams({
+    const params = new URLSearchParams({
       deckPosition: searchParams.get("deckPosition") || "Lower Deck",
       busId: searchParams.get("busId") || "bus",
       layoutType: searchParams.get("layoutType") || "Seats + Sleepers",
@@ -79,6 +79,11 @@ const VendorDeckRowsPage = () => {
       upperDriver: String(upperDriver),
       upperOpposite: String(upperOpposite),
     });
+    ["seatTypes", "sleeperTypes"].forEach((key) => {
+      const values = searchParams.getAll(key);
+      values.forEach((value) => params.append(key, value));
+    });
+    return params;
   };
 
   const handleBack = () => {

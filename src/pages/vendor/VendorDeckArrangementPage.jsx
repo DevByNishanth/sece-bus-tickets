@@ -115,14 +115,16 @@ const VendorDeckArrangementPage = () => {
     : "Seats + Sleepers";
   const seatTypes = ["Single Seater", "Double Seater", "Triple Seater"];
   const sleeperTypes = ["Single Sleeper", "Double Sleeper"];
-  const requestedSeatType = searchParams.get("seatType");
-  const requestedSleeperType = searchParams.get("sleeperType");
-  const seatType = seatTypes.includes(requestedSeatType)
-    ? requestedSeatType
-    : "Double Seater";
-  const sleeperType = sleeperTypes.includes(requestedSleeperType)
-    ? requestedSleeperType
-    : "Single Sleeper";
+  const getRequestedTypes = (paramName, legacyParamName, validTypes, fallback) => {
+    const storedTypes = searchParams.getAll(paramName);
+    const requestedTypes = storedTypes.length ? storedTypes : [searchParams.get(legacyParamName) || fallback];
+    const validRequestedTypes = requestedTypes.filter((type) => validTypes.includes(type));
+    return validRequestedTypes.length ? validRequestedTypes : [fallback];
+  };
+  const selectedSeatTypes = getRequestedTypes("seatTypes", "seatType", seatTypes, "Double Seater");
+  const selectedSleeperTypes = getRequestedTypes("sleeperTypes", "sleeperType", sleeperTypes, "Single Sleeper");
+  const seatType = selectedSeatTypes[0];
+  const sleeperType = selectedSleeperTypes[0];
   const busId = searchParams.get("busId") || "bus";
   const deckNames = deckType === "double" ? ["Lower Deck", "Upper Deck"] : ["Lower Deck"];
   const deckOrder = deckType === "double" ? ["lower", "upper"] : ["lower"];
@@ -189,9 +191,14 @@ const VendorDeckArrangementPage = () => {
                 layoutType,
                 row.componentType || row.component,
               ),
-              subtype: row.componentSubtype || (
-                (row.componentType || row.component) === "seats" ? seatType : sleeperType
-              ),
+              subtype: (() => {
+                const component = row.componentType || row.component;
+                const allowedTypes = component === "seats" ? selectedSeatTypes : selectedSleeperTypes;
+                const defaultType = component === "seats" ? seatType : sleeperType;
+                return allowedTypes.includes(row.componentSubtype)
+                  ? row.componentSubtype
+                  : defaultType;
+              })(),
               units: getValidCount(String(row.units), 1),
               selected: false,
             }));
@@ -226,10 +233,13 @@ const VendorDeckArrangementPage = () => {
 
   const activeRows = deckRows[activeDeck];
   const availableComponents = layoutType === "Seats Only"
-    ? ["seats"]
+    ? (selectedSeatTypes.length ? ["seats"] : [])
     : layoutType === "Sleepers Only"
-      ? ["sleepers"]
-      : ["seats", "sleepers"];
+      ? (selectedSleeperTypes.length ? ["sleepers"] : [])
+      : [
+        ...(selectedSeatTypes.length ? ["seats"] : []),
+        ...(selectedSleeperTypes.length ? ["sleepers"] : []),
+      ];
 
   const totalCapacity = deckNames.reduce((deckTotal, deckName) => {
     const deckKey = deckName === "Lower Deck" ? "lower" : "upper";
@@ -254,7 +264,10 @@ const VendorDeckArrangementPage = () => {
   };
 
   const openAddRowModal = (side) => {
-    const component = getDefaultComponent(layoutType);
+    const component = availableComponents.includes(getDefaultComponent(layoutType))
+      ? getDefaultComponent(layoutType)
+      : availableComponents[0];
+    if (!component) return;
     setModalSide(side);
     setModalRowCount(1);
     setModalComponentType(component);
@@ -270,19 +283,37 @@ const VendorDeckArrangementPage = () => {
   const handleAddRows = (rowSettings) => {
     const deckKey = rowSettings.deckType === "upper" ? "upper" : "lower";
     const sideKey = rowSettings.side === "driverSide" ? "driver" : "opposite";
-    const newRows = makeRows(
-      `${deckKey}-${sideKey}`,
+    const allowedTypes = rowSettings.componentType === "seats" ? selectedSeatTypes : selectedSleeperTypes;
+    const selectedTypes = (rowSettings.componentSubtypes || [rowSettings.componentSubtype])
+      .filter((type) => allowedTypes.includes(type));
+    if (!selectedTypes.length || !availableComponents.includes(rowSettings.componentType)) return;
+    const newRows = selectedTypes.flatMap((subtype, index) => makeRows(
+      `${deckKey}-${sideKey}-${index}`,
       rowSettings.rowCount,
       rowSettings.componentType,
-      rowSettings.componentSubtype,
+      subtype,
       rowSettings.units,
-    );
+    ));
+
+    const currentSideRows = deckRows[deckKey][sideKey];
+    let insertAt = currentSideRows.length;
+    if (rowSettings.insertionPosition === "start") {
+      insertAt = 0;
+    } else if (rowSettings.insertionPosition === "before") {
+      insertAt = Math.max(0, Math.min(currentSideRows.length, rowSettings.rowPosition - 1));
+    } else if (rowSettings.insertionPosition === "after") {
+      insertAt = Math.max(0, Math.min(currentSideRows.length, rowSettings.rowPosition));
+    }
 
     setDeckRows((currentRows) => ({
       ...currentRows,
       [deckKey]: {
         ...currentRows[deckKey],
-        [sideKey]: [...currentRows[deckKey][sideKey], ...newRows],
+        [sideKey]: [
+          ...currentRows[deckKey][sideKey].slice(0, insertAt),
+          ...newRows,
+          ...currentRows[deckKey][sideKey].slice(insertAt),
+        ],
       },
     }));
     setIsAddRowModalOpen(false);
@@ -488,7 +519,7 @@ const VendorDeckArrangementPage = () => {
           {rows.map((row, index) => (
             <div
               key={row.id}
-              className="grid grid-cols-[12px_25px_minmax(0,1fr)_82px_15px] items-center gap-3 rounded-md border border-[#e7edf2] bg-[#f9fbfd] px-1.5 py-1.5"
+              className="grid grid-cols-[12px_25px_minmax(0,1fr)_minmax(0,1fr)_82px_15px] items-center gap-2 rounded-md border border-[#e7edf2] bg-[#f9fbfd] px-1.5 py-1.5"
             >
               <input
                 type="checkbox"
@@ -539,6 +570,19 @@ const VendorDeckArrangementPage = () => {
                     <option key={component} value={component}>
                       {component === "seats" ? "Seats" : "Sleepers"}
                     </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="min-w-0">
+                <span className="mb-0.5 block text-[12px] text-slate-400">UNIT TYPE</span>
+                <select
+                  value={row.subtype || (row.component === "seats" ? seatType : sleeperType)}
+                  onChange={(event) => updateRow(side, row.id, "subtype", event.target.value)}
+                  className="h-8 w-full min-w-0 rounded border border-[#dfe7ed] bg-white px-1 text-[12px] text-slate-700 outline-none focus:border-[#087f8c]"
+                >
+                  {(row.component === "seats" ? selectedSeatTypes : selectedSleeperTypes).map((type) => (
+                    <option key={type} value={type}>{type}</option>
                   ))}
                 </select>
               </label>
@@ -943,8 +987,11 @@ const VendorDeckArrangementPage = () => {
         deckType={activeDeck}
         side={modalSide === "driver" ? "driverSide" : "oppositeSide"}
         rowCount={modalRowCount}
+        existingRowCount={deckRows[activeDeck][modalSide].length}
         componentType={modalComponentType}
         componentSubtype={modalComponentSubtype}
+        availableSeatTypes={selectedSeatTypes}
+        availableSleeperTypes={selectedSleeperTypes}
         units={modalUnits}
         availableComponents={availableComponents}
         onRowCountChange={setModalRowCount}

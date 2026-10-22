@@ -26,13 +26,23 @@ export const VendorDeckSelectionPage = () => {
   );
 
   // Default seat configuration
-  const [selectedSeatType, setSelectedSeatType] = useState(
-    searchParams.get("seatType") || "Double Seater",
+  const seatTypeOptions = ["Single Seater", "Double Seater", "Triple Seater"];
+  const sleeperTypeOptions = ["Single Sleeper", "Double Sleeper"];
+  const getSelectedTypes = (paramName, legacyParamName, options, fallback) => {
+    const savedTypes = searchParams.getAll(paramName);
+    const legacyType = searchParams.get(legacyParamName);
+    const selectedTypes = (savedTypes.length ? savedTypes : [legacyType || fallback])
+      .filter((type) => options.includes(type));
+    return selectedTypes.length ? selectedTypes : [fallback];
+  };
+
+  const [selectedSeatTypes, setSelectedSeatTypes] = useState(() =>
+    getSelectedTypes("seatTypes", "seatType", seatTypeOptions, "Double Seater"),
   );
 
   // Sleeper configuration
-  const [selectedSleeperType, setSelectedSleeperType] = useState(
-    searchParams.get("sleeperType") || "Single Sleeper",
+  const [selectedSleeperTypes, setSelectedSleeperTypes] = useState(() =>
+    getSelectedTypes("sleeperTypes", "sleeperType", sleeperTypeOptions, "Single Sleeper"),
   );
 
   const handleContinue = () => {
@@ -40,9 +50,11 @@ export const VendorDeckSelectionPage = () => {
       deckPosition: selectedDeckPostion,
       busId: busId || searchParams.get("busId") || "bus",
       layoutType: selectedLayoutType,
-      seatType: selectedSeatType,
-      sleeperType: selectedSleeperType,
+      seatType: selectedSeatTypes[0],
+      sleeperType: selectedSleeperTypes[0],
     });
+    selectedSeatTypes.forEach((type) => params.append("seatTypes", type));
+    selectedSleeperTypes.forEach((type) => params.append("sleeperTypes", type));
     ["lowerDriver", "lowerOpposite", "upperDriver", "upperOpposite"].forEach(
       (key) => {
         const value = searchParams.get(key);
@@ -50,6 +62,16 @@ export const VendorDeckSelectionPage = () => {
       },
     );
     navigate(`/vendor/seat-layout/rows/${deckType}?${params.toString()}`);
+  };
+
+  const toggleType = (type, selectedTypes, setSelectedTypes) => {
+    setSelectedTypes((current) => {
+      if (current.includes(type)) {
+        // Keep at least one valid configuration selected.
+        return current.length > 1 ? current.filter((value) => value !== type) : current;
+      }
+      return [...current, type];
+    });
   };
 
   // -------------------- Data --------------------
@@ -307,13 +329,13 @@ export const VendorDeckSelectionPage = () => {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-4">
                   {seatConfigurationOptions.map((item) => {
-                    const isSelected = selectedSeatType === item.title;
+                    const isSelected = selectedSeatTypes.includes(item.title);
 
                     return (
                       <button
                         key={item.title}
                         type="button"
-                        onClick={() => setSelectedSeatType(item.title)}
+                        onClick={() => toggleType(item.title, selectedSeatTypes, setSelectedSeatTypes)}
                         className={`relative min-h-[90px] text-left border rounded-lg p-5 transition-all ${
                           isSelected
                             ? "border-[#007B8A] ring-1 ring-[#007B8A] bg-white"
@@ -403,13 +425,13 @@ export const VendorDeckSelectionPage = () => {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
                   {sleeperConfigurationOptions.map((item) => {
-                    const isSelected = selectedSleeperType === item.title;
+                    const isSelected = selectedSleeperTypes.includes(item.title);
 
                     return (
                       <button
                         key={item.title}
                         type="button"
-                        onClick={() => setSelectedSleeperType(item.title)}
+                        onClick={() => toggleType(item.title, selectedSleeperTypes, setSelectedSleeperTypes)}
                         className={`relative min-h-[90px] text-left border rounded-lg p-5 transition-all ${
                           isSelected
                             ? "border-[#007B8A] ring-1 ring-[#007B8A] bg-white"

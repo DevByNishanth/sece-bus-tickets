@@ -11,12 +11,16 @@ import { Bus } from 'lucide-react';
  * @param {Object} props.bus - Bus information object
  * @param {string} [props.className=''] - Optional additional CSS classes
  */
-export default function BusTimingContainer({ bus, className = '' }) {
+export default function BusTimingContainer({
+  bus,
+  className = '',
+  showDivider = false
+}) {
   if (!bus) return null;
 
   return (
     <div
-      className={`flex-1 flex items-center justify-between sm:justify-start gap-3 sm:gap-10 ${className}`}
+      className={`flex-1 flex items-center justify-between sm:justify-start gap-3 sm:gap-6 ${className}`}
     >
       {/* Departure */}
       <div>
@@ -69,7 +73,7 @@ export default function BusTimingContainer({ bus, className = '' }) {
       </div>
 
       {/* Arrival */}
-      <div className="text-right sm:text-left border-r border-slate-100 pr-5">
+      <div className={`text-right sm:text-left ${showDivider ? 'border-r border-slate-100 pr-5' : ''}`}>
         <div className="text-1xl sm:text-2xl font-semibold text-slate-900 tracking-tight leading-none">
           {bus.arrivalTime}
         </div>

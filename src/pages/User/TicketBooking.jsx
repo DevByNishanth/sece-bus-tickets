@@ -8,6 +8,7 @@ import BusDetails from '../../components/User/BusDetails';
 import BookingContinueProcess from '../../components/User/BookingContinueProcess';
 import PassengerDetails from '../../components/User/PassengerDetails';
 import ReviewBookingModal from '../../components/User/ReviewBookingModal';
+// import Bglayout from '../../assets/page-bg.png'
 
 export default function TicketBooking() {
   const location = useLocation();
@@ -162,12 +163,20 @@ export default function TicketBooking() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] flex flex-col font-sans">
+    <div className="min-h-screen bg-[#F8FAFC] flex flex-col font-sans relative overflow-x-hidden mb-20">
+      {/* Background Ambience / Layout Image (rendered below all content) */}
+      {/* <img
+        src={Bglayout}
+        alt=""
+        aria-hidden="true"
+        className="fixed inset-0 w-full h-full object-cover pointer-events-none z-0"
+      /> */}
+
       {/* 1. Header / Navbar */}
       <BookingNavbar />
 
       {/* 2. Main Booking Body */}
-      <main className="flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6 pb-36">
+      <main className="relative z-10 flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6 pb-36">
         {/* Route Banner & 4-Step Indicator */}
         <BookingProcess
           from={searchParams.from || 'Chennai'}

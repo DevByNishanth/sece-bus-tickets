@@ -118,7 +118,7 @@ export default function BookingContinueProcess({
               disabled={!isEnabled}
               className={`px-5 sm:px-7 py-2.5 rounded-xl font-bold text-xs sm:text-sm text-white shadow-md flex items-center gap-2 transition-all ${
                 isEnabled
-                  ? 'bg-[#0F766E] hover:bg-[#0D6962] active:scale-[0.99] cursor-pointer'
+                  ? 'btn-grd hover:bg-[#0D6962] active:scale-[0.99] cursor-pointer'
                   : 'bg-slate-300 opacity-60 cursor-not-allowed shadow-none'
               }`}
             >

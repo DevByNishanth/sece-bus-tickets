@@ -6,6 +6,7 @@ import BusRoute from './BusRoute';
 import exteriorImg from '../../assets/bus_exterior.jpg';
 import berthsImg from '../../assets/bus_berths.jpg';
 import aisleImg from '../../assets/bus_aisle.jpg';
+import BusTimingContainer from './BusTimingContainer';
 
 export default function BusDetails({ bus }) {
   const [activeTab, setActiveTab] = useState('highlights');
@@ -53,7 +54,7 @@ export default function BusDetails({ bus }) {
 
       {/* Operator Title & Bus Type */}
       <div>
-        <h3 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+        <h3 className="text-xl sm:text-2xl font-semibold text-slate-900 tracking-tight">
           {operatorName}
         </h3>
         <p className="text-xs sm:text-sm text-slate-500 font-medium mt-0.5">
@@ -62,42 +63,10 @@ export default function BusDetails({ bus }) {
       </div>
 
       {/* Timing and Route Information */}
-      <div className="bg-slate-50/70 border border-slate-200/70 rounded-2xl p-4 flex items-center justify-between gap-2">
-        {/* Departure */}
-        <div className="text-left">
-          <div className="text-xl sm:text-2xl font-extrabold text-slate-900">
-            {departureTime}
-          </div>
-          <div className="text-xs text-slate-500 font-medium mt-0.5">
-            {departurePoint}
-          </div>
-        </div>
-
-        {/* Journey Duration Graphic */}
-        <div className="flex-1 flex flex-col items-center px-2">
-          <div className="text-[11px] sm:text-xs font-bold text-slate-700">
-            {duration}
-          </div>
-          <div className="w-full flex items-center gap-1 my-1">
-            <div className="w-2 h-2 rounded-full border-2 border-teal-600 bg-white" />
-            <div className="flex-1 h-0.5 bg-gradient-to-r from-teal-500 via-teal-400 to-teal-600" />
-            <ArrowRight className="w-3.5 h-3.5 text-teal-600 -ml-1" />
-          </div>
-          <div className="text-[10px] text-slate-400 font-medium">
-            Non-stop route
-          </div>
-        </div>
-
-        {/* Arrival */}
-        <div className="text-right">
-          <div className="text-xl sm:text-2xl font-extrabold text-slate-900">
-            {arrivalTime}
-          </div>
-          <div className="text-xs text-slate-500 font-medium mt-0.5">
-            {droppingPoint}
-          </div>
-        </div>
-      </div>
+      <BusTimingContainer
+        bus={bus}
+        className="border border-slate-200/80 bg-[#F8FAFC] p-3 rounded-2xl"
+      />
 
       {/* BUS PHOTOS & INTERIOR */}
       <div>

@@ -43,13 +43,13 @@ export default function BookingProcess({
           </button>
 
           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+            <h1 className="text-xl sm:text-3xl font-semibold text-slate-900 tracking-tight">
               {from}
             </h1>
             <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-full text-xs font-semibold bg-teal-100 text-[#0F766E]">
               to
             </span>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+            <h1 className="text-xl sm:text-3xl font-semibold text-slate-900 tracking-tight">
               {to}
             </h1>
           </div>

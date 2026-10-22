@@ -46,9 +46,9 @@ export const SleeperBerth = ({
       textClass = 'text-white font-bold';
       break;
     case 'female':
-      borderBgClass = 'border-2 border-[#F43F5E] bg-rose-50/20 hover:bg-rose-50/50 hover:shadow-xs';
-      pillowClass = 'border border-[#F43F5E] bg-rose-100/40';
-      textClass = 'text-[#F43F5E] font-semibold';
+      borderBgClass = 'border-2 border-[#FF7FCB] bg-rose-50/20 hover:bg-rose-50/50 hover:shadow-xs';
+      pillowClass = 'border border-[#FF7FCB] bg-rose-100/40';
+      textClass = 'text-[#FF7FCB] font-semibold';
       break;
     case 'male':
       borderBgClass = 'border-2 border-[#6366F1] bg-indigo-50/20 hover:bg-indigo-50/50 hover:shadow-xs';
@@ -121,9 +121,9 @@ export const SeatUnit = ({
       textClass = 'text-white font-bold';
       break;
     case 'female':
-      borderBgClass = 'border-2 border-[#F43F5E] bg-rose-50/20 hover:bg-rose-50/50 hover:shadow-xs';
-      pillowClass = 'border border-[#F43F5E] bg-rose-100/40';
-      textClass = 'text-[#F43F5E] font-semibold';
+      borderBgClass = 'border-2 border-[#FF7FCB] bg-rose-50/20 hover:bg-rose-50/50 hover:shadow-xs';
+      pillowClass = 'border border-[#FF7FCB] bg-rose-100/40';
+      textClass = 'text-[#FF7FCB] font-semibold';
       break;
     case 'male':
       borderBgClass = 'border-2 border-[#6366F1] bg-indigo-50/20 hover:bg-indigo-50/50 hover:shadow-xs';

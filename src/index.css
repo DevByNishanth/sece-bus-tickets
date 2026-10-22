@@ -12,17 +12,33 @@ body {
   background: linear-gradient(90deg, #0F766E 0%, #0D9488 50%, #14B8A6 100%);
 }
 
-/* Custom sleek scrollbar for sticky filter container */
-.custom-scrollbar::-webkit-scrollbar {
-  width: 5px;
+/* Hide scrollbar globally for the entire application while preserving scrolling */
+html,
+body,
+* {
+  scrollbar-width: none !important; /* Firefox */
+  -ms-overflow-style: none !important; /* IE and Edge */
 }
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar,
+*::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
 }
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 9999px;
+
+/* Utility classes for selective use */
+.no-scrollbar::-webkit-scrollbar,
+.scrollbar-none::-webkit-scrollbar {
+  display: none !important;
+  width: 0px !important;
+  background: transparent !important;
 }
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
-}
+.no-scrollbar,
+.scrollbar-none {
+  -ms-overflow-style: none !important; /* IE and Edge */
+  scrollbar-width: none !important; /* Firefox */
+}
+

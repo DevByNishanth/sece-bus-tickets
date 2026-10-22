@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Star,
@@ -115,6 +115,7 @@ export default function BusListingCard({
   onOpenAmenities
 }) {
   const [isAmenitiesOpen, setIsAmenitiesOpen] = useState(false);
+  const amenitiesContainerRef = useRef(null);
   const navigate = useNavigate();
 
   const handleViewSeatsClick = () => {
@@ -205,7 +206,7 @@ export default function BusListingCard({
       {/* Middle Row: Journey Timeline & Pricing */}
       <div className="mt-6 pt-4 flex flex-col md:flex-row md:items-center border-t border-slate-100 justify-between gap-5 sm:gap-6">
         {/* Bus Journey Timing Container Component */}
-        <BusTimingContainer bus={bus} />
+        <BusTimingContainer bus={bus} showDivider />
 
         {/* Price Block & View Seats CTA */}
         <div className="flex md:flex-col items-baseline md:items-end justify-between md:justify-center shrink-0 border-t md:border-t-0 pt-3 md:pt-0 border-slate-100">
@@ -246,18 +247,30 @@ export default function BusListingCard({
         ))}
 
         {extraAmenities.length > 0 && (
-          <button
-            type="button"
-            onClick={() => {
-              setIsAmenitiesOpen(true);
-              if (onOpenAmenities) onOpenAmenities(bus);
-            }}
-            className="text-sm font-semibold text-[#0A6A69] hover:text-[#085453] px-2.5 py-1 rounded-md transition-all cursor-pointer ml-1 hover:shadow-2xs active:scale-95 flex items-center gap-1"
-            title={`View ${extraAmenities.length} extra amenities`}
-            aria-label={`View ${extraAmenities.length} extra amenities in popup`}
-          >
-            <span>+{extraAmenities.length} more amenities</span>
-          </button>
+          <div ref={amenitiesContainerRef} className="relative inline-block">
+            <button
+              type="button"
+              onClick={() => {
+                setIsAmenitiesOpen(!isAmenitiesOpen);
+                if (onOpenAmenities) onOpenAmenities(bus);
+              }}
+              className="text-xs font-semibold text-[#0A6A69] hover:text-[#085453] bg-[#EBF7F5] hover:bg-[#DDF2EF] border border-[#BCE4DE] px-2.5 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1 active:scale-95"
+              title={`View ${extraAmenities.length} extra amenities`}
+              aria-label={`View ${extraAmenities.length} extra amenities in popup`}
+            >
+              <span>+{extraAmenities.length} more</span>
+            </button>
+
+            {/* Extra Amenities Popover anchored right near this button */}
+            <AmenitiesModal
+              isOpen={isAmenitiesOpen}
+              onClose={() => setIsAmenitiesOpen(false)}
+              bus={bus}
+              extraAmenities={extraAmenities}
+              allAmenities={allAmenities}
+              containerRef={amenitiesContainerRef}
+            />
+          </div>
         )}
       </div>  
 
@@ -304,14 +317,6 @@ export default function BusListingCard({
         
       </div>
 
-      {/* Extra Amenities Popup Modal */}
-      <AmenitiesModal
-        isOpen={isAmenitiesOpen}
-        onClose={() => setIsAmenitiesOpen(false)}
-        bus={bus}
-        extraAmenities={extraAmenities}
-        allAmenities={allAmenities}
-      />
     </div>
   );
 }

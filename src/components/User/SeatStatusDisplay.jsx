@@ -3,13 +3,13 @@ import { Check } from 'lucide-react';
 
 export default function SeatStatusDisplay() {
   return (
-    <div className="w-full bg-white/80 backdrop-blur-md border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="w-full bg-white/80 backdrop-blur-md border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-[#EDFAF5]/70 via-[#F7FCF9] to-white">
       {/* Left: Step Tag & Title */}
       <div>
         <span className="inline-block text-[11px] font-bold tracking-wider uppercase text-[#0F766E] bg-teal-50 border border-teal-200/60 px-2.5 py-0.5 rounded-full mb-1">
           STEP 1 OF 4
         </span>
-        <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+        <h2 className="text-xl sm:text-2xl font-semibold text-slate-900 tracking-tight">
           Select your seats
         </h2>
       </div>
@@ -26,10 +26,10 @@ export default function SeatStatusDisplay() {
 
         {/* Female only */}
         <div className="flex items-center gap-2">
-          <div className="w-5 h-7 rounded border-2 border-[#F43F5E] bg-rose-50/30 flex flex-col items-center pt-0.5 shadow-2xs">
-            <div className="w-3 h-1 rounded-xs border border-[#F43F5E] bg-rose-100/40" />
+          <div className="w-5 h-7 rounded border-2 border-[#FF7FCB] bg-rose-50/30 flex flex-col items-center pt-0.5 shadow-2xs">
+            <div className="w-3 h-1 rounded-xs border border-[#FF7FCB] bg-rose-100/40" />
           </div>
-          <span className="text-[#F43F5E] font-semibold">Female only</span>
+          <span className="text-[#FF7FCB] font-semibold">Female only</span>
         </div>
 
         {/* Male only */}

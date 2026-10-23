@@ -10,7 +10,6 @@ import VendorTripOperation from "./VendorTripOperation"
 const Dashboard = () => {
     return (
         <>
-        {console.log("working on vendor dashboard")}
             <div className="main-container py-3 bg-[#F7F9FA] min-h-screen ">
                 <VendorNavbar />
                 <div className="content-container w-[94%] mt-3 m-auto">

@@ -15,6 +15,7 @@ import VendorNavbar from "./VendorNavbar";
 import AddRowModal from "./AddRowModal";
 import seatImage from "../../assets/seat.svg";
 import sleeperImage from "../../assets/sleeper.svg";
+import BusFlowStepper from "./BusManagement/BusFlowStepper";
 
 // -------------------- Helper Functions --------------------
 
@@ -466,6 +467,20 @@ const VendorDeckArrangementPage = () => {
     setMessage("Layout payload downloaded as a text file. It has not been sent to a backend.");
   };
 
+  const handleReviewAndSave = () => {
+    const payload = createSavePayload();
+    if (payload.totalPassengerCapacity === 0) {
+      setMessage("Add at least one seat or sleeper before continuing to review.");
+      return;
+    }
+    try {
+      window.localStorage.setItem(`bus-layout-draft-${busId}`, JSON.stringify(payload));
+      navigate(`/vendor/buses/${busId}/review`);
+    } catch {
+      setMessage("Could not save the seat layout in this browser. Try removing large uploaded files from the bus details.");
+    }
+  };
+
   const changeZoom = (change) => {
     setZoom((currentZoom) => Math.min(125, Math.max(75, currentZoom + change)));
   };
@@ -675,26 +690,27 @@ const VendorDeckArrangementPage = () => {
   return (
     <div className="min-h-screen bg-[#f7f9fa]">
       <VendorNavbar />
+      <div className="mx-auto mt-4 w-[94%]"><BusFlowStepper currentStep={3} /></div>
 
       {/* Breadcrumbs and Page Heading */}
-      <header className="mx-auto w-[94%] pt-3">
-        <nav className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
+      <header className="mx-auto w-[94%] ">
+        {/* <nav className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
           <span>Fleet</span><ChevronRight size={12} />
           <span>My Buses</span><ChevronRight size={12} />
-          <span>Seat Layout Management</span><ChevronRight size={12} />
-          <span>Seat Layout Management</span><ChevronRight size={12} />
-          <span className="font-medium text-gray-900">Create Layout</span>
-        </nav>
+          <span>Bus details</span><ChevronRight size={12} />
+          <span className="font-medium text-gray-900">Rows &amp; arrangement</span>
+        </nav> */}
         <div className="mt-5 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div>
-            <p className="text-xs font-semibold tracking-wide text-[#0E7A88]">STEP 3 OF 3</p>
+            {/* <p className="text-xs font-semibold tracking-wide text-[#0E7A88]">STEP 3 OF 4</p> */}
             <h1 className="mt-1 text-xl font-semibold text-slate-800">Modify Your Seating Arrangements</h1>
-            <p className="mt-1 text-xs text-slate-500">Choose the passenger components available on each deck. You’ll arrange individual rows next.</p>
+            {/* <p className="mt-1 text-xs text-slate-500">Choose the passenger components available on each deck. You’ll arrange individual rows next.</p> */}
           </div>
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={handleSaveDraft} className="inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 hover:bg-slate-50"><FileText size={14} /> Save Draft</button>
             <button type="button" onClick={handlePreview} className="inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 hover:bg-slate-50"><Eye size={14} /> Preview</button>
             <button type="button" onClick={handleSaveLayout} className="inline-flex h-9 items-center gap-1.5 rounded-md bg-[#0E7A88] px-3 text-xs font-semibold text-white hover:bg-[#0d6f7b]"><Save size={14} /> Save Layout</button>
+            <button type="button" onClick={handleReviewAndSave} className="inline-flex h-9 items-center gap-1.5 rounded-md bg-emerald-600 px-3 text-xs font-semibold text-white hover:bg-emerald-700">Review &amp; Save <ChevronRight size={14} /></button>
           </div>
         </div>
       </header>

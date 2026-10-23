@@ -11,6 +11,7 @@ import {
     ChevronRight,
 } from "lucide-react";
 
+
 const VendorRecentBookingsTable = () => {
 
     // Booking data
@@ -678,7 +679,7 @@ const VendorRecentBookingsTable = () => {
                 </div>
 
             </div>
-
+            
         </div>
     );
 };

@@ -10,6 +10,7 @@ import BusManagementDashboard from "./pages/vendor/BusManagement/BusManagementDa
 import RoomManagementDashboard from "./pages/vendor/RootManagement.jsx/RoomManagementDashboard.jsx";
 import BusDetailsPage from "./pages/vendor/BusManagement/BusDetailsPage.jsx";
 import BusReviewPage from "./pages/vendor/BusManagement/BusReviewPage.jsx";
+import AddRoutepage from "./pages/vendor/RootManagement.jsx/AddRoutepage.jsx";
 
 function App() {
   return (
@@ -53,6 +54,10 @@ function App() {
         <Route
           path="/vendor/root-management"
           element={<RoomManagementDashboard />}
+        />
+        <Route
+          path="/vendor/root-management/add-route"
+          element={<AddRoutepage />}
         />
 
       </Routes>

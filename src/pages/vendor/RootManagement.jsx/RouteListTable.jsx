@@ -174,24 +174,24 @@ const RouteListTable = () => {
                     return (
                         <div
                             key={route.id}
-                            className="overflow-hidden rounded-xl border border-slate-200"
+                            className="overflow-hidden rounded-xl border border-slate-200 "
                         >
 
                             {/* Accordion heading */}
                             <button
                                 type="button"
                                 onClick={() => toggleRoute(route.id)}
-                                className="flex min-h-[42px] w-full items-center justify-between gap-3 bg-slate-50 px-3 py-2 text-left transition hover:bg-slate-100"
+                                className="flex min-h-[42px] w-full items-center justify-between gap-3 bg-slate-100 px-3 py-2 text-left transition hover:bg-slate-100"
                             >
 
                                 <div className="flex min-w-0 items-center gap-2">
 
                                     {/* Expand icon */}
-                                    <div className="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500">
+                                    <div className="flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500">
                                         {isOpen ? (
-                                            <ChevronDown size={12} />
+                                            <ChevronDown size={14} />
                                         ) : (
-                                            <ChevronRight size={12} />
+                                            <ChevronRight size={14} />
                                         )}
                                     </div>
 

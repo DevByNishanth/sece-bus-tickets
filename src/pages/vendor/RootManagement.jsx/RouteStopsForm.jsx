@@ -1,31 +1,335 @@
 
-import React, { useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
+import L from 'leaflet'
+import { MapContainer, Marker, Polyline, Popup, TileLayer, useMap } from 'react-leaflet'
+import 'leaflet/dist/leaflet.css'
 import {
     ArrowUp,
     ArrowDown,
     X,
     Plus,
-    Map,
-    MapPin,
-    Bus
+    Map as MapIcon
 } from 'lucide-react'
+
+const geocodeCache = new Map()
+let lastGeocodeRequestAt = 0
+
+const wait = (milliseconds, signal) => new Promise((resolve, reject) => {
+    const timeout = setTimeout(resolve, milliseconds)
+    signal.addEventListener('abort', () => {
+        clearTimeout(timeout)
+        reject(new DOMException('Aborted', 'AbortError'))
+    }, { once: true })
+})
+
+const resolveStop = async (stop, signal) => {
+    if (stop.locationVerified && Number.isFinite(Number(stop.latitude)) && Number.isFinite(Number(stop.longitude))) {
+        return { lat: Number(stop.latitude), lng: Number(stop.longitude), label: stop.location || '' }
+    }
+    const name = (stop.name || '').trim()
+    const location = (stop.location || '').trim()
+    const query = [name, location].filter((part, index, parts) => part && parts.indexOf(part) === index).join(', ')
+    if (!query) throw new Error(`Stop ${stop.id} needs a name or location.`)
+
+    const cacheKey = query.toLocaleLowerCase()
+    if (geocodeCache.has(cacheKey)) return geocodeCache.get(cacheKey)
+
+    const remainingDelay = Math.max(0, 1100 - (Date.now() - lastGeocodeRequestAt))
+    if (remainingDelay) await wait(remainingDelay, signal)
+    if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
+
+    const params = new URLSearchParams({ q: `${query}, Tamil Nadu, India`, format: 'jsonv2', limit: '3', addressdetails: '1' })
+    lastGeocodeRequestAt = Date.now()
+    const response = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
+        signal: AbortSignal.any([signal, AbortSignal.timeout(12000)]),
+        headers: { Accept: 'application/json' }
+    })
+    if (!response.ok) throw new Error('Location lookup is temporarily unavailable.')
+    const results = await response.json()
+    if (!Array.isArray(results) || results.length === 0) {
+        throw new Error(`Could not find a map location for “${name || location}”. Check the stop name or location.`)
+    }
+
+    // Nominatim returns its most relevant result first. Use that actual result, never a guessed coordinate.
+    const result = results[0]
+    const coordinates = { lat: Number(result.lat), lng: Number(result.lon), label: result.display_name }
+    if (!Number.isFinite(coordinates.lat) || !Number.isFinite(coordinates.lng)) {
+        throw new Error(`The map location for “${name || location}” was invalid.`)
+    }
+    geocodeCache.set(cacheKey, coordinates)
+    return coordinates
+}
+
+const createStopIcon = (index, type) => {
+    const color = type === 'origin' ? '#0F766E' : type === 'destination' ? '#115E59' : '#0D9488'
+    return L.divIcon({
+        className: '',
+        html: `<div style="width:26px;height:26px;border-radius:50%;background:${color};border:2px solid white;box-shadow:0 1px 5px #0005;color:white;font:600 12px/22px sans-serif;text-align:center">${index + 1}</div>`,
+        iconSize: [26, 26],
+        iconAnchor: [13, 13]
+    })
+}
+
+const RouteBounds = ({ coordinates, geometry }) => {
+    const map = useMap()
+    useEffect(() => {
+        map.invalidateSize()
+        const points = geometry?.length ? geometry : coordinates.map(({ lat, lng }) => [lat, lng])
+        if (points.length) map.fitBounds(L.latLngBounds(points), { padding: [28, 28], maxZoom: 13 })
+    }, [map, coordinates, geometry])
+    return null
+}
+
+const StopNameAutocomplete = ({ stop, onEdit, onSelect }) => {
+    const [search, setSearch] = useState({ status: 'idle', results: [], message: '' })
+    const [activeIndex, setActiveIndex] = useState(-1)
+    const [isOpen, setIsOpen] = useState(false)
+    const containerRef = React.useRef(null)
+    const inputRef = React.useRef(null)
+    const dropdownRef = React.useRef(null)
+    const [dropdownStyle, setDropdownStyle] = useState(null)
+    const apiKey = import.meta.env.VITE_LOCATIONIQ
+
+    useEffect(() => {
+        const query = (stop.name || '').trim()
+        if (stop.type !== 'stop' || query.length < 3 || stop.locationVerified) {
+            setSearch({ status: 'idle', results: [], message: '' })
+            return undefined
+        }
+
+        const controller = new AbortController()
+        setSearch({ status: apiKey ? 'loading' : 'error', results: [], message: apiKey ? '' : 'Location search is not configured.' })
+        const timer = setTimeout(async () => {
+            if (!apiKey) return
+            try {
+                const params = new URLSearchParams({ key: apiKey, q: query, countrycodes: 'in', limit: '6', dedupe: '1', normalizecity: '1' })
+                const response = await fetch(`https://api.locationiq.com/v1/autocomplete?${params}`, { signal: controller.signal })
+                if (!response.ok) {
+                    const message = response.status === 429
+                        ? 'Location search limit reached. Please wait and try again.'
+                        : 'Location search is temporarily unavailable.'
+                    throw new Error(message)
+                }
+                const data = await response.json()
+                if (!Array.isArray(data)) throw new Error('Location search returned an invalid response.')
+                if (!controller.signal.aborted) {
+                    setSearch({ status: data.length ? 'results' : 'empty', results: data, message: '' })
+                    setActiveIndex(-1)
+                }
+            } catch (error) {
+                if (controller.signal.aborted || error.name === 'AbortError') return
+                setSearch({ status: 'error', results: [], message: error.message || 'Location search failed.' })
+            }
+        }, 400)
+
+        return () => {
+            clearTimeout(timer)
+            controller.abort()
+        }
+    }, [stop.id, stop.name, stop.type, stop.locationVerified, apiKey])
+
+    useEffect(() => {
+        if (!isOpen) return undefined
+        const closeWhenOutside = event => {
+            if (!containerRef.current?.contains(event.target) && !dropdownRef.current?.contains(event.target)) setIsOpen(false)
+        }
+        document.addEventListener('mousedown', closeWhenOutside)
+        return () => document.removeEventListener('mousedown', closeWhenOutside)
+    }, [isOpen])
+
+    const showDropdown = isOpen && stop.type === 'stop' && (stop.name || '').trim().length >= 3 && search.status !== 'idle'
+    useEffect(() => {
+        if (!showDropdown) return undefined
+        const placeDropdown = () => {
+            const input = inputRef.current
+            if (!input) return
+            const rect = input.getBoundingClientRect()
+            const width = Math.min(rect.width, window.innerWidth - 16)
+            const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8))
+            const dropdownHeight = 196
+            const roomBelow = window.innerHeight - rect.bottom
+            const top = roomBelow < dropdownHeight && rect.top > roomBelow
+                ? Math.max(8, rect.top - dropdownHeight)
+                : Math.min(window.innerHeight - dropdownHeight - 8, rect.bottom + 4)
+            setDropdownStyle({ position: 'fixed', left, top, width, zIndex: 2000 })
+        }
+        placeDropdown()
+        window.addEventListener('resize', placeDropdown)
+        window.addEventListener('scroll', placeDropdown, true)
+        return () => {
+            window.removeEventListener('resize', placeDropdown)
+            window.removeEventListener('scroll', placeDropdown, true)
+        }
+    }, [showDropdown, search.status, search.results.length])
+
+    const choose = result => {
+        const latitude = Number(result.lat)
+        const longitude = Number(result.lon)
+        if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+            setSearch({ status: 'error', results: [], message: 'This result did not include valid coordinates.' })
+            return
+        }
+        onSelect({
+            name: result.display_place || result.name || result.display_name,
+            location: result.display_address || result.display_name,
+            latitude,
+            longitude,
+            placeId: result.place_id == null ? undefined : String(result.place_id),
+            locationVerified: true
+        })
+        setIsOpen(false)
+        setSearch({ status: 'idle', results: [], message: '' })
+    }
+
+    const handleKeyDown = event => {
+        if (event.key === 'Escape') {
+            setIsOpen(false)
+            setActiveIndex(-1)
+        } else if (event.key === 'ArrowDown' && search.results.length) {
+            event.preventDefault()
+            setIsOpen(true)
+            setActiveIndex(current => (current + 1) % search.results.length)
+        } else if (event.key === 'ArrowUp' && search.results.length) {
+            event.preventDefault()
+            setIsOpen(true)
+            setActiveIndex(current => (current - 1 + search.results.length) % search.results.length)
+        } else if (event.key === 'Enter' && isOpen && activeIndex >= 0) {
+            event.preventDefault()
+            choose(search.results[activeIndex])
+        }
+    }
+
+    return (
+        <div ref={containerRef} className="relative w-full min-w-0">
+            <input
+                ref={inputRef}
+                type="text"
+                value={stop.name || ''}
+                readOnly={stop.type !== 'stop'}
+                onFocus={() => setIsOpen(true)}
+                onKeyDown={handleKeyDown}
+                onChange={event => {
+                    onEdit(event.target.value)
+                    setIsOpen(true)
+                }}
+                placeholder="Enter stop name"
+                role="combobox"
+                aria-autocomplete="list"
+                aria-expanded={showDropdown}
+                aria-controls={`stop-suggestions-${stop.id}`}
+                className={`w-full text-[10px] font-semibold text-[#172033] outline-none bg-transparent placeholder:font-normal placeholder:text-[#A0AEC0] ${stop.type !== 'stop' ? 'cursor-default' : ''}`}
+            />
+            {showDropdown && dropdownStyle && createPortal(
+                <div ref={dropdownRef} id={`stop-suggestions-${stop.id}`} role="listbox" style={dropdownStyle} className="max-h-48 overflow-y-auto rounded-lg border border-[#D8E4E6] bg-white py-1 shadow-xl">
+                    {search.status === 'loading' && <p role="status" className="px-3 py-2 text-[9px] text-[#8191AA]">Searching locations…</p>}
+                    {search.status === 'empty' && <p className="px-3 py-2 text-[9px] text-[#8191AA]">No locations found in India.</p>}
+                    {search.status === 'error' && <p role="alert" className="px-3 py-2 text-[9px] text-red-700">{search.message}</p>}
+                    {search.results.map((result, index) => (
+                        <button
+                            type="button"
+                            role="option"
+                            aria-selected={activeIndex === index}
+                            key={`${result.place_id || result.osm_id || result.display_name}-${index}`}
+                            onMouseEnter={() => setActiveIndex(index)}
+                            onMouseDown={event => {
+                                event.preventDefault()
+                                event.stopPropagation()
+                            }}
+                            onDragStart={event => event.preventDefault()}
+                            onClick={() => choose(result)}
+                            className={`block w-full px-3 py-2 text-left hover:bg-[#F0FDFA] ${activeIndex === index ? 'bg-[#F0FDFA]' : ''}`}
+                        >
+                            <span className="block truncate text-[10px] font-semibold text-[#172033]">{result.display_place || result.name || result.display_name}</span>
+                            <span className="mt-0.5 block truncate text-[9px] text-[#8191AA]">{result.display_address || result.display_name}</span>
+                        </button>
+                    ))}
+                </div>,
+                document.body
+            )}
+        </div>
+    )
+}
 
 const RouteStopsForm = ({ stops, setStops, onAddStop }) => {
     const [draggedId, setDraggedId] = useState(null)
+    const [mapState, setMapState] = useState({ status: 'idle', message: '', coordinates: [], geometry: [] })
+    const stopsKey = useMemo(() => JSON.stringify(stops.map(stop => {
+        if (stop.type === 'stop') {
+            const verified = stop.locationVerified === true && Number.isFinite(Number(stop.latitude)) && Number.isFinite(Number(stop.longitude))
+            return verified
+                ? { id: stop.id, type: stop.type, locationVerified: true, latitude: Number(stop.latitude), longitude: Number(stop.longitude), placeId: stop.placeId }
+                : { id: stop.id, type: stop.type, locationVerified: false }
+        }
+        return { id: stop.id, name: stop.name, location: stop.location, type: stop.type }
+    })), [stops])
+
+    useEffect(() => {
+        const controller = new AbortController()
+        const currentStops = stops.map(stop => ({ ...stop }))
+        setMapState({ status: 'loading', message: 'Resolving stop locations…', coordinates: [], geometry: [] })
+
+        const unconfirmedStop = currentStops.find(stop => stop.type === 'stop' && !(stop.locationVerified === true && Number.isFinite(Number(stop.latitude)) && Number.isFinite(Number(stop.longitude))))
+        if (unconfirmedStop) {
+            setMapState({ status: 'error', message: `Select a location suggestion for “${unconfirmedStop.name || 'this stop'}” before calculating the route.`, coordinates: [], geometry: [] })
+            return () => controller.abort()
+        }
+
+        const timer = setTimeout(async () => {
+            try {
+                const coordinates = []
+                for (const stop of currentStops) {
+                    coordinates.push({ stop, ...await resolveStop(stop, controller.signal) })
+                }
+
+                if (controller.signal.aborted) return
+                if (coordinates.length < 2) {
+                    setMapState({ status: 'insufficient', message: 'Add at least two valid stops to calculate a road route.', coordinates, geometry: [] })
+                    return
+                }
+
+                setMapState({ status: 'loading', message: 'Calculating road route…', coordinates, geometry: [] })
+                const coordinateList = coordinates.map(({ lat, lng }) => `${lng},${lat}`).join(';')
+                const response = await fetch(`https://router.project-osrm.org/route/v1/driving/${coordinateList}?overview=full&geometries=geojson&steps=false`, {
+                    signal: AbortSignal.any([controller.signal, AbortSignal.timeout(20000)])
+                })
+                if (!response.ok) throw new Error('The road routing service is temporarily unavailable.')
+                const data = await response.json()
+                const route = data?.routes?.[0]?.geometry?.coordinates
+                if (data.code !== 'Ok' || !Array.isArray(route) || route.length < 2 || route.some(point => !Array.isArray(point) || point.length < 2 || !Number.isFinite(point[0]) || !Number.isFinite(point[1]))) {
+                    throw new Error('A road route could not be calculated for these stops.')
+                }
+                if (!controller.signal.aborted) setMapState({ status: 'ready', message: '', coordinates, geometry: route.map(([lng, lat]) => [lat, lng]) })
+            } catch (error) {
+                if (controller.signal.aborted || error.name === 'AbortError') return
+                const message = error.name === 'TimeoutError'
+                    ? 'The map service took too long to respond. Please try again.'
+                    : error.message || 'Could not load this route. Please check the stop locations and try again.'
+                setMapState({ status: 'error', message, coordinates: [], geometry: [] })
+            }
+        }, 700)
+
+        return () => {
+            clearTimeout(timer)
+            controller.abort()
+        }
+    }, [stops, stopsKey])
 
     const handleStopChange = (id, value) => {
-        setStops(stops.map(stop =>
-            stop.id === id
-                ? { ...stop, name: value }
-                : stop
-        ))
+        setStops(current => current.map(stop => stop.id === id
+            ? { ...stop, name: value, location: '', latitude: undefined, longitude: undefined, placeId: undefined, locationVerified: false }
+            : stop))
+    }
+
+    const handleLocationSelect = (id, selection) => {
+        setStops(current => current.map(stop => stop.id === id ? { ...stop, ...selection } : stop))
     }
 
     const addStop = () => {
-        setStops([
-            ...stops,
+        setStops(current => [
+            ...current,
             {
-                id: Date.now(),
+                id: `stop-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
                 name: '',
                 type: 'stop',
                 location: ''
@@ -124,31 +428,27 @@ const RouteStopsForm = ({ stops, setStops, onAddStop }) => {
                                             : `STOP ${index + 1}`}
                                 </p>
 
-                                <input
-                                    type="text"
-                                    value={stop.name}
-                                    readOnly={stop.type !== 'stop'}
-                                    onChange={(e) =>
-                                        handleStopChange(stop.id, e.target.value)
-                                    }
-                                    placeholder="Enter stop name"
-                                    className={`w-full text-[10px] font-semibold text-[#172033] outline-none bg-transparent placeholder:font-normal placeholder:text-[#A0AEC0] ${stop.type !== 'stop' ? 'cursor-default' : ''}`}
+                                <StopNameAutocomplete
+                                    stop={stop}
+                                    onEdit={value => handleStopChange(stop.id, value)}
+                                    onSelect={selection => handleLocationSelect(stop.id, selection)}
                                 />
 
                                 <input
                                     type="text"
-                                    value={stop.location}
+                                    value={stop.location || ''}
                                     readOnly={stop.type !== 'stop'}
-                                    onChange={(e) =>
-                                        setStops(stops.map(item =>
-                                            item.id === stop.id
-                                                ? { ...item, location: e.target.value }
-                                                : item
-                                        ))
-                                    }
+                                    onChange={event => setStops(current => current.map(item => item.id === stop.id
+                                        ? { ...item, location: event.target.value, latitude: undefined, longitude: undefined, placeId: undefined, locationVerified: false }
+                                        : item))}
                                     placeholder="Enter area or location"
                                     className={`w-full text-[9px] text-[#8191AA] outline-none bg-transparent placeholder:text-[#A0AEC0] ${stop.type !== 'stop' ? 'cursor-default' : ''}`}
                                 />
+                                {stop.type === 'stop' && (
+                                    <p className={`text-[8px] mt-0.5 ${stop.locationVerified ? 'text-[#0F766E]' : 'text-[#B45309]'}`}>
+                                        {stop.locationVerified ? 'Selected location confirmed' : 'Choose a search suggestion to confirm this stop'}
+                                    </p>
+                                )}
 
                             </div>
 
@@ -199,7 +499,7 @@ const RouteStopsForm = ({ stops, setStops, onAddStop }) => {
                     className="w-full mt-3 border border-dashed border-[#5EEAD4] rounded-lg py-2 text-[10px] font-medium text-[#0F766E] hover:bg-[#F0FDFA] flex items-center justify-center gap-1"
                 >
                     <Plus size={12} />
-                    Add another stop
+                    Add stop
                 </button>
 
             </div>
@@ -209,77 +509,47 @@ const RouteStopsForm = ({ stops, setStops, onAddStop }) => {
 
                 <div className="flex items-center justify-between px-3 py-3">
                     <h2 className="flex items-center gap-2 text-[10px] font-semibold text-[#172033]">
-                        <Map size={12} />
+                        <MapIcon size={12} />
                         Route overview
                     </h2>
 
-                    <span className="text-[8px] text-[#D97706] bg-[#FFFBEB] border border-[#FDE68A] rounded-sm px-1 py-0.5">
-                        Map preview unavailable
+                    <span className={`text-[8px] rounded-sm px-1 py-0.5 ${mapState.status === 'error' ? 'text-red-700 bg-red-50 border border-red-200' : mapState.status === 'ready' ? 'text-[#0F766E] bg-[#F0FDFA] border border-[#99F6E4]' : 'text-[#D97706] bg-[#FFFBEB] border border-[#FDE68A]'}`}>
+                        {mapState.status === 'ready' ? 'Road route' : mapState.status === 'loading' ? 'Loading map…' : 'Route status'}
                     </span>
                 </div>
 
-                {/* Map Placeholder */}
-                <div className="relative min-h-[260px] h-full bg-[#F0F7F6] border-t-[6px] border-[#DDECE9] overflow-hidden">
-
-                    {/* Map Grid */}
-                    <div className="absolute inset-0 opacity-40">
-                        <div className="absolute left-[20%] top-0 h-full w-3 bg-white/70 -rotate-6" />
-                        <div className="absolute left-[60%] top-0 h-full w-5 bg-white/70 rotate-12" />
-                        <div className="absolute left-0 top-[35%] w-full h-3 bg-white/70 -rotate-3" />
-                        <div className="absolute left-0 top-[70%] w-full h-4 bg-white/70 rotate-2" />
-                    </div>
-
-                    {/* Stop Markers */}
-                    {stops.map((stop, index) => {
-
-                        const positions = [
-                            { top: '12%', left: '20%' },
-                            { top: '35%', left: '82%' },
-                            { top: '60%', left: '25%' },
-                            { top: '78%', left: '70%' },
-                            { top: '45%', left: '50%' }
-                        ]
-
-                        const position = positions[index % positions.length]
-
-                        return (
-                            <div
-                                key={stop.id}
-                                style={position}
-                                className="absolute z-10"
-                                title={stop.name}
-                            >
-                                <div className={`w-5 h-5 rounded-full flex items-center justify-center text-white shadow-sm ${index === 1
-                                    ? 'bg-orange-500'
-                                    : 'bg-[#065F46]'
-                                    }`}>
-                                    {index === 0
-                                        ? <MapPin size={11} />
-                                        : <span className="text-[9px] font-semibold">{index + 1}</span>
-                                    }
-                                </div>
-                            </div>
-                        )
-                    })}
-
-                    {/* Verification Message */}
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[65%] max-w-[220px] bg-white rounded-xl shadow-lg p-4 text-center z-20">
-
-                        <div className="w-8 h-8 mx-auto rounded-lg bg-[#F0FDFA] flex items-center justify-center text-[#0F766E]">
-                            <Bus size={15} />
+                <div className="relative min-h-[260px] h-[320px] w-full bg-[#F0F7F6] border-t-[6px] border-[#DDECE9] overflow-hidden">
+                    {mapState.coordinates.length > 0 ? (
+                        <MapContainer
+                            center={[mapState.coordinates[0].lat, mapState.coordinates[0].lng]}
+                            zoom={7}
+                            scrollWheelZoom
+                            className="h-full w-full"
+                        >
+                            <TileLayer
+                                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                            />
+                            {mapState.geometry.length > 0 && <Polyline positions={mapState.geometry} pathOptions={{ color: '#0F766E', weight: 5, opacity: 0.85 }} />}
+                            {mapState.coordinates.map(({ stop, lat, lng, label }, index) => (
+                                <Marker key={`${stop.id}-${index}`} position={[lat, lng]} icon={createStopIcon(index, stop.type)}>
+                                    <Popup>
+                                        <strong>{index + 1}. {stop.name || stop.location}</strong><br />
+                                        {stop.type === 'origin' ? 'Origin' : stop.type === 'destination' ? 'Destination' : 'Stop'}
+                                        {(stop.location || label) && <><br />{stop.location || label}</>}
+                                    </Popup>
+                                </Marker>
+                            ))}
+                            <RouteBounds coordinates={mapState.coordinates} geometry={mapState.geometry} />
+                        </MapContainer>
+                    ) : (
+                        <div className="h-full w-full" />
+                    )}
+                    {mapState.status !== 'ready' && (
+                        <div role={mapState.status === 'error' ? 'alert' : 'status'} aria-live="polite" className="absolute bottom-3 left-1/2 z-[1000] -translate-x-1/2 rounded-lg bg-white/95 px-3 py-2 text-center text-[10px] text-[#52616B] shadow-md max-w-[90%]">
+                            {mapState.message || 'Enter stop names and locations to preview the route.'}
                         </div>
-
-                        <h3 className="text-[10px] font-semibold text-[#172033] mt-2">
-                            Verified map data isn't connected
-                        </h3>
-
-                        <p className="text-[9px] leading-4 text-[#8191AA] mt-1">
-                            Your ordered stop labels remain fully functional.
-                            A mapped road will appear when verified routing data is available.
-                        </p>
-
-                    </div>
-
+                    )}
                 </div>
 
             </div>

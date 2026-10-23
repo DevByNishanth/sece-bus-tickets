@@ -5,7 +5,7 @@ import CustomDatePicker from '../../components/Custom/CustomDatePicker';
 export default function FromToSearch({
   initialFrom = 'Chennai (Koyambedu)',
   initialTo = 'Coimbatore (Gandhipuram)',
-  initialDate = '2026-11-24',
+  initialDate = '2026-10-26',
   onSearch,
   onBack,
   showBack = true
@@ -29,10 +29,10 @@ export default function FromToSearch({
     if (initialDate) setDate(initialDate);
   }, [initialDate]);
 
-  // Format date to "24 May 2025"
+  // Format date to "26 Oct 2026"
   const formatDisplayDate = (dateVal) => {
-    if (!dateVal) return '24 May 2025';
-    if (typeof dateVal === 'string' && dateVal.includes('May')) {
+    if (!dateVal) return '26 Oct 2026';
+    if (typeof dateVal === 'string' && (dateVal.includes('Oct') || dateVal.includes('Nov') || dateVal.includes('May'))) {
       return dateVal;
     }
     try {
@@ -56,7 +56,7 @@ export default function FromToSearch({
 
   const handleSearch = () => {
     if (onSearch) {
-      onSearch({ from, to, date: formatDisplayDate(date) });
+      onSearch({ from, to, date: formatDisplayDate(date), rawDate: date });
     }
   };
 

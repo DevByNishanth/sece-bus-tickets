@@ -214,7 +214,7 @@ export default function BusListingCard({
             STARTING FROM
           </span>
           <div className="text-1xl sm:text-2xl font-bold text-slate-900">
-            ₹{bus.price}
+            ₹{bus.price}{bus.maxPrice && bus.maxPrice > bus.price ? ` - ₹${bus.maxPrice}` : ''}
           </div>
           <span className="text-[11px] font-medium text-slate-400">
             per seat
@@ -277,16 +277,30 @@ export default function BusListingCard({
       {/* Bottom Row: Policies, Seats left, and View Seats CTA */}
       <div className="mt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         {/* Left Information Items */}
-        <div className="flex items-center flex-wrap gap-x-3 gap-y-1.5 text-xs">
-          {bus.seatsLeft && (
-            <span className="text-rose-600 font-semibold flex items-center gap-1 border border-[#FECDD3] bg-[#FEF2F2] px-2 py-1 rounded-2xl">
-              <span className="w-1.5 h-1.5 rounded-full bg-rose-500 inline-block" />
+        <div className="flex items-center flex-wrap gap-x-2.5 gap-y-1.5 text-xs">
+          {/* Total seats left */}
+          {bus.seatsLeft !== undefined && (
+            <span className="text-rose-700 font-bold flex items-center gap-1.5 border border-[#FECDD3] bg-[#FEF2F2] px-2.5 py-1 rounded-xl shadow-2xs">
+              <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse inline-block" />
               {bus.seatsLeft} seats left
             </span>
           )}
 
+          {/* Lower & Upper Deck seat counts from API */}
+          {bus.lowerDeckSeatsCount && (
+            <span className="text-sky-800 font-semibold bg-sky-50 border border-sky-200/80 px-2 py-0.5 rounded-lg text-[11px]">
+              Lower: <strong className="font-bold text-sky-950">{bus.lowerDeckSeatsCount.available}/{bus.lowerDeckSeatsCount.total}</strong>
+            </span>
+          )}
+
+          {bus.upperDeckSeatsCount && (
+            <span className="text-indigo-800 font-semibold bg-indigo-50 border border-indigo-200/80 px-2 py-0.5 rounded-lg text-[11px]">
+              Upper: <strong className="font-bold text-indigo-950">{bus.upperDeckSeatsCount.available}/{bus.upperDeckSeatsCount.total}</strong>
+            </span>
+          )}
+
           {bus.singleSeatsLeft ? (
-            <span className="text-slate-500">
+            <span className="text-emerald-700 font-medium bg-emerald-50 border border-emerald-200/70 px-2 py-0.5 rounded-lg text-[11px]">
               • {bus.singleSeatsLeft} Single Sleeper left
             </span>
           ) : bus.cancellationNote ? (

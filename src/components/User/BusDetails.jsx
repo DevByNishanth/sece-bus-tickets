@@ -60,6 +60,21 @@ export default function BusDetails({ bus }) {
         <p className="text-xs sm:text-sm text-slate-500 font-medium mt-0.5">
           {busType}
         </p>
+
+        {/* Deck & Berth Statistics from API */}
+        <div className="flex items-center gap-2 mt-2 flex-wrap text-xs">
+          <span className="inline-flex items-center gap-1 font-semibold text-sky-800 bg-sky-50 border border-sky-200/80 px-2.5 py-1 rounded-lg">
+            🛏️ Lower Deck: {bus?.lowerDeckSeatsCount?.available ?? 18}/18 available
+          </span>
+          <span className="inline-flex items-center gap-1 font-semibold text-indigo-800 bg-indigo-50 border border-indigo-200/80 px-2.5 py-1 rounded-lg">
+            🛏️ Upper Deck: {bus?.upperDeckSeatsCount?.available ?? 18}/18 available
+          </span>
+          {bus?.stops?.length > 0 && (
+            <span className="inline-flex items-center gap-1 font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200/80 px-2.5 py-1 rounded-lg">
+              📍 {bus.stops.length} Route Stops
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Timing and Route Information */}
@@ -184,7 +199,7 @@ export default function BusDetails({ bus }) {
             </div>
           )}
 
-          {activeTab === 'route' && <BusRoute />}
+          {activeTab === 'route' && <BusRoute bus={bus} />}
         </div>
       </div>
 

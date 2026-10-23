@@ -28,75 +28,95 @@ export default function PassengerDetails({
     });
   };
 
-  const boardingPoints = [
+  const defaultBoardingPoints = [
     {
       id: 'bp-1',
-      time: '15:00',
-      name: 'Koyambedu Omni Bus Stand',
+      time: '22:00',
+      name: 'Koyambedu (CMBT)',
       badge: 'MAIN ORIGIN',
-      address: 'Platform 4, Gate B (Near Chennai Metro Gate 2)',
-      reportingTime: '14:45'
+      address: 'Omni Bus Stand Platform Gate 2, Chennai',
+      reportingTime: '21:45'
     },
     {
       id: 'bp-2',
-      time: '15:45',
-      name: 'Guindy Kathipara Flyover',
-      badge: 'Km 14',
-      address: 'Kathipara Junction near Metro Pillar 24, Chennai',
-      reportingTime: '15:35'
+      time: '22:20',
+      name: 'Ashok Nagar Metro',
+      badge: 'Stop #2',
+      address: 'Near Metro Pillar 88, Chennai',
+      reportingTime: '22:10'
     },
     {
       id: 'bp-3',
-      time: '16:15',
-      name: 'Tambaram',
-      badge: 'Km 29',
-      address: 'Opp. Hindu Mission Hospital / Main Highway Bay',
-      reportingTime: '16:05'
+      time: '22:50',
+      name: 'Tambaram MEPZ',
+      badge: 'Stop #3',
+      address: 'MEPZ Bus Stop, Chennai',
+      reportingTime: '22:40'
     },
     {
       id: 'bp-4',
-      time: '17:00',
-      name: 'Paranur Toll Plaza',
-      badge: 'Km 52',
-      address: 'Chengalpattu Fastag Express Corridor',
-      reportingTime: '16:50'
+      time: '23:10',
+      name: 'Perungalathur',
+      badge: 'Stop #4',
+      address: 'Near Kamaraj High School, Chennai',
+      reportingTime: '23:00'
     }
   ];
 
-  const droppingPoints = [
+  const defaultDroppingPoints = [
     {
       id: 'dp-1',
-      time: '01:45',
-      name: 'Coimbatore KMCH / Hopes',
-      badge: 'Km 498',
-      address: 'Civil Aerodrome / Hopes College Stop',
-      reportingTime: '01:40'
+      time: '05:10',
+      name: 'Erode Chithode Bypass',
+      badge: 'Stop #7',
+      address: 'Chithode Junction Highway, Erode',
+      reportingTime: '05:05'
     },
     {
       id: 'dp-2',
-      time: '02:15',
-      name: 'Gandhipuram Central Bus Stand',
-      badge: 'TERMINUS',
-      address: 'Omni Bus Stand Terminus (Platform 2)',
-      reportingTime: '02:10'
+      time: '06:05',
+      name: 'KMCH Hospital Avinashi Road',
+      badge: 'Stop #8',
+      address: 'Opposite KMCH Gate, Coimbatore',
+      reportingTime: '06:00'
     },
     {
       id: 'dp-3',
-      time: '02:30',
-      name: 'Omni Bus Terminus (Sathy Road)',
-      badge: 'Km 506',
-      address: 'Near Sathy Road Junction',
-      reportingTime: '02:25'
-    },
-    {
-      id: 'dp-4',
-      time: '02:45',
-      name: 'Ukkadam Bus Stand',
-      badge: 'Km 510',
-      address: 'South Bypass Road Terminal',
-      reportingTime: '02:40'
+      time: '06:30',
+      name: 'Gandhipuram Omni Bus Stand',
+      badge: 'TERMINUS',
+      address: 'Near Central RTO Terminal, Coimbatore',
+      reportingTime: '06:20'
     }
   ];
+
+  const apiBoarding = (bus?.stops || []).filter(
+    (s) => s.stopType === 'boarding' || s.stopType === 'both'
+  );
+  const boardingPoints = apiBoarding.length > 0
+    ? apiBoarding.map((s, idx) => ({
+        id: s._id || `bp-${idx}`,
+        time: s.estimatedArrivalTime || '22:00',
+        name: s.name,
+        badge: idx === 0 ? 'MAIN ORIGIN' : (s.isHalt ? 'HALT' : `Stop #${s.sequenceNumber || idx + 1}`),
+        address: s.landmark ? `${s.landmark}${s.city ? `, ${s.city}` : ''}` : s.city || 'Chennai',
+        reportingTime: s.estimatedArrivalTime || '21:45'
+      }))
+    : defaultBoardingPoints;
+
+  const apiDropping = (bus?.stops || []).filter(
+    (s) => s.stopType === 'dropping' || s.stopType === 'both'
+  );
+  const droppingPoints = apiDropping.length > 0
+    ? apiDropping.map((s, idx) => ({
+        id: s._id || `dp-${idx}`,
+        time: s.estimatedArrivalTime || '06:30',
+        name: s.name,
+        badge: idx === apiDropping.length - 1 ? 'TERMINUS' : (s.isHalt ? 'HALT' : `Stop #${s.sequenceNumber || idx + 1}`),
+        address: s.landmark ? `${s.landmark}${s.city ? `, ${s.city}` : ''}` : s.city || 'Coimbatore',
+        reportingTime: s.estimatedArrivalTime || '06:20'
+      }))
+    : defaultDroppingPoints;
 
   return (
     <div className="space-y-5">

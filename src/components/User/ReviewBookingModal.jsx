@@ -13,9 +13,16 @@ export default function ReviewBookingModal({
 }) {
   if (!isOpen) return null;
 
+  const allBerths = [
+    ...(bus?.seatLayout?.lowerDeck?.rows?.flatMap((r) => r.berths) || []),
+    ...(bus?.seatLayout?.upperDeck?.rows?.flatMap((r) => r.berths) || [])
+  ];
+  const seatFareSum = selectedSeats.reduce((acc, seatId) => {
+    const found = allBerths.find((b) => b.seatNumber === seatId || b.berthId === seatId);
+    return acc + (found?.fare || bus?.price || 1100);
+  }, 0);
   const seatsCount = selectedSeats.length || 1;
-  const seatFare = bus?.price || 849;
-  const baseTicketFare = seatFare * seatsCount;
+  const baseTicketFare = seatFareSum > 0 ? seatFareSum : (bus?.price || 1100) * seatsCount;
   const insurance = 15.00;
   const gst = Number((baseTicketFare * 0.05).toFixed(2)); // 5% GST
   const discount = 150.00;

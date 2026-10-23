@@ -1,35 +1,70 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-// import Navbar from '../../components/Navbar';
 import FromToSearch from './FromToSearch';
 import BusFilters from '../../components/User/BusFilters';
 import BusListingCards from '../../components/User/AvailableBusListing';
-import { initialBuses } from '../../data/mockBuses';
+import { fetchBusesSearch } from '../../services/busService';
 import { SlidersHorizontal, X, Search, ArrowRight, ArrowLeft } from 'lucide-react';
 import TripOffers from '../../components/User/TripOffers';
 
 export default function BusListing() {
-  const [buses] = useState(initialBuses);
+  const [buses, setBuses] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [isLiveBackend, setIsLiveBackend] = useState(false);
   const [sortBy, setSortBy] = useState('recommended');
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
 
   const [searchParams, setSearchParams] = useState({
-    from: 'Chennai (Koyambedu)',
-    to: 'Coimbatore (Gandhipuram)',
-    date: '2026-11-24'
+    from: 'Chennai',
+    to: 'Coimbatore',
+    date: '2026-10-26'
   });
+
+  // Fetch buses whenever search parameters change
+  useEffect(() => {
+    let isSubscribed = true;
+
+    async function loadBuses() {
+      setLoading(true);
+      try {
+        const result = await fetchBusesSearch({
+          source: searchParams.from,
+          destination: searchParams.to,
+          journeyDate: searchParams.date
+        });
+
+        if (isSubscribed && result && result.buses) {
+          setBuses(result.buses);
+          setIsLiveBackend(Boolean(result.isLive));
+        }
+      } catch (err) {
+        console.error('[BusListing] Fetch error:', err);
+      } finally {
+        if (isSubscribed) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadBuses();
+
+    return () => {
+      isSubscribed = false;
+    };
+  }, [searchParams.from, searchParams.to, searchParams.date]);
 
   const handleSearch = (searchData) => {
     setSearchParams((prev) => ({
       ...prev,
-      ...searchData
+      ...searchData,
+      date: searchData.rawDate || searchData.date || prev.date
     }));
     setIsMobileSearchOpen(false);
   };
 
   const formatJourneyDate = (dateVal) => {
-    if (!dateVal) return '24 Nov 2026';
+    if (!dateVal) return '26 Oct 2026';
     if (
       typeof dateVal === 'string' &&
       (dateVal.includes('Nov') ||
@@ -53,14 +88,25 @@ export default function BusListing() {
     }
   };
 
-  // Default filters matching the screenshot
+  // Derive unique boarding and dropping points from currently loaded buses
+  const availableBoardingPoints = useMemo(() => {
+    const pts = buses.flatMap((b) => b.boardingPoints || []);
+    return Array.from(new Set(pts));
+  }, [buses]);
+
+  const availableDroppingPoints = useMemo(() => {
+    const pts = buses.flatMap((b) => b.droppingPoints || []);
+    return Array.from(new Set(pts));
+  }, [buses]);
+
+  // Default filters
   const defaultFilters = {
-    departurePeriods: ['night'], // 'early', 'morning', 'afternoon', 'night'
-    busTypes: ['AC Sleeper'],
+    departurePeriods: [], // all periods allowed by default so buses are immediately visible
+    busTypes: [],
     ratings: [],
-    amenities: ['Live GPS Tracking'],
-    boardingPoints: ['Koyambedu (Omni Bus Stand)'],
-    droppingPoints: ['Gandhipuram (Central Stand)']
+    amenities: [],
+    boardingPoints: [],
+    droppingPoints: []
   };
 
   const [filters, setFilters] = useState(defaultFilters);
@@ -76,7 +122,7 @@ export default function BusListing() {
     });
   };
 
-  // Filter and sort the dynamic buses
+  // Filter and sort dynamic buses
   const filteredBuses = useMemo(() => {
     return buses
       .filter((bus) => {
@@ -175,9 +221,6 @@ export default function BusListing() {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex flex-col font-sans">
-      {/* Top Navigation */}
-      {/* <Navbar /> */}
-
       {/* Main Container */}
       <main className="flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-5 space-y-4 sm:space-y-5">
         {/* Mobile: Sticky Compact Header with Search Icon in Right Corner (< md) */}
@@ -211,7 +254,7 @@ export default function BusListing() {
         <div className="hidden md:block -mb-2">
           <button
             type="button"
-            onClick={() => console.log('Back to search clicked')}
+            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
             className="inline-flex items-center gap-2.5 text-[14px] font-medium text-[#5B6B79] hover:text-[#0F172A] transition-colors cursor-pointer group"
           >
             <ArrowLeft
@@ -272,6 +315,8 @@ export default function BusListing() {
                 filters={filters}
                 onFilterChange={setFilters}
                 onReset={handleResetFilters}
+                availableBoardingPoints={availableBoardingPoints}
+                availableDroppingPoints={availableDroppingPoints}
               />
             </div>
           </aside>
@@ -284,6 +329,8 @@ export default function BusListing() {
               onSortChange={setSortBy}
               onViewSeats={handleViewSeats}
               onResetFilters={handleResetFilters}
+              loading={loading}
+              isLive={isLiveBackend}
             />
           </section>
         </div>
@@ -292,15 +339,12 @@ export default function BusListing() {
       {/* Mobile Search Popup Modal */}
       {isMobileSearchOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-          {/* Backdrop */}
           <div
             className="fixed inset-0"
             onClick={() => setIsMobileSearchOpen(false)}
           />
 
-          {/* Modal Container */}
           <div className="relative w-full max-w-lg bg-white rounded-3xl p-5 shadow-2xl z-10 border border-slate-100 max-h-[92vh] overflow-y-auto custom-scrollbar animate-in zoom-in-95 duration-200">
-            {/* Header */}
             <div className="flex items-center justify-between pb-3.5 mb-4 border-b border-slate-100">
               <div>
                 <h3 className="font-bold text-slate-900 text-base">Search Buses</h3>
@@ -318,7 +362,6 @@ export default function BusListing() {
               </button>
             </div>
 
-            {/* FromToSearch Form inside Popup */}
             <FromToSearch
               initialFrom={searchParams.from}
               initialTo={searchParams.to}
@@ -334,13 +377,11 @@ export default function BusListing() {
       {/* Mobile Filters Slide-Over Drawer */}
       {isMobileFilterOpen && (
         <div className="fixed inset-0 z-50 flex md:hidden">
-          {/* Backdrop */}
           <div
             className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs transition-opacity"
             onClick={() => setIsMobileFilterOpen(false)}
           />
 
-          {/* Drawer content */}
           <div className="relative ml-auto w-full max-w-xs sm:max-w-sm bg-white h-full shadow-2xl flex flex-col z-10 overflow-y-auto">
             <div className="p-4 border-b border-slate-200 flex items-center justify-between sticky top-0 bg-white z-20">
               <h3 className="font-bold text-slate-900 text-base">Filters</h3>
@@ -360,6 +401,8 @@ export default function BusListing() {
                 onReset={handleResetFilters}
                 isMobile={true}
                 onCloseMobile={() => setIsMobileFilterOpen(false)}
+                availableBoardingPoints={availableBoardingPoints}
+                availableDroppingPoints={availableDroppingPoints}
               />
             </div>
 

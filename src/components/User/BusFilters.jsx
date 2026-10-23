@@ -16,7 +16,9 @@ export default function BusFilters({
   onFilterChange,
   onReset,
   isMobile = false,
-  onCloseMobile
+  onCloseMobile,
+  availableBoardingPoints = [],
+  availableDroppingPoints = []
 }) {
   const [boardingSearch, setBoardingSearch] = useState('');
   const [droppingSearch, setDroppingSearch] = useState('');
@@ -93,17 +95,29 @@ export default function BusFilters({
     'Blanket & Pillow'
   ];
 
-  const allBoardingPoints = [
+  const defaultBoarding = [
     'Koyambedu (Omni Bus Stand)',
-    'Guindy (Near Kathipara)',
-    'Tambaram (Hindu Mission)'
+    'Koyambedu (CMBT)',
+    'Ashok Nagar Metro',
+    'Tambaram MEPZ',
+    'Perungalathur'
   ];
 
-  const allDroppingPoints = [
+  const defaultDropping = [
     'Gandhipuram (Central Stand)',
-    'KMCH / Hopes College',
-    'Omni Bus Terminus'
+    'Gandhipuram Omni Bus Stand',
+    'KMCH Hospital Avinashi Road',
+    'Erode Chithode Bypass',
+    'Salem New Bus Stand'
   ];
+
+  const allBoardingPoints = availableBoardingPoints && availableBoardingPoints.length > 0
+    ? availableBoardingPoints
+    : defaultBoarding;
+
+  const allDroppingPoints = availableDroppingPoints && availableDroppingPoints.length > 0
+    ? availableDroppingPoints
+    : defaultDropping;
 
   const filteredBoarding = allBoardingPoints.filter((pt) =>
     pt.toLowerCase().includes(boardingSearch.toLowerCase())

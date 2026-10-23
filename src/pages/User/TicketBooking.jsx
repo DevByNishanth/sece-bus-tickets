@@ -39,16 +39,27 @@ export default function TicketBooking() {
     passengers: '1 Traveller (All seats)'
   };
 
+  // All berths for fare lookup
+  const allBerths = [
+    ...(bus.seatLayout?.lowerDeck?.rows?.flatMap((r) => r.berths) || []),
+    ...(bus.seatLayout?.upperDeck?.rows?.flatMap((r) => r.berths) || [])
+  ];
+
+  const getBerthFare = (seatId) => {
+    const found = allBerths.find((b) => b.seatNumber === seatId || b.berthId === seatId);
+    return found?.fare || bus.price || 1100;
+  };
+
   // State
-  // Default selected seat to ['L06'] as in screenshots
-  const [selectedSeats, setSelectedSeats] = useState(['L06']);
+  // Default selected seat to ['L1'] or first available
+  const [selectedSeats, setSelectedSeats] = useState(['L1']);
   const [currentStep, setCurrentStep] = useState(1);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
 
   // Passengers State
   const [passengersState, setPassengersState] = useState([
     {
-      seatId: 'L06',
+      seatId: 'L1',
       name: 'Alexandre Moros',
       age: '29',
       gender: 'male'
@@ -61,23 +72,45 @@ export default function TicketBooking() {
     phone: '98765 43210'
   });
 
+  // Extract initial boarding & dropping points from API stops
+  const boardingStops = (bus.stops || []).filter(
+    (s) => s.stopType === 'boarding' || s.stopType === 'both'
+  );
+  const droppingStops = (bus.stops || []).filter(
+    (s) => s.stopType === 'dropping' || s.stopType === 'both'
+  );
+
+  const initialBoardingStop = boardingStops[0] || {
+    name: bus.departurePoint || 'Koyambedu (CMBT)',
+    estimatedArrivalTime: bus.departureTime || '22:00',
+    landmark: 'Omni Bus Stand Platform Gate 2',
+    city: bus.departureCity || 'Chennai'
+  };
+
+  const initialDroppingStop = droppingStops[droppingStops.length - 1] || {
+    name: bus.droppingPoint || 'Gandhipuram Omni Bus Stand',
+    estimatedArrivalTime: bus.arrivalTime || '06:30',
+    landmark: 'Near Central RTO',
+    city: bus.arrivalCity || 'Coimbatore'
+  };
+
   // Boarding and Dropping Points State
   const [selectedBoarding, setSelectedBoarding] = useState({
-    id: 'bp-1',
-    time: '15:00',
-    name: 'Koyambedu Omni Bus Stand',
+    id: initialBoardingStop._id || 'bp-1',
+    time: initialBoardingStop.estimatedArrivalTime || '22:00',
+    name: initialBoardingStop.name,
     badge: 'MAIN ORIGIN',
-    address: 'Platform 4, Gate B (Near Chennai Metro Gate 2)',
-    reportingTime: '14:45'
+    address: initialBoardingStop.landmark || `${initialBoardingStop.name}, ${initialBoardingStop.city || ''}`,
+    reportingTime: initialBoardingStop.estimatedArrivalTime || '21:45'
   });
 
   const [selectedDropping, setSelectedDropping] = useState({
-    id: 'dp-2',
-    time: '02:15',
-    name: 'Gandhipuram Central Bus Stand',
+    id: initialDroppingStop._id || 'dp-1',
+    time: initialDroppingStop.estimatedArrivalTime || '06:30',
+    name: initialDroppingStop.name,
     badge: 'TERMINUS',
-    address: 'Omni Bus Stand Terminus (Platform 2)',
-    reportingTime: '02:10'
+    address: initialDroppingStop.landmark || `${initialDroppingStop.name}, ${initialDroppingStop.city || ''}`,
+    reportingTime: initialDroppingStop.estimatedArrivalTime || '06:20'
   });
 
   // Toggle seat selection
@@ -205,7 +238,8 @@ export default function TicketBooking() {
                 <SeatSelection
                   selectedSeats={selectedSeats}
                   onToggleSeat={handleToggleSeat}
-                  busFare={bus.price || 849}
+                  busFare={bus.price || 1100}
+                  bus={bus}
                 />
               </div>
 
@@ -242,8 +276,12 @@ export default function TicketBooking() {
       <BookingContinueProcess
         selectedSeats={selectedSeats}
         seatDetails={getSelectedSeatDescription()}
-        pricePerSeat={bus.price || 849}
-        originalPricePerSeat={bus.originalPrice || 999}
+        pricePerSeat={
+          selectedSeats.length > 0
+            ? Math.round(selectedSeats.reduce((acc, id) => acc + getBerthFare(id), 0) / selectedSeats.length)
+            : (bus.price || 1100)
+        }
+        originalPricePerSeat={Math.round((bus.price || 1100) * 1.25)}
         currentStep={currentStep}
         onContinue={handleContinue}
         onChangeBus={handleBackToSearch}

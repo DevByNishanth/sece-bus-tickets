@@ -3,7 +3,7 @@ import { Check } from "lucide-react";
 const steps = ["Bus Details", "Deck Setup", "Rows & Arrangement", "Review & Save"];
 
 const BusFlowStepper = ({ currentStep }) => (
-    <nav aria-label="Bus creation progress" className="mb-6 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+    <nav aria-label="Bus creation progress" className="mb-6 rounded-xl border  border-slate-200 bg-white px-4 py-3 shadow-sm">
         <ol className="flex items-center justify-between gap-2">
             {steps.map((step, index) => {
                 const stepNumber = index + 1;

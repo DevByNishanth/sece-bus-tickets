@@ -98,12 +98,13 @@ const BusDetailsPage = () => {
     return (
         <div className="min-h-screen bg-[#f7f9fa]">
             <VendorNavbar />
-            <main className="mx-auto w-[94%] max-w-6xl py-5">
-                <nav className="mb-4 flex flex-wrap items-center gap-2 text-xs text-slate-500" aria-label="Breadcrumb">
+            <main className="mx-auto w-[94%]  max-w-6xl py-5">
+                {/* <nav className="mb-4 flex flex-wrap items-center gap-2 text-xs text-slate-500" aria-label="Breadcrumb">
                     <button type="button" onClick={() => navigate("/vendor/bus-management")} className="hover:text-teal-700">Fleet</button><ChevronRight size={13} />
                     <button type="button" onClick={() => navigate("/vendor/bus-management")} className="hover:text-teal-700">My Buses</button><ChevronRight size={13} />
                     <span className="font-medium text-slate-900">Add Bus Details</span>
-                </nav>
+                </nav> */}
+             
                 <BusFlowStepper currentStep={1} />
                 <div className="mb-5 flex items-start gap-3">
                     <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-50 text-teal-700"><BusFront size={20} /></span>

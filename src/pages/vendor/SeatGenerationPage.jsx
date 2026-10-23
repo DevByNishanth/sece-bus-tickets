@@ -36,7 +36,7 @@ const SeatGenerationPage = () => {
         <>
             <div className="main-container min-h-screen bg-[#f7f9fa]">
                 <VendorNavbar />
-                <div className="mx-auto mt-4 w-[94%] max-w-6xl"><BusFlowStepper currentStep={2} /></div>
+
                 {/* header  */}
                 <header className="w-[94%] m-auto mt-3">
                     {/* Header Title */}
@@ -45,7 +45,7 @@ const SeatGenerationPage = () => {
                     </h1>
 
                     {/* Breadcrumb Navigation */}
-                    <nav className="mt-2 flex items-center gap-2 text-xs text-gray-500">
+                    {/* <nav className="mt-2 flex items-center gap-2 text-xs text-gray-500">
                         <a href="#" className="transition-colors hover:text-gray-800">
                             Fleet
                         </a>
@@ -63,11 +63,13 @@ const SeatGenerationPage = () => {
                         <ChevronRight size={12} className="text-gray-400" />
 
                         <span className="font-medium text-gray-900">Deck setup</span>
-                    </nav>
+                    </nav> */}
                 </header>
 
+                <div className="mx-auto mt-4 w-[94%] "><BusFlowStepper currentStep={2} /></div>
+
                 {/* content  */}
-                <div className="btn-body-container flex flex-col items-center justify-center w-[94%] mx-auto mt-4 min-h-[calc(100vh-200px)]">
+                <div className="btn-body-container flex flex-col items-center justify-center w-[94%] mx-auto min-h-[calc(100vh-240px)]">
                     <div className="content-container w-fit text-center">
                         {/* Illustration */}
                         <img

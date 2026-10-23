@@ -690,21 +690,21 @@ const VendorDeckArrangementPage = () => {
   return (
     <div className="min-h-screen bg-[#f7f9fa]">
       <VendorNavbar />
-      <div className="mx-auto mt-4 w-[94%] max-w-6xl"><BusFlowStepper currentStep={3} /></div>
+      <div className="mx-auto mt-4 w-[94%]"><BusFlowStepper currentStep={3} /></div>
 
       {/* Breadcrumbs and Page Heading */}
-      <header className="mx-auto w-[94%] pt-3">
-        <nav className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
+      <header className="mx-auto w-[94%] ">
+        {/* <nav className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
           <span>Fleet</span><ChevronRight size={12} />
           <span>My Buses</span><ChevronRight size={12} />
           <span>Bus details</span><ChevronRight size={12} />
           <span className="font-medium text-gray-900">Rows &amp; arrangement</span>
-        </nav>
+        </nav> */}
         <div className="mt-5 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div>
-            <p className="text-xs font-semibold tracking-wide text-[#0E7A88]">STEP 3 OF 4</p>
+            {/* <p className="text-xs font-semibold tracking-wide text-[#0E7A88]">STEP 3 OF 4</p> */}
             <h1 className="mt-1 text-xl font-semibold text-slate-800">Modify Your Seating Arrangements</h1>
-            <p className="mt-1 text-xs text-slate-500">Choose the passenger components available on each deck. You’ll arrange individual rows next.</p>
+            {/* <p className="mt-1 text-xs text-slate-500">Choose the passenger components available on each deck. You’ll arrange individual rows next.</p> */}
           </div>
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={handleSaveDraft} className="inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 hover:bg-slate-50"><FileText size={14} /> Save Draft</button>

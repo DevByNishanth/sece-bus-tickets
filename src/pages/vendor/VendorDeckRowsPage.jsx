@@ -104,25 +104,25 @@ const VendorDeckRowsPage = () => {
   return (
     <div className="min-h-screen bg-[#f7f9fa]">
       <VendorNavbar />
-      <div className="mx-auto mt-4 w-[94%] max-w-6xl"><BusFlowStepper currentStep={3} /></div>
+      <div className="mx-auto mt-4 w-[94%] "><BusFlowStepper currentStep={3} /></div>
 
       {/* Breadcrumb Navigation */}
-      <header className="m-auto mt-3 w-[94%]">
+      {/* <header className="m-auto mt-3 w-[94%]">
         <nav className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-500">
           <span>Fleet</span><ChevronRight size={12} className="text-gray-400" />
           <span>My Buses</span><ChevronRight size={12} className="text-gray-400" />
           <span>Bus details</span><ChevronRight size={12} className="text-gray-400" />
           <span className="font-medium text-gray-900">Rows &amp; arrangement</span>
         </nav>
-      </header>
+      </header> */}
 
       {/* Page Heading */}
-      <main className="m-auto w-[94%] pb-8 pt-5">
-        <p className="text-sm font-semibold text-[#007B8A]">STEP 2 OF 3</p>
+      <main className="m-auto w-[94%] pb-4 ">
+        {/* <p className="text-sm font-semibold text-[#007B8A]">STEP 2 OF 3</p> */}
         <h1 className="mt-2 text-xl font-semibold">Configure Your Deck Rows</h1>
-        <p className="mt-2 text-sm text-[#64748B]">
+        {/* <p className="mt-2 text-sm text-[#64748B]">
           Choose the passenger components available on each deck. You&apos;ll arrange individual rows next.
-        </p>
+        </p> */}
 
         {/* Main Configuration Container */}
         <div className="mt-5 grid grid-cols-1 gap-6 rounded-xl border border-gray-100 bg-white p-4 shadow sm:p-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:gap-8">

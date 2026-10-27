@@ -2,6 +2,7 @@
 import React, { useMemo, useState } from "react";
 import VendorNavbar from "./vendor/VendorNavbar.jsx";
 import busImage from "../assets/busimage.jpeg";
+import busInteriorImage from "../assets/chooseSeat2.png";
 import {
   Search,
   Eye,
@@ -17,7 +18,132 @@ import {
   Check,
 } from "lucide-react";
 
+function createSamplePdfUrl(title) {
+  const stream = `BT\n/F1 18 Tf\n72 720 Td\n(${title}) Tj\n0 -28 Td\n/F1 11 Tf\n(Sample document for preview only.) Tj\nET`;
+  const objects = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`,
+  ];
+  let pdf = "%PDF-1.4\n";
+  const offsets = [0];
+
+  objects.forEach((object, index) => {
+    offsets.push(pdf.length);
+    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
+  });
+
+  const xrefOffset = pdf.length;
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  offsets.slice(1).forEach((offset) => {
+    pdf += `${String(offset).padStart(10, "0")} 00000 n \n`;
+  });
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`;
+
+  return URL.createObjectURL(new Blob([pdf], { type: "application/pdf" }));
+}
+
+const samplePdfFiles = {
+  registration: {
+    name: "registration-certificate.pdf",
+    url: createSamplePdfUrl("Registration Certificate"),
+  },
+  permit: {
+    name: "tourist-permit.pdf",
+    url: createSamplePdfUrl("Tourist Permit"),
+  },
+  insurance: {
+    name: "insurance-policy.pdf",
+    url: createSamplePdfUrl("Insurance Policy"),
+  },
+  fitness: {
+    name: "fitness-certificate.pdf",
+    url: createSamplePdfUrl("Fitness Certificate"),
+  },
+  puc: {
+    name: "puc-certificate.pdf",
+    url: createSamplePdfUrl("PUC Certificate"),
+  },
+  roadTax: {
+    name: "road-tax-receipt.pdf",
+    url: createSamplePdfUrl("Road Tax Receipt"),
+  },
+};
+
 // Replace this sample data with your backend API data.
+function getSampleBusDetails(bus, index) {
+  const suffix = String(124 - index).padStart(3, "0");
+
+  return {
+    agentId: `AGT-00${index + 1}`,
+    busName: `${bus.busType} ${bus.specifications}`,
+    operatorName: bus.operator,
+    registrationNumber: bus.busNumber,
+    internalFleetCode: `FLT-${suffix}`,
+    ownershipType: index % 2 === 0 ? "Owned" : "Leased",
+    manufacturer: bus.busType,
+    manufacturingYear: String(2021 + (index % 4)),
+    chassisNumber: `CHS-${suffix}-TN`,
+    engineNumber: `ENG-${suffix}-TN`,
+    category: bus.specifications,
+    deckConfiguration: index === 1 ? "double" : "single",
+    passengerCapacity: bus.seats,
+    seatCount: bus.seats,
+    berthCount: index === 1 ? "36" : "0",
+    totalSeats: bus.seats,
+    rcDoc: {
+      documentNumber: `RC-${suffix}-2024`,
+      issueDate: "2024-01-15",
+      expiryDate: "2039-01-14",
+      file: samplePdfFiles.registration,
+    },
+    permit: {
+      permitType: "All India Tourist Permit",
+      permitNumber: `PERMIT-${suffix}`,
+      validityDate: "2027-12-31",
+      issueDate: "2025-01-01",
+      expiryDate: "2027-12-31",
+      file: samplePdfFiles.permit,
+    },
+    insurance: {
+      policyNumber: `POL-${suffix}-2025`,
+      insuranceProvider: "United India Insurance",
+      issueDate: "2025-04-01",
+      expiryDate: "2026-03-31",
+      file: samplePdfFiles.insurance,
+    },
+    fitness: {
+      certificateNumber: `FC-${suffix}-2025`,
+      issueDate: "2025-02-10",
+      expiryDate: "2026-02-09",
+      file: samplePdfFiles.fitness,
+    },
+    puc: {
+      certificateNumber: `PUC-${suffix}-2025`,
+      issueDate: "2025-03-01",
+      expiryDate: "2026-02-28",
+      file: samplePdfFiles.puc,
+    },
+    roadtax: {
+      taxReceiptNumber: `TAX-${suffix}-2025`,
+      taxType: "State road tax",
+      amount: "₹25,000",
+      file: samplePdfFiles.roadTax,
+    },
+    depo: index % 2 === 0 ? "Chennai Central Depot" : "Coimbatore Depot",
+    odometer: `${125000 + index * 18250} km`,
+    lastServiceDate: "2025-08-15",
+    nextServiceDate: "2025-11-15",
+    gpsDeviceIdentifier: `GPS-TN-${suffix}`,
+    description: "Scheduled maintenance is up to date. GPS tracking is active.",
+    exteriorPhotos: [{ label: "Exterior", src: busImage }],
+    interiorPhotos: [{ label: "Interior", src: busInteriorImage }],
+    amenities: "Air conditioning, Wi-Fi, Charging point, Live tracking",
+  };
+}
+
 const initialBuses = [
   {
     id: "BUS-00124",
@@ -67,7 +193,7 @@ const initialBuses = [
     documents: "5 expired / missing",
     status: "Rejected",
   },
-];
+].map((bus, index) => ({ ...bus, ...getSampleBusDetails(bus, index) }));
 
 const badgeStyles = {
   Pending: "bg-amber-100 text-amber-700",
@@ -118,6 +244,12 @@ const detailSections = [
   "Amenities",
 ];
 
+function formatDetailValue(value) {
+  if (value == null || value === "") return "Not provided";
+  if (typeof value === "object") return value.name || "Not provided";
+  return value;
+}
+
 function BusRequestDetailView({
   bus,
   activeSection,
@@ -126,24 +258,156 @@ function BusRequestDetailView({
   onStatusChange,
 }) {
   const sectionDetails = {
-    "Bus & Operator": [
-      ["Registration number", bus.busNumber],
-      ["Bus type", getBusType(bus)],
-      ["Operator", bus.operator],
-      ["Phone", bus.phone],
-    ],
-    "Bus Specifications": [
-      ["Specifications", bus.specifications],
-      ["Seating capacity", bus.seats],
-      ["Bus model", bus.model],
-    ],
-    "Required Documents": [["Document status", bus.documents]],
-    "Fitness Certificate": [],
-    "Exterior & Interior Photos": [],
-    "Operations & Maintenance": [],
-    Amenities: [],
+    "Bus & Operator": {
+      description: "Identify this bus and the operator responsible for it.",
+      fields: [
+        ["Agent ID", bus.agentId],
+        ["Bus name", bus.busName || bus.busNumber],
+        ["Operator name", bus.operatorName || bus.operator],
+        ["Registration number", bus.registrationNumber || bus.busNumber],
+        ["Internal fleet code", bus.internalFleetCode],
+        ["Ownership type", bus.ownershipType],
+      ],
+    },
+    "Bus Specifications": {
+      description: "Vehicle identification and capacity information.",
+      fields: [
+        ["Manufacturer", bus.manufacturer || bus.busType],
+        ["Model", bus.model],
+        ["Manufacturing year", bus.manufacturingYear],
+        ["Chassis number", bus.chassisNumber],
+        ["Engine number", bus.engineNumber],
+        ["Bus type", bus.category || bus.specifications],
+        ["Category", bus.category],
+        [
+          "Deck configuration",
+          bus.deckConfiguration === "single"
+            ? "Single deck"
+            : bus.deckConfiguration === "double"
+              ? "Double deck"
+              : bus.deckConfiguration,
+        ],
+        ["Passenger capacity", bus.passengerCapacity || bus.seats],
+        ["Seat count", bus.seatCount],
+        ["Berth count", bus.berthCount],
+        ["Total seats / berths", bus.totalSeats || bus.seats],
+      ],
+    },
+    "Required Documents": {
+      description: "Document numbers, dates, and attached files.",
+      groups: [
+        {
+          title: "Registration Certificate",
+          fields: [
+            ["Document number", bus.rcDoc?.documentNumber],
+            ["Issue date", bus.rcDoc?.issueDate],
+            ["Expiry date", bus.rcDoc?.expiryDate],
+            ["Document file", bus.rcDoc?.file],
+          ],
+        },
+        {
+          title: "Permit",
+          fields: [
+            ["Permit type", bus.permit?.permitType],
+            ["Permit number", bus.permit?.permitNumber],
+            ["Validity date", bus.permit?.validityDate],
+            ["Issue date", bus.permit?.issueDate],
+            ["Expiry date", bus.permit?.expiryDate],
+            ["Document file", bus.permit?.file],
+          ],
+        },
+        {
+          title: "Insurance",
+          fields: [
+            ["Policy number", bus.insurance?.policyNumber],
+            ["Insurance provider", bus.insurance?.insuranceProvider],
+            ["Issue date", bus.insurance?.issueDate],
+            ["Expiry date", bus.insurance?.expiryDate],
+            ["Document file", bus.insurance?.file],
+          ],
+        },
+      ],
+    },
+    "Fitness Certificate": {
+      description: "Fitness, PUC, and road tax certificate details.",
+      groups: [
+        {
+          title: "Fitness Certificate",
+          fields: [
+            ["Certificate number", bus.fitness?.certificateNumber],
+            ["Issue date", bus.fitness?.issueDate],
+            ["Expiry date", bus.fitness?.expiryDate],
+            ["Document file", bus.fitness?.file],
+          ],
+        },
+        {
+          title: "PUC Certificate",
+          fields: [
+            ["Certificate number", bus.puc?.certificateNumber],
+            ["Issue date", bus.puc?.issueDate],
+            ["Expiry date", bus.puc?.expiryDate],
+            ["Document file", bus.puc?.file],
+          ],
+        },
+        {
+          title: "Road Tax",
+          fields: [
+            ["Tax receipt number", bus.roadtax?.taxReceiptNumber],
+            ["Tax type", bus.roadtax?.taxType],
+            ["Amount", bus.roadtax?.amount],
+            ["Document file", bus.roadtax?.file],
+          ],
+        },
+      ],
+    },
+    "Operations & Maintenance": {
+      description: "Depot, mileage, service, and tracking details.",
+      fields: [
+        ["Depot", bus.depo],
+        ["Odometer reading", bus.odometer],
+        ["Last service date", bus.lastServiceDate],
+        ["Next service date", bus.nextServiceDate],
+        ["GPS device identifier", bus.gpsDeviceIdentifier],
+        ["Description", bus.description],
+      ],
+    },
+    "Exterior & Interior Photos": {
+      description: "Exterior and interior photos provided for this bus.",
+      photos: [...(bus.exteriorPhotos || []), ...(bus.interiorPhotos || [])],
+    },
+    Amenities: {
+      description: "Facilities available on this bus.",
+      fields: [["Amenities", bus.amenities]],
+    },
   };
-  const details = sectionDetails[activeSection] || [];
+  const section = sectionDetails[activeSection] || { fields: [] };
+  const renderFields = (fields) => (
+    <div className="grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-3">
+      {fields.map(([label, value]) => (
+        <div key={label} className="rounded-xl border border-slate-100 p-4">
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+            {label}
+          </p>
+          <p className="mt-2 break-words text-sm font-medium text-slate-800">
+            {label === "Document file" && value?.url ? (
+              <a
+                href={value.url}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 text-[#078797] hover:underline"
+              >
+                <FileText size={16} />
+                {value.name}
+                <Eye size={14} />
+              </a>
+            ) : (
+              formatDetailValue(value)
+            )}
+          </p>
+        </div>
+      ))}
+    </div>
+  );
 
   return (
     <main className="mx-auto w-full max-w-[1600px] p-4 sm:p-6 lg:p-8">
@@ -181,7 +445,10 @@ function BusRequestDetailView({
       </div>
 
       <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
-        <aside className="w-full shrink-0 rounded-2xl border border-[#dcebed] bg-[#f3f9fa] p-3 lg:min-h-[520px] lg:w-64">
+        <aside
+          style={{ left: "max(2rem, calc((100vw - 1600px) / 2 + 2rem))" }}
+          className="w-full shrink-0 rounded-2xl border border-[#dcebed] bg-[#f3f9fa] p-3 lg:fixed lg:top-24 lg:bottom-6 lg:w-64 lg:overflow-y-auto"
+        >
           <nav aria-label="Bus request detail sections" className="space-y-1">
             {detailSections.map((section) => (
               <button
@@ -201,21 +468,44 @@ function BusRequestDetailView({
           </nav>
         </aside>
 
-        <section className="min-w-0 flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <section className="min-w-0 flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm lg:ml-[17.25rem]">
           <div className="border-b border-slate-100 bg-[#f5f8f9] px-5 py-4">
             <h2 className="font-semibold text-slate-800">{activeSection}</h2>
+            {section.description && (
+              <p className="mt-1 text-sm text-slate-500">{section.description}</p>
+            )}
           </div>
-          {details.length > 0 ? (
-            <div className="grid gap-4 p-5 sm:grid-cols-2">
-              {details.map(([label, value]) => (
-                <div key={label} className="rounded-xl border border-slate-100 p-4">
-                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                    {label}
-                  </p>
-                  <p className="mt-2 text-sm font-medium text-slate-800">{value}</p>
-                </div>
+          {section.photos ? (
+            <div className="grid gap-5 p-5 sm:grid-cols-2">
+              {section.photos.map((photo) => (
+                <figure key={photo.label} className="overflow-hidden rounded-xl border border-slate-200">
+                  <img
+                    src={photo.src}
+                    alt={`${photo.label} view of ${bus.busNumber}`}
+                    className="h-64 w-full object-cover"
+                  />
+                  <figcaption className="border-t border-slate-100 px-4 py-3 text-sm font-medium text-slate-700">
+                    {photo.label}
+                  </figcaption>
+                </figure>
               ))}
             </div>
+          ) : section.groups ? (
+            <div className="space-y-4 p-5">
+              {section.groups.map((group) => (
+                <section
+                  key={group.title}
+                  className="rounded-xl border border-slate-200 bg-slate-50/60"
+                >
+                  <h3 className="border-b border-slate-200 px-4 py-3 text-sm font-semibold text-slate-800">
+                    {group.title}
+                  </h3>
+                  {renderFields(group.fields)}
+                </section>
+              ))}
+            </div>
+          ) : section.fields.length > 0 ? (
+            renderFields(section.fields)
           ) : (
             <p className="p-5 text-sm text-slate-500">
               No {activeSection.toLowerCase()} details are available for this bus yet.

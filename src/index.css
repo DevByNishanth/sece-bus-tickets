@@ -4,7 +4,7 @@
 body{
   font-family: 'Poppins', sans-serif;
 }
-
+|
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -35,7 +35,7 @@ body{
   background: #e8eef0;
 }
 
-::-webkit-scrollbar-thumb {
+.::-webkit-scrollbar-thumb {
   border: 2px solid #e8eef0;
   border-radius: 9999px;
   background: #3b3b3b;
@@ -44,3 +44,4 @@ body{
 .custom-scroll::-webkit-scrollbar-thumb:hover {
   background: #1bc5db;
 }
+

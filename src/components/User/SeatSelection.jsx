@@ -1,4 +1,5 @@
 import React from 'react';
+import { AlertCircle, X } from 'lucide-react';
 
 // Steering wheel SVG component
 const SteeringWheelIcon = () => (
@@ -113,7 +114,10 @@ export default function SeatSelection({
   selectedSeats = [],
   onToggleSeat,
   busFare = 1100,
-  bus
+  bus,
+  conflictedSeats = [],
+  holdError = null,
+  onDismissError = null
 }) {
   // Extract API layout or use high-fidelity default structure
   const seatLayout = bus?.seatLayout;
@@ -126,7 +130,7 @@ export default function SeatSelection({
   const lowerBerthsList = lowerRows.flatMap((r) => r.berths || []);
   const lowerCapacity = lowerDeckData?.passengerCapacity || 18;
   const lowerAvailableCount = lowerBerthsList.length > 0
-    ? lowerBerthsList.filter((b) => b.available).length
+    ? lowerBerthsList.filter((b) => b.available && !conflictedSeats.includes(b.seatNumber || b.berthId)).length
     : 18;
 
   // Compute upper deck statistics
@@ -134,17 +138,47 @@ export default function SeatSelection({
   const upperBerthsList = upperRows.flatMap((r) => r.berths || []);
   const upperCapacity = upperDeckData?.passengerCapacity || 18;
   const upperAvailableCount = upperBerthsList.length > 0
-    ? upperBerthsList.filter((b) => b.available).length
+    ? upperBerthsList.filter((b) => b.available && !conflictedSeats.includes(b.seatNumber || b.berthId)).length
     : 18;
 
   // Helper to get status
   const getStatus = (berth) => {
+    const seatId = berth.seatNumber || berth.berthId;
+    if (conflictedSeats.includes(seatId)) return 'booked';
     if (berth.available === false) return 'booked';
     return 'available';
   };
 
   return (
     <div className="w-full space-y-4">
+      {/* Seat Hold Conflict / Error Alert */}
+      {holdError && (
+        <div className="bg-rose-50/95 border border-rose-200 text-rose-800 p-4 rounded-2xl flex items-start justify-between gap-3 shadow-xs animate-in fade-in zoom-in-95 duration-200">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+            <div>
+              <div className="text-sm font-bold text-rose-900">Seat Reservation Notice</div>
+              <div className="text-xs text-rose-700 mt-0.5">{holdError}</div>
+              {conflictedSeats && conflictedSeats.length > 0 && (
+                <div className="text-[11px] font-semibold text-rose-800 mt-1">
+                  Conflicted seat(s): {conflictedSeats.join(', ')} — Please select alternative available berths.
+                </div>
+              )}
+            </div>
+          </div>
+          {onDismissError && (
+            <button
+              type="button"
+              onClick={onDismissError}
+              className="text-rose-400 hover:text-rose-700 p-1 rounded-lg transition-colors cursor-pointer"
+              title="Dismiss error"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Top Deck Overview & Counters Banner */}
       <div className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>

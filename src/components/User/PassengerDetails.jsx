@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { User, Phone, Mail, Check, Plus } from 'lucide-react';
+import { User, Phone, Mail, Check, Plus, AlertCircle, X } from 'lucide-react';
 
 export default function PassengerDetails({
   selectedSeats = ['L06'],
@@ -13,7 +13,10 @@ export default function PassengerDetails({
   selectedBoarding,
   setSelectedBoarding,
   selectedDropping,
-  setSelectedDropping
+  setSelectedDropping,
+  bookingError = null,
+  onDismissError = null,
+  isCreatingBooking = false
 }) {
   const [whatsappUpdates, setWhatsappUpdates] = useState(true);
   const [showGst, setShowGst] = useState(false);
@@ -129,6 +132,29 @@ export default function PassengerDetails({
           Enter Your Passenger Details
         </h2>
       </div>
+
+      {/* Booking Error Notice */}
+      {bookingError && (
+        <div className="bg-rose-50/95 border border-rose-200 text-rose-800 p-4 rounded-2xl flex items-start justify-between gap-3 shadow-xs animate-in fade-in zoom-in-95 duration-200">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+            <div>
+              <div className="text-sm font-bold text-rose-900">Booking Reservation Notice</div>
+              <div className="text-xs text-rose-700 mt-0.5">{bookingError}</div>
+            </div>
+          </div>
+          {onDismissError && (
+            <button
+              type="button"
+              onClick={onDismissError}
+              className="text-rose-400 hover:text-rose-700 p-1 rounded-lg transition-colors cursor-pointer"
+              title="Dismiss error"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Main Passenger Form Card */}
       <div className="bg-white rounded-3xl border border-slate-200/90 p-5 sm:p-7 shadow-xs space-y-6">

@@ -1,5 +1,5 @@
 import React from 'react';
-import { User, ArrowRight } from 'lucide-react';
+import { User, ArrowRight, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export default function BookingContinueProcess({
@@ -12,7 +12,8 @@ export default function BookingContinueProcess({
   originalPricePerSeat = 999,
   currentStep = 1,
   onContinue,
-  onChangeBus
+  onChangeBus,
+  isLoading = false
 }) {
   const navigate = useNavigate();
 
@@ -31,7 +32,7 @@ export default function BookingContinueProcess({
   };
 
   const handleContinue = () => {
-    if (isEnabled && onContinue) {
+    if (isEnabled && !isLoading && onContinue) {
       onContinue();
     }
   };
@@ -107,7 +108,8 @@ export default function BookingContinueProcess({
             <button
               type="button"
               onClick={handleChangeBus}
-              className="px-4 sm:px-5 py-2.5 rounded-xl border border-slate-200/90 hover:bg-slate-50 active:bg-slate-100 text-slate-700 font-bold text-xs sm:text-sm transition-all shadow-2xs cursor-pointer"
+              disabled={isLoading}
+              className="px-4 sm:px-5 py-2.5 rounded-xl border border-slate-200/90 hover:bg-slate-50 active:bg-slate-100 text-slate-700 font-bold text-xs sm:text-sm transition-all shadow-2xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Change Bus
             </button>
@@ -115,15 +117,24 @@ export default function BookingContinueProcess({
             <button
               type="button"
               onClick={handleContinue}
-              disabled={!isEnabled}
+              disabled={!isEnabled || isLoading}
               className={`px-5 sm:px-7 py-2.5 rounded-xl font-bold text-xs sm:text-sm text-white shadow-md flex items-center gap-2 transition-all ${
-                isEnabled
+                isEnabled && !isLoading
                   ? 'btn-grd hover:bg-[#0D6962] active:scale-[0.99] cursor-pointer'
                   : 'bg-slate-300 opacity-60 cursor-not-allowed shadow-none'
               }`}
             >
-              <span>{buttonText}</span>
-              <ArrowRight className="w-4 h-4" />
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                  <span>{currentStep === 2 ? 'Creating Booking...' : 'Holding Seats...'}</span>
+                </>
+              ) : (
+                <>
+                  <span>{buttonText}</span>
+                  <ArrowRight className="w-4 h-4 shrink-0" />
+                </>
+              )}
             </button>
           </div>
         </div>

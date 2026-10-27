@@ -107,6 +107,8 @@ export default function CustomDatePicker({
   showShortcuts = true,
   align = 'right',
   className = '',
+  open: controlledOpen,
+  onOpenChange,
   trigger = null
 }) {
   const today = useMemo(() => {
@@ -143,7 +145,19 @@ export default function CustomDatePicker({
     return new Date(s.getFullYear(), s.getMonth(), 1);
   });
 
-  const [isOpen, setIsOpen] = useState(false);
+  const [internalIsOpen, setInternalIsOpen] = useState(false);
+  const isControlled = controlledOpen !== undefined;
+  const isOpen = isControlled ? controlledOpen : internalIsOpen;
+
+  const setIsOpen = (nextVal) => {
+    const resolved = typeof nextVal === 'function' ? nextVal(isOpen) : nextVal;
+    if (onOpenChange) {
+      onOpenChange(resolved);
+    }
+    if (!isControlled) {
+      setInternalIsOpen(resolved);
+    }
+  };
   const containerRef = useRef(null);
 
   // Sync viewed month when initialDate changes

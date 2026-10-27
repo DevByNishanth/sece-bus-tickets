@@ -81,6 +81,11 @@ export function getAuthToken() {
         }
       }
     }
+
+    // 5. Environment variable VITE_AUTH_TOKEN
+    if (import.meta.env.VITE_AUTH_TOKEN) {
+      return import.meta.env.VITE_AUTH_TOKEN.trim().replace(/^Bearer\s+/i, '');
+    }
   } catch (err) {
     console.warn('[busService] Token retrieval note:', err);
   }
@@ -441,3 +446,236 @@ export async function fetchBusesSearch(options = {}) {
     error: lastError ? lastError.message : 'No bus available for this date'
   };
 }
+
+/**
+ * Hold Seats API
+ * POST {{baseUrl}}/bookings/hold-seats
+ * 
+ * Payload:
+ * {
+ *   "busId": "6adb0a1474060137dbb0aa97",
+ *   "journeyDate": "2026-10-27",
+ *   "seatNumbers": ["L3"]
+ * }
+ */
+export async function holdSeatsBooking({
+  busId,
+  journeyDate,
+  seatNumbers,
+  baseUrl = null,
+  token: passedToken = null
+}) {
+  const authToken = passedToken || getAuthToken();
+
+  // Normalize journeyDate to YYYY-MM-DD
+  let dateParam = journeyDate;
+  if (journeyDate instanceof Date) {
+    dateParam = journeyDate.toISOString().split('T')[0];
+  } else if (typeof journeyDate === 'string' && journeyDate.length > 10) {
+    const parsed = new Date(journeyDate);
+    if (!isNaN(parsed.getTime())) {
+      dateParam = parsed.toISOString().split('T')[0];
+    }
+  } else if (!dateParam) {
+    dateParam = new Date().toISOString().split('T')[0];
+  }
+
+  const envBase = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
+  
+  const candidateUrls = [
+    baseUrl ? `${baseUrl.replace(/\/+$/, '')}/bookings/hold-seats` : null,
+    envBase ? `${envBase}/bookings/hold-seats` : null,
+    'http://10.57.1.245:8000/api/bookings/hold-seats',
+    '/api/bookings/hold-seats'
+  ].filter(Boolean);
+
+  const uniqueUrls = Array.from(new Set(candidateUrls));
+  let lastError = null;
+
+  const payload = {
+    busId: String(busId),
+    journeyDate: String(dateParam),
+    seatNumbers: Array.isArray(seatNumbers) ? seatNumbers : [seatNumbers]
+  };
+
+  for (const targetUrl of uniqueUrls) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 7000);
+
+      const headers = {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      };
+
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+        headers['exte_key'] = authToken;
+        headers['x-auth-token'] = authToken;
+        headers['token'] = authToken;
+      }
+
+      const response = await fetch(targetUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      const data = await response.json().catch(() => null);
+
+      if (response.ok && data?.success) {
+        return {
+          success: true,
+          message: data.message || 'Seats held successfully for 10 minutes.',
+          data: data.data
+        };
+      } else {
+        return {
+          success: false,
+          message: data?.message || `Failed to hold seats (Status ${response.status})`,
+          conflictedSeats: data?.conflictedSeats || [],
+          data: data?.data
+        };
+      }
+    } catch (err) {
+      lastError = err;
+    }
+  }
+
+  return {
+    success: false,
+    message: lastError ? (lastError.name === 'AbortError' ? 'Seat reservation timed out. Please try again.' : lastError.message) : 'Unable to connect to reservation server.',
+    conflictedSeats: []
+  };
+}
+
+/**
+ * Create Booking API
+ * POST {{baseUrl}}/bookings
+ * 
+ * Payload:
+ * {
+ *   "busId": "6adb0a1474060137dbb0aa97",
+ *   "journeyDate": "2026-10-27",
+ *   "seatNumbers": ["L1"],
+ *   "passengers": [
+ *     {
+ *       "name": "Test Passenger",
+ *       "age": 28,
+ *       "gender": "female"
+ *     }
+ *   ],
+ *   "boardingPointId": "6adb0a1574060137dbb0aad0",
+ *   "droppingPointId": "6adb0a1574060137dbb0aad8"
+ * }
+ */
+export async function createBooking({
+  busId,
+  journeyDate,
+  seatNumbers,
+  passengers,
+  boardingPointId,
+  droppingPointId,
+  baseUrl = null,
+  token: passedToken = null
+}) {
+  const authToken = passedToken || getAuthToken();
+
+  // Normalize journeyDate to YYYY-MM-DD
+  let dateParam = journeyDate;
+  if (journeyDate instanceof Date) {
+    dateParam = journeyDate.toISOString().split('T')[0];
+  } else if (typeof journeyDate === 'string' && journeyDate.length > 10) {
+    const parsed = new Date(journeyDate);
+    if (!isNaN(parsed.getTime())) {
+      dateParam = parsed.toISOString().split('T')[0];
+    }
+  } else if (!dateParam) {
+    dateParam = new Date().toISOString().split('T')[0];
+  }
+
+  const envBase = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
+  
+  const candidateUrls = [
+    baseUrl ? `${baseUrl.replace(/\/+$/, '')}/bookings` : null,
+    envBase ? `${envBase}/bookings` : null,
+    'http://10.57.1.245:8000/api/bookings',
+    '/api/bookings'
+  ].filter(Boolean);
+
+  const uniqueUrls = Array.from(new Set(candidateUrls));
+  let lastError = null;
+
+  // Format array of passengers with numeric age and lowercase gender
+  const formattedPassengers = (passengers || []).map((p, idx) => ({
+    name: (p.name || '').trim() || `Passenger ${idx + 1}`,
+    age: parseInt(p.age, 10) || 28,
+    gender: (p.gender || 'female').toLowerCase()
+  }));
+
+  const payload = {
+    busId: String(busId),
+    journeyDate: String(dateParam),
+    seatNumbers: Array.isArray(seatNumbers) ? seatNumbers : [seatNumbers],
+    passengers: formattedPassengers,
+    boardingPointId: String(boardingPointId),
+    droppingPointId: String(droppingPointId)
+  };
+
+  for (const targetUrl of uniqueUrls) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+      const headers = {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      };
+
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+        headers['exte_key'] = authToken;
+        headers['x-auth-token'] = authToken;
+        headers['token'] = authToken;
+      }
+
+      const response = await fetch(targetUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      const data = await response.json().catch(() => null);
+
+      if (response.ok && data?.success) {
+        return {
+          success: true,
+          message: data.message || 'Booking created successfully',
+          data: data.data
+        };
+      } else {
+        return {
+          success: false,
+          message: data?.message || `Failed to create booking (Status ${response.status})`,
+          data: data?.data
+        };
+      }
+    } catch (err) {
+      lastError = err;
+    }
+  }
+
+  return {
+    success: false,
+    message: lastError ? (lastError.name === 'AbortError' ? 'Booking request timed out. Please try again.' : lastError.message) : 'Unable to connect to booking server.',
+    data: null
+  };
+}
+
+

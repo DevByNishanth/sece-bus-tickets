@@ -9,7 +9,8 @@ export default function ReviewBookingModal({
   passengers = [],
   selectedSeats = ['L06'],
   selectedBoarding,
-  selectedDropping
+  selectedDropping,
+  createdBooking = null
 }) {
   if (!isOpen) return null;
 
@@ -22,11 +23,11 @@ export default function ReviewBookingModal({
     return acc + (found?.fare || bus?.price || 1100);
   }, 0);
   const seatsCount = selectedSeats.length || 1;
-  const baseTicketFare = seatFareSum > 0 ? seatFareSum : (bus?.price || 1100) * seatsCount;
-  const insurance = 15.00;
-  const gst = Number((baseTicketFare * 0.05).toFixed(2)); // 5% GST
-  const discount = 150.00;
-  const totalAmount = Number((baseTicketFare + insurance + gst - discount).toFixed(2));
+  const baseTicketFare = createdBooking?.fareBreakdown?.baseFare || (seatFareSum > 0 ? seatFareSum : (bus?.price || 1100) * seatsCount);
+  const insurance = createdBooking?.fareBreakdown?.insuranceCharges !== undefined ? createdBooking.fareBreakdown.insuranceCharges : 15.00;
+  const gst = createdBooking?.fareBreakdown?.taxes !== undefined ? createdBooking.fareBreakdown.taxes : Number((baseTicketFare * 0.05).toFixed(2));
+  const discount = createdBooking?.fareBreakdown?.discount !== undefined ? createdBooking.fareBreakdown.discount : 150.00;
+  const totalAmount = createdBooking?.totalAmount || createdBooking?.fareBreakdown?.totalPayable || Number((baseTicketFare + insurance + gst - discount).toFixed(2));
 
   const operatorName = bus?.operatorName || 'Sri Kumaran Travels';
   const busType = bus?.busType || 'A/C Sleeper (2+1) • Multi-Axle Luxury Bharat Benz';
@@ -49,6 +50,13 @@ export default function ReviewBookingModal({
               <p className="text-xs text-slate-400 font-medium">
                 Verify journey details, passenger allocation, and fare
               </p>
+              {createdBooking?.bookingNumber && (
+                <div className="mt-1">
+                  <span className="text-[11px] font-mono font-bold bg-teal-50 border border-teal-200/90 text-[#0F766E] px-2.5 py-0.5 rounded-full inline-block">
+                    Ref: {createdBooking.bookingNumber}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -256,7 +264,7 @@ export default function ReviewBookingModal({
 
           <button
             type="button"
-            onClick={() => onConfirm({ totalAmount, passengers, selectedSeats })}
+            onClick={() => onConfirm({ totalAmount, passengers, selectedSeats, createdBooking })}
             className="px-6 py-2.5 rounded-xl bg-[#0F766E] hover:bg-[#0D6962] active:scale-[0.99] text-white font-bold text-xs sm:text-sm shadow-md flex items-center gap-2 transition-all cursor-pointer"
           >
             <Check className="w-4 h-4 stroke-[3]" />

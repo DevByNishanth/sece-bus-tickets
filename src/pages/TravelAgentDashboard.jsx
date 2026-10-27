@@ -149,7 +149,7 @@ export default function TravelAgentDashboard() {
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-base font-black text-slate-900 tracking-tight">
-                  SECE BUS PARTNER
+                  SECE BUS PARTNER 
                 </span>
                 <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-teal-100 text-teal-800 uppercase tracking-wider">
                   Agent Portal

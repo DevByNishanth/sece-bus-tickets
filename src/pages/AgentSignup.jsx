@@ -310,6 +310,7 @@ export default function AgentSignup() {
                   <span className="font-semibold text-slate-700">{formValues.email}</span>
                 </p>
               </div>
+              
 
               <form onSubmit={handleVerify} className="space-y-4">
                 <Field label="Agent Email OTP">

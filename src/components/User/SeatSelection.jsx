@@ -1,5 +1,13 @@
 import React from 'react';
-import { AlertCircle, X } from 'lucide-react';
+import { AlertCircle, X, Clock, RefreshCw, CheckCircle2, FastForward } from 'lucide-react';
+
+// Format mm:ss helper
+const formatRemainingTime = (totalSeconds) => {
+  if (!totalSeconds || totalSeconds <= 0) return '00:00';
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+};
 
 // Steering wheel SVG component
 const SteeringWheelIcon = () => (
@@ -31,10 +39,13 @@ export const SleeperBerth = ({
   price = 1250,
   type = 'Single Lower Sleeper',
   deck = 'Lower Deck',
+  holdInfo = null, // { remainingSeconds, expiresAt }
   onClick
 }) => {
-  const currentStatus = isSelected ? 'selected' : status;
-  const isBooked = currentStatus === 'booked';
+  const isHeld = Boolean(holdInfo && holdInfo.remainingSeconds > 0);
+  // Any booked or held seat CANNOT be selected and is rendered in booked color
+  const isBooked = status === 'booked' || isHeld;
+  const currentStatus = isBooked ? 'booked' : (isSelected ? 'selected' : status);
 
   let borderBgClass = '';
   let pillowClass = '';
@@ -61,6 +72,7 @@ export const SleeperBerth = ({
       badgeClass = 'bg-indigo-100 text-indigo-700';
       break;
     case 'booked':
+      // Booked color (#CBD5E1) - applied to booked and temporarily held berths
       borderBgClass = 'border border-slate-300/90 bg-[#CBD5E1] cursor-not-allowed opacity-90';
       pillowClass = 'border border-slate-300 bg-slate-400/20';
       textClass = 'text-slate-400 font-semibold';
@@ -82,7 +94,11 @@ export const SleeperBerth = ({
       type="button"
       onClick={() => !isBooked && onClick && onClick(id)}
       disabled={isBooked}
-      title={`${displayName} • ${type} • ${deck} • ₹${price} (${currentStatus.toUpperCase()})`}
+      title={
+        isHeld
+          ? `${displayName} • Held by another passenger (${formatRemainingTime(holdInfo.remainingSeconds)} remaining) • Booked color`
+          : `${displayName} • ${type} • ${deck} • ₹${price} (${currentStatus.toUpperCase()})`
+      }
       className={`relative group w-12 sm:w-14 h-20 sm:h-22 rounded-2xl flex flex-col items-center justify-between p-1.5 transition-all duration-200 select-none cursor-pointer ${borderBgClass} ${
         isBooked ? 'cursor-not-allowed' : ''
       }`}
@@ -95,15 +111,34 @@ export const SleeperBerth = ({
         {displayName}
       </span>
 
-      {/* Seat Price */}
-      <span className={`text-[10px] sm:text-[11px] font-bold tracking-tight pb-0.5 ${textClass}`}>
-        ₹{price}
-      </span>
+      {/* Seat Price or Hold Countdown */}
+      {isHeld ? (
+        <span
+          className="text-[9px] font-bold text-slate-700 flex items-center gap-0.5 pb-0.5 tracking-tighter"
+          title={`Hold expires in ${formatRemainingTime(holdInfo.remainingSeconds)}`}
+        >
+          <Clock className="w-2.5 h-2.5 text-slate-600 inline shrink-0" />
+          {formatRemainingTime(holdInfo.remainingSeconds)}
+        </span>
+      ) : (
+        <span className={`text-[10px] sm:text-[11px] font-bold tracking-tight pb-0.5 ${textClass}`}>
+          ₹{price}
+        </span>
+      )}
 
       {/* Floating Hover Tooltip */}
-      {!isBooked && (
+      {isHeld ? (
+        <div className="absolute -top-10 left-1/2 -translate-x-1/2 hidden group-hover:flex items-center gap-1.5 px-2.5 py-1 bg-slate-900 text-amber-300 text-[10px] font-semibold rounded-lg shadow-lg pointer-events-none whitespace-nowrap z-30 border border-slate-700">
+          <Clock className="w-3 h-3 text-amber-400 shrink-0" />
+          <span>{displayName} • Held by passenger ({formatRemainingTime(holdInfo.remainingSeconds)} left)</span>
+        </div>
+      ) : !isBooked ? (
         <div className="absolute -top-9 left-1/2 -translate-x-1/2 hidden group-hover:flex items-center px-2 py-0.5 bg-slate-900 text-white text-[10px] font-semibold rounded shadow-md pointer-events-none whitespace-nowrap z-20">
           {displayName} • {type} • ₹{price}
+        </div>
+      ) : (
+        <div className="absolute -top-9 left-1/2 -translate-x-1/2 hidden group-hover:flex items-center px-2 py-0.5 bg-slate-700 text-slate-200 text-[10px] font-semibold rounded shadow-md pointer-events-none whitespace-nowrap z-20">
+          {displayName} • Booked
         </div>
       )}
     </button>
@@ -115,9 +150,16 @@ export default function SeatSelection({
   onToggleSeat,
   busFare = 1100,
   bus,
-  conflictedSeats = [],
+  heldSeats = {},
+  confirmedBookedSeats = [],
+  conflictedSeats = [], // backward compatibility
   holdError = null,
-  onDismissError = null
+  onDismissError = null,
+  statusNotification = null,
+  onDismissNotification = null,
+  onRefreshSeatStatus = null,
+  onFastForwardHold = null,
+  isRefreshingSeats = false
 }) {
   // Extract API layout or use high-fidelity default structure
   const seatLayout = bus?.seatLayout;
@@ -125,12 +167,33 @@ export default function SeatSelection({
   const lowerDeckData = seatLayout?.lowerDeck;
   const upperDeckData = seatLayout?.upperDeck;
 
+  // Active held seats list
+  const activeHeldList = Object.values(heldSeats || {}).filter(
+    (s) => s && s.remainingSeconds > 0
+  );
+
+  // Helper to get hold info for a seat
+  const getHoldInfo = (seatId) => {
+    return (heldSeats && heldSeats[seatId] && heldSeats[seatId].remainingSeconds > 0)
+      ? heldSeats[seatId]
+      : null;
+  };
+
+  // Helper to determine whether a berth is available
+  const isBerthAvailable = (b) => {
+    const seatId = b.seatNumber || b.berthId;
+    if (confirmedBookedSeats.includes(seatId)) return false;
+    if (getHoldInfo(seatId)) return false;
+    if (conflictedSeats.includes(seatId)) return false;
+    return b.available !== false;
+  };
+
   // Compute lower deck statistics
   const lowerRows = lowerDeckData?.rows || [];
   const lowerBerthsList = lowerRows.flatMap((r) => r.berths || []);
   const lowerCapacity = lowerDeckData?.passengerCapacity || 18;
   const lowerAvailableCount = lowerBerthsList.length > 0
-    ? lowerBerthsList.filter((b) => b.available && !conflictedSeats.includes(b.seatNumber || b.berthId)).length
+    ? lowerBerthsList.filter(isBerthAvailable).length
     : 18;
 
   // Compute upper deck statistics
@@ -138,12 +201,14 @@ export default function SeatSelection({
   const upperBerthsList = upperRows.flatMap((r) => r.berths || []);
   const upperCapacity = upperDeckData?.passengerCapacity || 18;
   const upperAvailableCount = upperBerthsList.length > 0
-    ? upperBerthsList.filter((b) => b.available && !conflictedSeats.includes(b.seatNumber || b.berthId)).length
+    ? upperBerthsList.filter(isBerthAvailable).length
     : 18;
 
-  // Helper to get status
+  // Helper to get status for styling
   const getStatus = (berth) => {
     const seatId = berth.seatNumber || berth.berthId;
+    if (confirmedBookedSeats.includes(seatId)) return 'booked';
+    if (getHoldInfo(seatId)) return 'booked';
     if (conflictedSeats.includes(seatId)) return 'booked';
     if (berth.available === false) return 'booked';
     return 'available';
@@ -151,19 +216,108 @@ export default function SeatSelection({
 
   return (
     <div className="w-full space-y-4">
-      {/* Seat Hold Conflict / Error Alert */}
+      {/* 1. Status Notification Toast (Revoked back to available OR Confirmed booked) */}
+      {statusNotification && (
+        <div
+          className={`p-4 rounded-2xl flex items-start justify-between gap-3 shadow-xs animate-in fade-in duration-200 ${
+            statusNotification.type === 'available'
+              ? 'bg-emerald-50/95 border border-emerald-200 text-emerald-900'
+              : 'bg-slate-100 border border-slate-300 text-slate-800'
+          }`}
+        >
+          <div className="flex items-start gap-3">
+            {statusNotification.type === 'available' ? (
+              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+            ) : (
+              <AlertCircle className="w-5 h-5 text-slate-600 shrink-0 mt-0.5" />
+            )}
+            <div>
+              <div className="text-sm font-bold">
+                {statusNotification.type === 'available'
+                  ? 'Seat Re-enabled for Booking'
+                  : 'Seat Confirmed Booked'}
+              </div>
+              <div className="text-xs mt-0.5 opacity-90">{statusNotification.message}</div>
+            </div>
+          </div>
+          {onDismissNotification && (
+            <button
+              type="button"
+              onClick={onDismissNotification}
+              className="p-1 rounded-lg transition-colors opacity-60 hover:opacity-100 cursor-pointer"
+              title="Dismiss notification"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* 2. Active Held Seats Countdown Banner */}
+      {activeHeldList.length > 0 && (
+        <div className="bg-amber-50/95 border border-amber-200/90 text-amber-950 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs animate-in fade-in duration-200">
+          <div className="flex items-start sm:items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-2xs">
+              <Clock className="w-4 h-4 animate-pulse" />
+            </div>
+            <div>
+              <div className="text-sm font-bold text-amber-950">
+                Seat(s) Currently Held by Another Passenger (10m Hold)
+              </div>
+              <div className="text-xs text-amber-800 mt-0.5">
+                Berth(s) <span className="font-bold font-mono text-amber-950">{activeHeldList.map((s) => s.seatNumber).join(', ')}</span> are shown in booked color. If not booked within 10 minutes (600s), the hold will automatically revoke and re-enable for booking.
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-end sm:self-auto shrink-0 flex-wrap">
+            {activeHeldList.map((s) => (
+              <span
+                key={s.seatNumber}
+                className="bg-white border border-amber-300 text-amber-950 font-mono font-bold text-xs px-2.5 py-1 rounded-xl shadow-2xs flex items-center gap-1.5"
+              >
+                <span>{s.seatNumber}:</span>
+                <span className="text-amber-700">{formatRemainingTime(s.remainingSeconds)}</span>
+              </span>
+            ))}
+            {onRefreshSeatStatus && (
+              <button
+                type="button"
+                onClick={onRefreshSeatStatus}
+                disabled={isRefreshingSeats}
+                className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold px-3 py-1.5 rounded-xl shadow-2xs transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                title="Query server to check whether seats are confirmed booked or available"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isRefreshingSeats ? 'animate-spin' : ''}`} />
+                <span>Check Status</span>
+              </button>
+            )}
+            {onFastForwardHold && (
+              <button
+                type="button"
+                onClick={onFastForwardHold}
+                className="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 text-[11px] font-semibold px-2.5 py-1.5 rounded-xl transition-colors flex items-center gap-1 cursor-pointer"
+                title="Fast forward 10m timer to test expiration & revocation"
+              >
+                <FastForward className="w-3 h-3 text-slate-500" />
+                <span>Expire Now</span>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 3. Seat Hold Conflict / Error Alert */}
       {holdError && (
         <div className="bg-rose-50/95 border border-rose-200 text-rose-800 p-4 rounded-2xl flex items-start justify-between gap-3 shadow-xs animate-in fade-in zoom-in-95 duration-200">
           <div className="flex items-start gap-3">
             <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
             <div>
-              <div className="text-sm font-bold text-rose-900">Seat Reservation Notice</div>
+              <div className="text-sm font-bold text-rose-900">Seat Reservation Notice (409 Conflict)</div>
               <div className="text-xs text-rose-700 mt-0.5">{holdError}</div>
-              {conflictedSeats && conflictedSeats.length > 0 && (
-                <div className="text-[11px] font-semibold text-rose-800 mt-1">
-                  Conflicted seat(s): {conflictedSeats.join(', ')} — Please select alternative available berths.
-                </div>
-              )}
+              <div className="text-[11px] font-semibold text-rose-800 mt-1">
+                The seat is shown in booked color for 10 minutes (600s). If the passenger does not complete payment, it will automatically revoke to available.
+              </div>
             </div>
           </div>
           {onDismissError && (
@@ -180,7 +334,7 @@ export default function SeatSelection({
       )}
 
       {/* Top Deck Overview & Counters Banner */}
-      <div className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      {/* <div className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h3 className="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2">
             <span>Select Berths</span>
@@ -193,7 +347,6 @@ export default function SeatSelection({
           </p>
         </div>
 
-        {/* Live Counters */}
         <div className="flex items-center gap-2 flex-wrap">
           <div className="bg-sky-50 border border-sky-200/80 rounded-xl px-3 py-1.5 text-xs">
             <span className="text-slate-500 font-medium">Lower Deck: </span>
@@ -204,7 +357,7 @@ export default function SeatSelection({
             <span className="font-bold text-indigo-950">{upperAvailableCount}/{upperCapacity} Left</span>
           </div>
         </div>
-      </div>
+      </div> */}
 
       {/* Main 2-Column Responsive Deck Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-5 w-full">
@@ -253,20 +406,24 @@ export default function SeatSelection({
                 >
                   {/* Left: 2 Double Sleepers */}
                   <div className="flex items-center gap-2">
-                    {doubleBerths.map((berth) => (
-                      <SleeperBerth
-                        key={berth.seatNumber || berth.berthId}
-                        id={berth.seatNumber || berth.berthId}
-                        seatNumber={berth.seatNumber}
-                        status={getStatus(berth)}
-                        isSelected={selectedSeats.includes(berth.seatNumber || berth.berthId)}
-                        label={`Berth ${berth.seatNumber}`}
-                        type={berth.type}
-                        deck="Lower Deck"
-                        price={berth.fare || 1250}
-                        onClick={onToggleSeat}
-                      />
-                    ))}
+                    {doubleBerths.map((berth) => {
+                      const seatId = berth.seatNumber || berth.berthId;
+                      return (
+                        <SleeperBerth
+                          key={seatId}
+                          id={seatId}
+                          seatNumber={berth.seatNumber}
+                          status={getStatus(berth)}
+                          isSelected={selectedSeats.includes(seatId)}
+                          label={`Berth ${berth.seatNumber}`}
+                          type={berth.type}
+                          deck="Lower Deck"
+                          price={berth.fare || 1250}
+                          holdInfo={getHoldInfo(seatId)}
+                          onClick={onToggleSeat}
+                        />
+                      );
+                    })}
                   </div>
 
                   {/* Aisle Indicator */}
@@ -278,20 +435,24 @@ export default function SeatSelection({
 
                   {/* Right: 1 Single Sleeper */}
                   <div className="flex items-center">
-                    {singleBerths.map((berth) => (
-                      <SleeperBerth
-                        key={berth.seatNumber || berth.berthId}
-                        id={berth.seatNumber || berth.berthId}
-                        seatNumber={berth.seatNumber}
-                        status={getStatus(berth)}
-                        isSelected={selectedSeats.includes(berth.seatNumber || berth.berthId)}
-                        label={`Berth ${berth.seatNumber}`}
-                        type={berth.type}
-                        deck="Lower Deck"
-                        price={berth.fare || 1350}
-                        onClick={onToggleSeat}
-                      />
-                    ))}
+                    {singleBerths.map((berth) => {
+                      const seatId = berth.seatNumber || berth.berthId;
+                      return (
+                        <SleeperBerth
+                          key={seatId}
+                          id={seatId}
+                          seatNumber={berth.seatNumber}
+                          status={getStatus(berth)}
+                          isSelected={selectedSeats.includes(seatId)}
+                          label={`Berth ${berth.seatNumber}`}
+                          type={berth.type}
+                          deck="Lower Deck"
+                          price={berth.fare || 1350}
+                          holdInfo={getHoldInfo(seatId)}
+                          onClick={onToggleSeat}
+                        />
+                      );
+                    })}
                   </div>
                 </div>
               );
@@ -347,20 +508,24 @@ export default function SeatSelection({
                 >
                   {/* Left: 2 Double Sleepers */}
                   <div className="flex items-center gap-2">
-                    {doubleBerths.map((berth) => (
-                      <SleeperBerth
-                        key={berth.seatNumber || berth.berthId}
-                        id={berth.seatNumber || berth.berthId}
-                        seatNumber={berth.seatNumber}
-                        status={getStatus(berth)}
-                        isSelected={selectedSeats.includes(berth.seatNumber || berth.berthId)}
-                        label={`Berth ${berth.seatNumber}`}
-                        type={berth.type}
-                        deck="Upper Deck"
-                        price={berth.fare || 1100}
-                        onClick={onToggleSeat}
-                      />
-                    ))}
+                    {doubleBerths.map((berth) => {
+                      const seatId = berth.seatNumber || berth.berthId;
+                      return (
+                        <SleeperBerth
+                          key={seatId}
+                          id={seatId}
+                          seatNumber={berth.seatNumber}
+                          status={getStatus(berth)}
+                          isSelected={selectedSeats.includes(seatId)}
+                          label={`Berth ${berth.seatNumber}`}
+                          type={berth.type}
+                          deck="Upper Deck"
+                          price={berth.fare || 1100}
+                          holdInfo={getHoldInfo(seatId)}
+                          onClick={onToggleSeat}
+                        />
+                      );
+                    })}
                   </div>
 
                   {/* Aisle Indicator */}
@@ -372,20 +537,24 @@ export default function SeatSelection({
 
                   {/* Right: 1 Single Sleeper */}
                   <div className="flex items-center">
-                    {singleBerths.map((berth) => (
-                      <SleeperBerth
-                        key={berth.seatNumber || berth.berthId}
-                        id={berth.seatNumber || berth.berthId}
-                        seatNumber={berth.seatNumber}
-                        status={getStatus(berth)}
-                        isSelected={selectedSeats.includes(berth.seatNumber || berth.berthId)}
-                        label={`Berth ${berth.seatNumber}`}
-                        type={berth.type}
-                        deck="Upper Deck"
-                        price={berth.fare || 1200}
-                        onClick={onToggleSeat}
-                      />
-                    ))}
+                    {singleBerths.map((berth) => {
+                      const seatId = berth.seatNumber || berth.berthId;
+                      return (
+                        <SleeperBerth
+                          key={seatId}
+                          id={seatId}
+                          seatNumber={berth.seatNumber}
+                          status={getStatus(berth)}
+                          isSelected={selectedSeats.includes(seatId)}
+                          label={`Berth ${berth.seatNumber}`}
+                          type={berth.type}
+                          deck="Upper Deck"
+                          price={berth.fare || 1200}
+                          holdInfo={getHoldInfo(seatId)}
+                          onClick={onToggleSeat}
+                        />
+                      );
+                    })}
                   </div>
                 </div>
               );

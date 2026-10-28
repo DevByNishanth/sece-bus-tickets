@@ -48,10 +48,10 @@ export default function SeatStatusDisplay() {
           <span className="text-slate-900 font-semibold">Selected</span>
         </div>
 
-        {/* Booked */}
+        {/* Booked / Held */}
         <div className="flex items-center gap-2">
           <div className="w-5 h-7 rounded border border-slate-300 bg-[#CBD5E1] flex flex-col items-center pt-0.5 opacity-80" />
-          <span className="text-slate-400">Booked</span>
+          <span className="text-slate-400">Booked / Held</span>
         </div>
       </div>
     </div>

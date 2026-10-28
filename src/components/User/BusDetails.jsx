@@ -62,7 +62,7 @@ export default function BusDetails({ bus }) {
         </p>
 
         {/* Deck & Berth Statistics from API */}
-        <div className="flex items-center gap-2 mt-2 flex-wrap text-xs">
+        {/* <div className="flex items-center gap-2 mt-2 flex-wrap text-xs">
           <span className="inline-flex items-center gap-1 font-semibold text-sky-800 bg-sky-50 border border-sky-200/80 px-2.5 py-1 rounded-lg">
             🛏️ Lower Deck: {bus?.lowerDeckSeatsCount?.available ?? 18}/18 available
           </span>
@@ -74,7 +74,7 @@ export default function BusDetails({ bus }) {
               📍 {bus.stops.length} Route Stops
             </span>
           )}
-        </div>
+        </div> */}
       </div>
 
       {/* Timing and Route Information */}

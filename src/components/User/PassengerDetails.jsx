@@ -99,10 +99,12 @@ export default function PassengerDetails({
   const boardingPoints = apiBoarding.length > 0
     ? apiBoarding.map((s, idx) => ({
         id: s._id || `bp-${idx}`,
+        pointId: s._id,
         time: s.estimatedArrivalTime || '22:00',
         name: s.name,
+        city: s.city || bus?.departureCity || 'Origin',
         badge: idx === 0 ? 'MAIN ORIGIN' : (s.isHalt ? 'HALT' : `Stop #${s.sequenceNumber || idx + 1}`),
-        address: s.landmark ? `${s.landmark}${s.city ? `, ${s.city}` : ''}` : s.city || 'Chennai',
+        address: s.landmark ? `${s.landmark}${s.city ? `, ${s.city}` : ''}` : s.city || bus?.departureCity || 'Origin',
         reportingTime: s.estimatedArrivalTime || '21:45'
       }))
     : defaultBoardingPoints;
@@ -113,10 +115,12 @@ export default function PassengerDetails({
   const droppingPoints = apiDropping.length > 0
     ? apiDropping.map((s, idx) => ({
         id: s._id || `dp-${idx}`,
+        pointId: s._id,
         time: s.estimatedArrivalTime || '06:30',
         name: s.name,
+        city: s.city || bus?.arrivalCity || 'Destination',
         badge: idx === apiDropping.length - 1 ? 'TERMINUS' : (s.isHalt ? 'HALT' : `Stop #${s.sequenceNumber || idx + 1}`),
-        address: s.landmark ? `${s.landmark}${s.city ? `, ${s.city}` : ''}` : s.city || 'Coimbatore',
+        address: s.landmark ? `${s.landmark}${s.city ? `, ${s.city}` : ''}` : s.city || bus?.arrivalCity || 'Destination',
         reportingTime: s.estimatedArrivalTime || '06:20'
       }))
     : defaultDroppingPoints;

@@ -246,7 +246,9 @@ export default function PayUCheckout() {
             </div>
             <div className="flex justify-between text-slate-600">
               <span>Journey</span>
-              <span className="font-semibold text-slate-900">Chennai → Coimbatore</span>
+              <span className="font-semibold text-slate-900">
+                {bus?.departureCity || 'Origin'} → {bus?.arrivalCity || 'Destination'}
+              </span>
             </div>
             <div className="flex justify-between text-slate-600">
               <span>Operator</span>

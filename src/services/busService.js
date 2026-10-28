@@ -364,7 +364,7 @@ export async function fetchBusesSearch(options = {}) {
 
   // De-duplicate endpoints
   const uniqueUrls = Array.from(new Set(candidateUrls));
-
+c
   let lastError = null;
 
   for (const targetUrl of uniqueUrls) {
@@ -481,9 +481,11 @@ export async function holdSeatsBooking({
   }
 
   const envBase = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
+  const isBrowser = typeof window !== 'undefined';
   
   const candidateUrls = [
     baseUrl ? `${baseUrl.replace(/\/+$/, '')}/bookings/hold-seats` : null,
+    isBrowser ? '/api/bookings/hold-seats' : null,
     envBase ? `${envBase}/bookings/hold-seats` : null,
     'http://10.57.1.245:8000/api/bookings/hold-seats',
     '/api/bookings/hold-seats'
@@ -529,14 +531,30 @@ export async function holdSeatsBooking({
       if (response.ok && data?.success) {
         return {
           success: true,
+          statusCode: response.status,
           message: data.message || 'Seats held successfully for 10 minutes.',
           data: data.data
         };
       } else {
+        // Parse conflicted seats from array or fallback regex from message
+        let conflicted = Array.isArray(data?.conflictedSeats) ? data.conflictedSeats : [];
+        if (conflicted.length === 0 && typeof data?.message === 'string') {
+          const match = data.message.match(/Seat(?:s|\(s\))?\s+([A-Za-z0-9,\s]+?)\s+are/i);
+          if (match && match[1]) {
+            conflicted = match[1].split(',').map((s) => s.trim()).filter(Boolean);
+          }
+        }
+        if (conflicted.length === 0 && response.status === 409) {
+          conflicted = payload.seatNumbers;
+        }
+
         return {
           success: false,
-          message: data?.message || `Failed to hold seats (Status ${response.status})`,
-          conflictedSeats: data?.conflictedSeats || [],
+          statusCode: response.status,
+          message: data?.message || (response.status === 409 
+            ? `Seat(s) ${conflicted.join(', ')} are currently held by another passenger. Please select alternative seats.` 
+            : `Failed to hold seats (Status ${response.status})`),
+          conflictedSeats: conflicted,
           data: data?.data
         };
       }
@@ -547,9 +565,90 @@ export async function holdSeatsBooking({
 
   return {
     success: false,
+    statusCode: 0,
     message: lastError ? (lastError.name === 'AbortError' ? 'Seat reservation timed out. Please try again.' : lastError.message) : 'Unable to connect to reservation server.',
     conflictedSeats: []
   };
+}
+
+/**
+ * Fetch fresh bus seat layout to check updated seat availability
+ */
+export async function fetchBusSeatLayout({
+  busId,
+  journeyDate,
+  source = 'Chennai',
+  destination = 'Coimbatore',
+  baseUrl = null,
+  token: passedToken = null
+}) {
+  const authToken = passedToken || getAuthToken();
+  const envBase = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
+  const isBrowser = typeof window !== 'undefined';
+
+  // 1. Try direct bus endpoint: /api/buses/:busId
+  const candidateDirectUrls = [
+    baseUrl ? `${baseUrl.replace(/\/+$/, '')}/buses/${busId}` : null,
+    isBrowser ? `/api/buses/${busId}` : null,
+    envBase ? `${envBase}/buses/${busId}` : null,
+    `http://10.57.1.245:8000/api/buses/${busId}`
+  ].filter(Boolean);
+
+  for (const targetUrl of Array.from(new Set(candidateDirectUrls))) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
+
+      const headers = {
+        'Accept': 'application/json'
+      };
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+        headers['token'] = authToken;
+      }
+
+      const response = await fetch(targetUrl, {
+        method: 'GET',
+        headers,
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+
+      if (response.ok) {
+        const json = await response.json();
+        const rawBus = json.data || json.bus || json;
+        if (rawBus && (rawBus.seatLayout || rawBus._id)) {
+          return mapApiBusToUiBus(rawBus);
+        }
+      }
+    } catch {
+      // Continue to search fallback
+    }
+  }
+
+  // 2. Fallback: Query search API to get the bus list and find current bus
+  try {
+    const searchRes = await fetchBusesSearch({
+      source,
+      destination,
+      journeyDate,
+      baseUrl,
+      token: authToken
+    });
+
+    if (searchRes.success && Array.isArray(searchRes.buses)) {
+      const found = searchRes.buses.find(
+        (b) => String(b._id || b.busId || b.id) === String(busId)
+      );
+      if (found) {
+        return found;
+      }
+    }
+  } catch (err) {
+    console.error('Failed to refresh bus seat layout:', err);
+  }
+
+  return null;
 }
 
 /**
@@ -677,5 +776,141 @@ export async function createBooking({
     data: null
   };
 }
+
+/**
+ * Create PayU Payment Order API
+ * POST {{baseUrl}}/payments/create-order
+ * 
+ * Payload:
+ * {
+ *   "bookingId": "6ae1c1ade86786338825fb84"
+ * }
+ */
+export async function createPaymentOrder({
+  bookingId,
+  baseUrl = null,
+  token: passedToken = null
+}) {
+  const authToken = passedToken || getAuthToken();
+  const envBase = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
+  const isBrowser = typeof window !== 'undefined';
+
+  const candidateUrls = [
+    baseUrl ? `${baseUrl.replace(/\/+$/, '')}/payments/create-order` : null,
+    isBrowser ? '/api/payments/create-order' : null,
+    envBase ? `${envBase}/payments/create-order` : null,
+    'http://10.57.1.245:8000/api/payments/create-order',
+    '/api/payments/create-order'
+  ].filter(Boolean);
+
+  const uniqueUrls = Array.from(new Set(candidateUrls));
+  let lastError = null;
+
+  const payload = {
+    bookingId: String(bookingId)
+  };
+
+  for (const targetUrl of uniqueUrls) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 9000);
+
+      const headers = {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      };
+
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+        headers['exte_key'] = authToken;
+        headers['x-auth-token'] = authToken;
+        headers['token'] = authToken;
+      }
+
+      const response = await fetch(targetUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      const data = await response.json().catch(() => null);
+
+      if (response.ok && data?.success) {
+        return {
+          success: true,
+          message: data.message || 'Payment initiated successfully',
+          data: data.data
+        };
+      } else {
+        return {
+          success: false,
+          statusCode: response.status,
+          message: data?.message || `Failed to initiate payment (Status ${response.status})`,
+          data: data?.data
+        };
+      }
+    } catch (err) {
+      lastError = err;
+    }
+  }
+
+  return {
+    success: false,
+    statusCode: 0,
+    message: lastError ? (lastError.name === 'AbortError' ? 'Payment initiation timed out. Please try again.' : lastError.message) : 'Unable to connect to payment server.',
+    data: null
+  };
+}
+
+/**
+ * Render / Redirect directly to PayU Hosted Checkout Page
+ * Automatically creates and submits an HTML form to PayU's payment gateway URL.
+ */
+export function redirectToPayUCheckout(paymentData) {
+  if (!paymentData) return false;
+
+  const actionUrl =
+    paymentData.action ||
+    paymentData.checkoutUrl ||
+    paymentData.paymentUrl ||
+    'https://test.payu.in/_payment';
+
+  const payuParams = paymentData.payuParams;
+
+  if (payuParams && typeof payuParams === 'object' && Object.keys(payuParams).length > 0) {
+    // PayU Hosted Checkout Standard Form POST
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = actionUrl;
+    form.style.display = 'none';
+
+    Object.entries(payuParams).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = key;
+        input.value = String(value);
+        form.appendChild(input);
+      }
+    });
+
+    document.body.appendChild(form);
+    form.submit();
+    return true;
+  }
+
+  // Fallback: direct URL redirection if params are omitted
+  const redirectUrl = paymentData.checkoutUrl || paymentData.paymentUrl || paymentData.action;
+  if (redirectUrl) {
+    window.location.href = redirectUrl;
+    return true;
+  }
+
+  return false;
+}
+
 
 

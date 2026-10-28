@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Clock, CheckCircle2, AlertCircle } from 'lucide-react';
 import BookingNavbar from '../../components/User/BookingNavbar';
@@ -9,15 +9,14 @@ import BusDetails from '../../components/User/BusDetails';
 import BookingContinueProcess from '../../components/User/BookingContinueProcess';
 import PassengerDetails from '../../components/User/PassengerDetails';
 import ReviewBookingModal from '../../components/User/ReviewBookingModal';
-import { holdSeatsBooking, createBooking } from '../../services/busService';
-// import Bglayout from '../../assets/page-bg.png'
+import { holdSeatsBooking, createBooking, fetchBusSeatLayout, createPaymentOrder, redirectToPayUCheckout } from '../../services/busService';
 
 export default function TicketBooking() {
   const location = useLocation();
   const navigate = useNavigate();
 
   // Selected bus data with fallback matching the screenshots and live backend
-  const bus = location.state?.bus || {
+  const initialBus = location.state?.bus || {
     id: '6adb0a1474060137dbb0aa97',
     _id: '6adb0a1474060137dbb0aa97',
     busId: '6adb0a1474060137dbb0aa97',
@@ -35,6 +34,8 @@ export default function TicketBooking() {
     price: 849,
     originalPrice: 999
   };
+
+  const [bus, setBus] = useState(initialBus);
 
   const searchParams = location.state?.searchParams || {
     from: 'Chennai',
@@ -66,6 +67,37 @@ export default function TicketBooking() {
   const [holdData, setHoldData] = useState(null);
   const [conflictedSeats, setConflictedSeats] = useState([]);
 
+  // Held seats tracking: { [seatNumber]: { seatNumber, heldAt, expiresAt, remainingSeconds, status: 'held' } }
+  // 600 seconds = 10 minutes hold
+  const [heldSeats, setHeldSeats] = useState(() => {
+    try {
+      const busKey = `sece_held_seats_${initialBus._id || initialBus.busId || initialBus.id}`;
+      const saved = sessionStorage.getItem(busKey);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        const now = Date.now();
+        const valid = {};
+        Object.keys(parsed).forEach((seatId) => {
+          if (parsed[seatId] && parsed[seatId].expiresAt > now) {
+            valid[seatId] = {
+              ...parsed[seatId],
+              remainingSeconds: Math.ceil((parsed[seatId].expiresAt - now) / 1000)
+            };
+          }
+        });
+        return valid;
+      }
+    } catch {
+      // ignore storage error
+    }
+    return {};
+  });
+
+  // Confirmed permanently booked seats (e.g. seats confirmed booked after 10m check)
+  const [confirmedBookedSeats, setConfirmedBookedSeats] = useState([]);
+  const [statusNotification, setStatusNotification] = useState(null);
+  const [isRefreshingSeats, setIsRefreshingSeats] = useState(false);
+
   // Create Booking API State
   const [isCreatingBooking, setIsCreatingBooking] = useState(false);
   const [bookingError, setBookingError] = useState(null);
@@ -86,6 +118,175 @@ export default function TicketBooking() {
     email: 'alexandre.m@example.com',
     phone: '98765 43210'
   });
+
+  // Persist heldSeats to sessionStorage
+  useEffect(() => {
+    try {
+      const busKey = `sece_held_seats_${bus._id || bus.busId || bus.id}`;
+      sessionStorage.setItem(busKey, JSON.stringify(heldSeats));
+    } catch {
+      // ignore
+    }
+  }, [heldSeats, bus]);
+
+  // 1-second countdown interval for held seats (600s = 10 mins)
+  useEffect(() => {
+    const activeSeats = Object.values(heldSeats).filter((s) => s && s.remainingSeconds > 0);
+    if (activeSeats.length === 0) return;
+
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const expiredSeats = [];
+
+      setHeldSeats((prev) => {
+        let hasChanges = false;
+        const next = { ...prev };
+
+        Object.keys(next).forEach((seatNum) => {
+          const item = next[seatNum];
+          if (item && item.remainingSeconds > 0) {
+            const remaining = Math.max(0, Math.ceil((item.expiresAt - now) / 1000));
+            if (remaining !== item.remainingSeconds) {
+              hasChanges = true;
+              next[seatNum] = { ...item, remainingSeconds: remaining };
+            }
+            if (remaining <= 0) {
+              expiredSeats.push(seatNum);
+            }
+          }
+        });
+
+        return hasChanges ? next : prev;
+      });
+
+      if (expiredSeats.length > 0) {
+        handleHoldExpired(expiredSeats);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [heldSeats]);
+
+  // Normalize journeyDate to YYYY-MM-DD
+  const formatJourneyDateParam = (val) => {
+    if (!val) return '2026-10-27';
+    if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(val.trim())) {
+      return val.trim();
+    }
+    const d = new Date(val);
+    if (!isNaN(d.getTime())) {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    }
+    return '2026-10-27';
+  };
+
+  // Handle hold expiration after 600 seconds (10 minutes)
+  const handleHoldExpired = async (seatNumbersToCheck) => {
+    const seatsArray = Array.isArray(seatNumbersToCheck) ? seatNumbersToCheck : [seatNumbersToCheck];
+    if (seatsArray.length === 0) return;
+
+    const busId = bus._id || bus.busId || bus.id;
+    const journeyDate = formatJourneyDateParam(searchParams.rawDate || searchParams.date);
+
+    try {
+      const freshBus = await fetchBusSeatLayout({
+        busId,
+        journeyDate,
+        source: searchParams.from,
+        destination: searchParams.to
+      });
+
+      if (freshBus && freshBus.seatLayout) {
+        const allFreshBerths = [
+          ...(freshBus.seatLayout.lowerDeck?.rows?.flatMap((r) => r.berths) || []),
+          ...(freshBus.seatLayout.upperDeck?.rows?.flatMap((r) => r.berths) || [])
+        ];
+
+        const newlyBooked = [];
+        const newlyRevoked = [];
+
+        seatsArray.forEach((seatNum) => {
+          const berth = allFreshBerths.find(
+            (b) => (b.seatNumber || b.berthId) === seatNum
+          );
+          if (berth && berth.available === false) {
+            // User completed booking -> move permanently to booked
+            newlyBooked.push(seatNum);
+          } else {
+            // User did not complete booking -> revoke booked state to available
+            newlyRevoked.push(seatNum);
+          }
+        });
+
+        // Update bus with fresh seat layout
+        setBus(freshBus);
+
+        // Remove expired seats from heldSeats
+        setHeldSeats((prev) => {
+          const next = { ...prev };
+          seatsArray.forEach((s) => delete next[s]);
+          return next;
+        });
+
+        if (newlyBooked.length > 0) {
+          setConfirmedBookedSeats((prev) => Array.from(new Set([...prev, ...newlyBooked])));
+          setStatusNotification({
+            type: 'booked',
+            message: `Seat(s) ${newlyBooked.join(', ')} were confirmed booked by the passenger and are now permanently booked.`
+          });
+        }
+
+        if (newlyRevoked.length > 0) {
+          setStatusNotification({
+            type: 'available',
+            message: `10-minute hold on Seat(s) ${newlyRevoked.join(', ')} expired without booking. Seat is now available for booking!`
+          });
+        }
+      } else {
+        // Backend layout not available; since 10 mins elapsed, revoke hold so seat is re-enabled
+        setHeldSeats((prev) => {
+          const next = { ...prev };
+          seatsArray.forEach((s) => delete next[s]);
+          return next;
+        });
+        setStatusNotification({
+          type: 'available',
+          message: `10-minute hold on Seat(s) ${seatsArray.join(', ')} expired. Seat is now available for booking!`
+        });
+      }
+    } catch (err) {
+      // Fallback: revoke hold to re-enable booking
+      setHeldSeats((prev) => {
+        const next = { ...prev };
+        seatsArray.forEach((s) => delete next[s]);
+        return next;
+      });
+      setStatusNotification({
+        type: 'available',
+        message: `10-minute hold on Seat(s) ${seatsArray.join(', ')} expired. Seat is now available for booking!`
+      });
+    }
+  };
+
+  // Manually check seat status with backend
+  const handleRefreshSeatStatus = async () => {
+    const activeSeatKeys = Object.keys(heldSeats);
+    if (activeSeatKeys.length === 0) return;
+
+    setIsRefreshingSeats(true);
+    await handleHoldExpired(activeSeatKeys);
+    setIsRefreshingSeats(false);
+  };
+
+  // Fast-forward / Expire test action for testing 10m revocation immediately
+  const handleFastForwardHold = () => {
+    const activeSeatKeys = Object.keys(heldSeats);
+    if (activeSeatKeys.length === 0) return;
+    handleHoldExpired(activeSeatKeys);
+  };
 
   // Extract initial boarding & dropping points from API stops
   const boardingStops = (bus.stops || []).filter(
@@ -112,8 +313,10 @@ export default function TicketBooking() {
   // Boarding and Dropping Points State
   const [selectedBoarding, setSelectedBoarding] = useState({
     id: initialBoardingStop._id || 'bp-1',
+    pointId: initialBoardingStop._id,
     time: initialBoardingStop.estimatedArrivalTime || '22:00',
     name: initialBoardingStop.name,
+    city: initialBoardingStop.city || bus.departureCity || 'Origin',
     badge: 'MAIN ORIGIN',
     address: initialBoardingStop.landmark || `${initialBoardingStop.name}, ${initialBoardingStop.city || ''}`,
     reportingTime: initialBoardingStop.estimatedArrivalTime || '21:45'
@@ -121,31 +324,24 @@ export default function TicketBooking() {
 
   const [selectedDropping, setSelectedDropping] = useState({
     id: initialDroppingStop._id || 'dp-1',
+    pointId: initialDroppingStop._id,
     time: initialDroppingStop.estimatedArrivalTime || '06:30',
     name: initialDroppingStop.name,
+    city: initialDroppingStop.city || bus.arrivalCity || 'Destination',
     badge: 'TERMINUS',
     address: initialDroppingStop.landmark || `${initialDroppingStop.name}, ${initialDroppingStop.city || ''}`,
     reportingTime: initialDroppingStop.estimatedArrivalTime || '06:20'
   });
 
-  // Normalize journeyDate to YYYY-MM-DD
-  const formatJourneyDateParam = (val) => {
-    if (!val) return '2026-10-27';
-    if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(val.trim())) {
-      return val.trim();
-    }
-    const d = new Date(val);
-    if (!isNaN(d.getTime())) {
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, '0');
-      const day = String(d.getDate()).padStart(2, '0');
-      return `${y}-${m}-${day}`;
-    }
-    return '2026-10-27';
-  };
-
   // Toggle seat selection
   const handleToggleSeat = (seatId) => {
+    // If seat is held by another user or permanently booked, disallow selection
+    const isCurrentlyHeld = Boolean(heldSeats[seatId] && heldSeats[seatId].remainingSeconds > 0);
+    const isPermanentlyBooked = confirmedBookedSeats.includes(seatId);
+    if (isCurrentlyHeld || isPermanentlyBooked) {
+      return;
+    }
+
     setHoldError(null);
     setSelectedSeats((prev) => {
       let updated;
@@ -200,7 +396,6 @@ export default function TicketBooking() {
 
     if (currentStep === 1) {
       setHoldError(null);
-      setConflictedSeats([]);
       setIsHoldingSeats(true);
 
       const busId = bus._id || bus.busId || bus.id || '6adb0a1474060137dbb0aa97';
@@ -219,9 +414,46 @@ export default function TicketBooking() {
           setCurrentStep(2);
           window.scrollTo({ top: 0, behavior: 'smooth' });
         } else {
-          setHoldError(result.message || 'Seat(s) are currently held by another passenger. Please select alternative seats.');
-          if (result.conflictedSeats && result.conflictedSeats.length > 0) {
-            setConflictedSeats(result.conflictedSeats);
+          // Seat Conflict (409 or failed hold)
+          const conflicts = Array.isArray(result.conflictedSeats) && result.conflictedSeats.length > 0
+            ? result.conflictedSeats
+            : (result.statusCode === 409 ? selectedSeats : []);
+
+          setHoldError(
+            result.message ||
+            (conflicts.length > 0
+              ? `Seat(s) ${conflicts.join(', ')} are currently held by another passenger. Please select alternative seats.`
+              : 'Seat(s) are currently held by another passenger. Please select alternative seats.')
+          );
+
+          if (conflicts.length > 0) {
+            setConflictedSeats(conflicts);
+
+            // 1. Remove conflicted seats from selectedSeats so they aren't selected
+            setSelectedSeats((prev) => {
+              const remaining = prev.filter((id) => !conflicts.includes(id));
+              setPassengersState((prevPassengers) =>
+                prevPassengers.filter((p) => !conflicts.includes(p.seatId))
+              );
+              return remaining;
+            });
+
+            // 2. Put conflicted seats into heldSeats with 600s (10 minutes) hold
+            const now = Date.now();
+            const HOLD_DURATION_SECONDS = 600; // 10 minutes = 600 seconds
+            setHeldSeats((prev) => {
+              const updated = { ...prev };
+              conflicts.forEach((seatNum) => {
+                updated[seatNum] = {
+                  seatNumber: seatNum,
+                  heldAt: now,
+                  expiresAt: now + HOLD_DURATION_SECONDS * 1000,
+                  remainingSeconds: HOLD_DURATION_SECONDS,
+                  status: 'held'
+                };
+              });
+              return updated;
+            });
           }
         }
       } catch (err) {
@@ -290,21 +522,26 @@ export default function TicketBooking() {
     }
   };
 
-  // Confirm booking in modal -> navigate to PayU Checkout
-  const handleConfirmAndProceed = (bookingData) => {
-    setIsReviewModalOpen(false);
-    navigate('/checkout/payu', {
-      state: {
-        totalAmount: createdBooking?.totalAmount || bookingData.totalAmount || 891.45,
-        passengers: passengersState,
-        selectedSeats,
-        bus,
-        selectedBoarding,
-        selectedDropping,
-        holdData,
-        createdBooking
+  // Confirm booking in modal -> initiate PayU Hosted Checkout
+  const handleConfirmAndProceed = async (bookingData) => {
+    if (bookingData?.paymentData) {
+      redirectToPayUCheckout(bookingData.paymentData);
+      return;
+    }
+
+    const bookingId =
+      createdBooking?._id ||
+      createdBooking?.bookingId ||
+      createdBooking?.id ||
+      bookingData?.createdBooking?._id ||
+      bookingData?.createdBooking?.bookingId;
+
+    if (bookingId) {
+      const result = await createPaymentOrder({ bookingId });
+      if (result.success && result.data) {
+        redirectToPayUCheckout(result.data);
       }
-    });
+    }
   };
 
   const handleBackToSearch = () => {
@@ -313,14 +550,6 @@ export default function TicketBooking() {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex flex-col font-sans relative overflow-x-hidden mb-20">
-      {/* Background Ambience / Layout Image (rendered below all content) */}
-      {/* <img
-        src={Bglayout}
-        alt=""
-        aria-hidden="true"
-        className="fixed inset-0 w-full h-full object-cover pointer-events-none z-0"
-      /> */}
-
       {/* 1. Header / Navbar */}
       <BookingNavbar />
 
@@ -358,9 +587,16 @@ export default function TicketBooking() {
                   onToggleSeat={handleToggleSeat}
                   busFare={bus.price || 1100}
                   bus={bus}
+                  heldSeats={heldSeats}
+                  confirmedBookedSeats={confirmedBookedSeats}
                   conflictedSeats={conflictedSeats}
                   holdError={holdError}
                   onDismissError={() => setHoldError(null)}
+                  statusNotification={statusNotification}
+                  onDismissNotification={() => setStatusNotification(null)}
+                  onRefreshSeatStatus={handleRefreshSeatStatus}
+                  onFastForwardHold={handleFastForwardHold}
+                  isRefreshingSeats={isRefreshingSeats}
                 />
               </div>
 
@@ -436,7 +672,7 @@ export default function TicketBooking() {
         isLoading={isHoldingSeats || isCreatingBooking}
       />
 
-      {/* 4. Review Your Booking Popup Modal (Image 3) */}
+      {/* 4. Review Your Booking Popup Modal */}
       <ReviewBookingModal
         isOpen={isReviewModalOpen}
         onClose={() => setIsReviewModalOpen(false)}

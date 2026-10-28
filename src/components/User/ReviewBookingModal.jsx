@@ -1,5 +1,6 @@
-import React from 'react';
-import { ShieldCheck, X, Star, ArrowRight, Check } from 'lucide-react';
+import React, { useState } from 'react';
+import { ShieldCheck, X, Star, ArrowRight, Check, Loader2, AlertCircle } from 'lucide-react';
+import { createPaymentOrder, redirectToPayUCheckout } from '../../services/busService';
 
 export default function ReviewBookingModal({
   isOpen,
@@ -12,6 +13,9 @@ export default function ReviewBookingModal({
   selectedDropping,
   createdBooking = null
 }) {
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [paymentError, setPaymentError] = useState(null);
+
   if (!isOpen) return null;
 
   const allBerths = [
@@ -33,6 +37,67 @@ export default function ReviewBookingModal({
   const busType = bus?.busType || 'A/C Sleeper (2+1) • Multi-Axle Luxury Bharat Benz';
   const rating = bus?.rating || 4.6;
   const reviewsCount = bus?.reviewsCount || 456;
+
+  // Dynamic origin and destination resolution based on bus and selected stops
+  const originCity =
+    bus?.departureCity ||
+    bus?.route?.originCity ||
+    selectedBoarding?.city ||
+    (selectedBoarding?.name?.toLowerCase().includes('gandhipuram') ? 'Coimbatore' : null) ||
+    (selectedBoarding?.name?.toLowerCase().includes('koyambedu') ? 'Chennai' : null) ||
+    'Origin';
+
+  const destinationCity =
+    bus?.arrivalCity ||
+    bus?.route?.destinationCity ||
+    selectedDropping?.city ||
+    (selectedDropping?.name?.toLowerCase().includes('koyambedu') ? 'Chennai' : null) ||
+    (selectedDropping?.name?.toLowerCase().includes('gandhipuram') ? 'Coimbatore' : null) ||
+    'Destination';
+
+  const departureTime = selectedBoarding?.time || bus?.departureTime || '15:00';
+  const arrivalTime = selectedDropping?.time || bus?.arrivalTime || '20:55';
+  const departurePointDisplay = bus?.departurePoint || selectedBoarding?.name || originCity;
+  const droppingPointDisplay = bus?.droppingPoint || selectedDropping?.name || destinationCity;
+  const duration = bus?.duration || '05 hrs 55 mins';
+
+  const handleProceedPayment = async () => {
+    setPaymentError(null);
+    const bookingId =
+      createdBooking?._id ||
+      createdBooking?.bookingId ||
+      createdBooking?.id ||
+      (typeof createdBooking === 'string' ? createdBooking : null);
+
+    if (!bookingId) {
+      setPaymentError('Booking ID not found. Please review your booking details.');
+      return;
+    }
+
+    setIsProcessingPayment(true);
+    try {
+      const result = await createPaymentOrder({ bookingId });
+
+      if (result.success && result.data) {
+        // Notify parent if callback provided
+        if (onConfirm) {
+          onConfirm({ totalAmount, passengers, selectedSeats, createdBooking, paymentData: result.data });
+        }
+        // Redirect directly to actual PayU hosted checkout page
+        const redirected = redirectToPayUCheckout(result.data);
+        if (!redirected) {
+          setPaymentError('Payment initiated, but unable to redirect to PayU checkout.');
+          setIsProcessingPayment(false);
+        }
+      } else {
+        setPaymentError(result.message || 'Failed to initiate PayU payment order.');
+        setIsProcessingPayment(false);
+      }
+    } catch (err) {
+      setPaymentError(err.message || 'Error connecting to PayU payment gateway.');
+      setIsProcessingPayment(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
@@ -107,16 +172,16 @@ export default function ReviewBookingModal({
             <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-200/60">
               <div className="text-left">
                 <span className="text-base sm:text-lg font-extrabold text-slate-900 block">
-                  15:00
+                  {departureTime}
                 </span>
                 <span className="text-[11px] text-slate-500 font-medium">
-                  Chennai (Koyambedu)
+                  {departurePointDisplay}
                 </span>
               </div>
 
               <div className="flex-1 flex flex-col items-center px-3">
                 <span className="text-[10px] text-slate-400 font-bold">
-                  05 hrs 55 mins
+                  {duration}
                 </span>
                 <div className="w-full flex items-center gap-1 my-0.5">
                   <div className="w-1.5 h-1.5 rounded-full bg-teal-600" />
@@ -124,16 +189,16 @@ export default function ReviewBookingModal({
                   <ArrowRight className="w-3 h-3 text-teal-600 -ml-1" />
                 </div>
                 <span className="text-[10px] text-teal-700 font-bold">
-                  Non-stop route
+                  {bus?.isNonStop ? 'Non-stop route' : 'Standard route'}
                 </span>
               </div>
 
               <div className="text-right">
                 <span className="text-base sm:text-lg font-extrabold text-slate-900 block">
-                  20:55
+                  {arrivalTime}
                 </span>
                 <span className="text-[11px] text-slate-500 font-medium">
-                  Gandhipuram, CBE
+                  {droppingPointDisplay}
                 </span>
               </div>
             </div>
@@ -147,7 +212,45 @@ export default function ReviewBookingModal({
               const deckLabel = isUpper ? 'Upper Deck' : 'Lower Deck';
               const displayName = p.name?.trim() ? p.name : idx === 0 ? 'Surya Chandran' : 'Venkateshwaran';
 
-              return (
+              const handleProceedPayment = async () => {
+    setPaymentError(null);
+    const bookingId =
+      createdBooking?._id ||
+      createdBooking?.bookingId ||
+      createdBooking?.id ||
+      (typeof createdBooking === 'string' ? createdBooking : null);
+
+    if (!bookingId) {
+      setPaymentError('Booking ID not found. Please review your booking details.');
+      return;
+    }
+
+    setIsProcessingPayment(true);
+    try {
+      const result = await createPaymentOrder({ bookingId });
+
+      if (result.success && result.data) {
+        // Notify parent if callback provided
+        if (onConfirm) {
+          onConfirm({ totalAmount, passengers, selectedSeats, createdBooking, paymentData: result.data });
+        }
+        // Redirect directly to actual PayU hosted checkout page
+        const redirected = redirectToPayUCheckout(result.data);
+        if (!redirected) {
+          setPaymentError('Payment initiated, but unable to redirect to PayU checkout.');
+          setIsProcessingPayment(false);
+        }
+      } else {
+        setPaymentError(result.message || 'Failed to initiate PayU payment order.');
+        setIsProcessingPayment(false);
+      }
+    } catch (err) {
+      setPaymentError(err.message || 'Error connecting to PayU payment gateway.');
+      setIsProcessingPayment(false);
+    }
+  };
+
+  return (
                 <div
                   key={idx}
                   className="flex items-center justify-between p-3 rounded-2xl bg-teal-50/50 border border-teal-200/80 text-xs"
@@ -170,36 +273,46 @@ export default function ReviewBookingModal({
 
           {/* Boarding and Dropping Timeline */}
           <div className="relative pl-6 space-y-4 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200">
-            {/* Boarding */}
+            {/* Boarding (Origin) */}
             <div className="relative">
               <div className="absolute -left-[19px] top-1 w-2.5 h-2.5 rounded-full bg-[#0F766E] ring-4 ring-teal-100" />
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs font-bold text-slate-900">
-                  {selectedBoarding?.time || '15:00'} • Chennai (Origin Terminal)
+                  {departureTime} • {originCity} (Origin Terminal)
                 </span>
                 <span className="text-[9px] font-bold text-[#0F766E] bg-teal-50 border border-teal-200 px-2 py-0.5 rounded-full">
                   BOARDING
                 </span>
               </div>
               <p className="text-[11px] text-slate-500 font-medium mt-0.5">
-                {selectedBoarding?.name || 'Koyambedu Omni Bus Stand (Platform 4, Gate B)'}
+                {selectedBoarding?.name || departurePointDisplay}
               </p>
+              {selectedBoarding?.address && selectedBoarding.address !== selectedBoarding.name && (
+                <p className="text-[10px] text-slate-400 font-normal">
+                  {selectedBoarding.address}
+                </p>
+              )}
             </div>
 
-            {/* Dropping */}
+            {/* Dropping (Destination) */}
             <div className="relative">
               <div className="absolute -left-[19px] top-1 w-2.5 h-2.5 rounded-full bg-emerald-600 ring-4 ring-emerald-100" />
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs font-bold text-slate-900">
-                  {selectedDropping?.time || '02:15'} • Coimbatore (Final Destination)
+                  {arrivalTime} • {destinationCity} (Final Destination)
                 </span>
                 <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
                   DROPPING
                 </span>
               </div>
               <p className="text-[11px] text-slate-500 font-medium mt-0.5">
-                {selectedDropping?.name || 'Gandhipuram Central Bus Stand (Omni Bus Stand Terminus)'}
+                {selectedDropping?.name || droppingPointDisplay}
               </p>
+              {selectedDropping?.address && selectedDropping.address !== selectedDropping.name && (
+                <p className="text-[10px] text-slate-400 font-normal">
+                  {selectedDropping.address}
+                </p>
+              )}
             </div>
           </div>
 
@@ -250,6 +363,27 @@ export default function ReviewBookingModal({
               <span className="font-bold">Cancellation Policy:</span> Free cancellation available up to 4 hours prior to scheduled departure. 24x7 onboard helpline enabled.
             </div>
           </div>
+
+          {/* Payment Initiation Error Notice */}
+          {paymentError && (
+            <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center justify-between gap-3 shadow-xs animate-in fade-in">
+              <div className="flex items-center gap-2.5">
+                <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
+                <div>
+                  <div className="font-bold text-rose-900">Payment Initiation Failed</div>
+                  <div className="text-[11px] text-rose-700 mt-0.5">{paymentError}</div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPaymentError(null)}
+                className="text-rose-400 hover:text-rose-700 p-1 rounded-lg transition-colors cursor-pointer"
+                title="Dismiss"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Modal Footer Buttons */}
@@ -257,18 +391,29 @@ export default function ReviewBookingModal({
           <button
             type="button"
             onClick={onClose}
-            className="px-5 py-2.5 rounded-xl border border-slate-300 hover:bg-slate-100 text-slate-700 font-bold text-xs sm:text-sm transition-all cursor-pointer"
+            disabled={isProcessingPayment}
+            className="px-5 py-2.5 rounded-xl border border-slate-300 hover:bg-slate-100 text-slate-700 font-bold text-xs sm:text-sm transition-all cursor-pointer disabled:opacity-50"
           >
             Cancel
           </button>
 
           <button
             type="button"
-            onClick={() => onConfirm({ totalAmount, passengers, selectedSeats, createdBooking })}
-            className="px-6 py-2.5 rounded-xl bg-[#0F766E] hover:bg-[#0D6962] active:scale-[0.99] text-white font-bold text-xs sm:text-sm shadow-md flex items-center gap-2 transition-all cursor-pointer"
+            onClick={handleProceedPayment}
+            disabled={isProcessingPayment}
+            className="px-6 py-2.5 rounded-xl bg-[#0F766E] hover:bg-[#0D6962] active:scale-[0.99] text-white font-bold text-xs sm:text-sm shadow-md flex items-center gap-2 transition-all cursor-pointer disabled:opacity-75 disabled:cursor-not-allowed"
           >
-            <Check className="w-4 h-4 stroke-[3]" />
-            <span>Confirm Booking & Proceed</span>
+            {isProcessingPayment ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Redirecting to PayU...</span>
+              </>
+            ) : (
+              <>
+                <Check className="w-4 h-4 stroke-[3]" />
+                <span>Confirm Booking & Proceed</span>
+              </>
+            )}
           </button>
         </div>
       </div>

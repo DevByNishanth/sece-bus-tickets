@@ -13,7 +13,7 @@ import {
 
 // Monthly driver statistics
 const driverData = [
-    { month: "JAN", height: 1400, count: 123 },
+    { month: "JAN", height: 1400, count: 123 }, 
     { month: "FEB", height: 2300, count: 157 },
     { month: "MAR", height: 1650, count: 173 },
     { month: "ABR", height: 1200, count: 21 },

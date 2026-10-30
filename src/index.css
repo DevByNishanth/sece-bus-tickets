@@ -5,6 +5,21 @@ body{
   font-family: 'Poppins', sans-serif;
 }
 
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.25s ease-out both;
+}
+
 .custom-scroll {
   scrollbar-width: thin;
   scrollbar-color: #a0a0a0 #e8eef0;
@@ -20,7 +35,7 @@ body{
   background: #e8eef0;
 }
 
-.::-webkit-scrollbar-thumb {
+::-webkit-scrollbar-thumb {
   border: 2px solid #e8eef0;
   border-radius: 9999px;
   background: #3b3b3b;

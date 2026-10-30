@@ -192,11 +192,11 @@ const VendorDeckRowsPage = () => {
 
                 {/* -------------------- Seat Layout -------------------- */}
 
-                <div className="mt-5 grid  grid-cols-[1fr_14px_1fr] gap-1">
+                <div className="mt-5 grid  grid-cols-[1fr_14px_1fr] gap-1 gap-4">
 
                   {/* -------------------- Driver Side -------------------- */}
 
-                  <div className="flex flex-col gap-2 ">
+                  <div className="col-start-3 row-start-1  flex flex-col gap-2">
 
                     {Array.from(
                       { length: deck.driverCount },
@@ -208,7 +208,7 @@ const VendorDeckRowsPage = () => {
 
                           {/* Row Number */}
 
-                          <span className="absolute -left-6 text-[12px] text-gray-400">
+                          <span className="absolute left-6 text-[12px] text-gray-400">
                             R{index + 1}
                           </span>
 
@@ -220,7 +220,7 @@ const VendorDeckRowsPage = () => {
 
                   {/* -------------------- Center Aisle -------------------- */}
 
-                  <div className="flex flex-col items-center gap-2">
+                  <div className="col-start-2 row-start-1 flex flex-col items-center gap-2">
 
                     {Array.from(
                       {
@@ -245,7 +245,7 @@ const VendorDeckRowsPage = () => {
 
                   {/* -------------------- Opposite Side -------------------- */}
 
-                  <div className="flex flex-col gap-2">
+                  <div className="col-start-1 row-start-1 flex flex-col gap-2">
 
                     {Array.from(
                       { length: deck.oppositeCount },
@@ -257,7 +257,7 @@ const VendorDeckRowsPage = () => {
 
                           {/* Row Number */}
 
-                          <span className="absolute -right-6 text-[12px] text-gray-400">
+                          <span className="absolute right-6 text-[12px] text-gray-400">
                             R{index + 1}
                           </span>
 

@@ -1,4 +1,4 @@
-import { ChevronRight, Check } from "lucide-react";
+import { ChevronRight, Check, ArrowLeft } from "lucide-react";
 import VendorNavbar from "./VendorNavbar";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useState } from "react";
@@ -462,7 +462,14 @@ export const VendorDeckSelectionPage = () => {
             )}
           </div>
 
-          <div className="mt-5 flex justify-end">
+          <div className="mt-5 flex justify-between">
+            <button
+              type="button"
+              onClick={() => navigate(`/vendor/seatGeneration/${busId || searchParams.get("busId") || "bus"}`)}
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              <ArrowLeft size={16} />Back
+            </button>
             <button
               type="button"
               onClick={handleContinue}

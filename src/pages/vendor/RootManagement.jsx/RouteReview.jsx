@@ -1,5 +1,4 @@
-import React from "react";
-import { ArrowRight, ArrowLeftRight, Circle, Map, MapPin, Navigation, Pencil, Route, Users } from "lucide-react";
+import { ArrowLeftRight, Circle, Map, MapPin, Navigation, Pencil, Route, Users } from "lucide-react";
 
 function SectionHeader({ icon: Icon, title, onEdit }) {
     return (
@@ -37,7 +36,7 @@ function RouteDetails({ formData, stops, onEdit }) {
                         </div>
                     ))}
                 </div>
-                <div className="grid grid-cols-1 gap-3 border-t border-slate-100 pt-3 sm:grid-cols-3">
+                <div className="grid grid-cols-1 gap-3 border-t border-slate-100 pt-3 sm:grid-cols-2 lg:grid-cols-3">
                     <div className="flex min-w-0 items-start gap-2 sm:border-r sm:border-slate-100 sm:pr-2">
                         <MapPin size={12} className="mt-0.5 shrink-0 text-teal-700" />
                         <div className="min-w-0"><p className="break-words text-[11px] font-medium text-slate-700">{formData.routeName || "Not set"}</p><p className="mt-0.5 text-[10px] text-slate-400">Route name</p></div>
@@ -48,8 +47,10 @@ function RouteDetails({ formData, stops, onEdit }) {
                     </div>
                     <div className="flex min-w-0 items-start gap-2 sm:pl-2">
                         <Navigation size={12} className="mt-0.5 shrink-0 text-teal-700" />
-                        <div className="min-w-0"><p className="break-words text-[11px] font-medium text-slate-700">{formData.internalDescription || "No description"}</p><p className="mt-0.5 text-[10px] text-slate-400">Internal description</p></div>
+                        <div className="min-w-0"><p className="break-words text-[11px] font-medium text-slate-700">{formData.description || "No description"}</p><p className="mt-0.5 text-[10px] text-slate-400">Description</p></div>
                     </div>
+                    <div className="flex items-start gap-2"><Map size={12} className="mt-0.5 shrink-0 text-teal-700" /><div><p className="text-[11px] font-medium text-slate-700">{formData.estimatedDistance !== "" && formData.estimatedDistance != null && Number.isFinite(Number(formData.estimatedDistance)) ? `${Number(formData.estimatedDistance).toFixed(2)} km` : "—"}</p><p className="mt-0.5 text-[10px] text-slate-400">Estimated distance</p></div></div>
+                    <div className="flex items-start gap-2"><Route size={12} className="mt-0.5 shrink-0 text-teal-700" /><div><p className="text-[11px] font-medium text-slate-700">{formData.estimatedDurationMinutes !== "" && formData.estimatedDurationMinutes != null && Number.isFinite(Number(formData.estimatedDurationMinutes)) ? `${(Number(formData.estimatedDurationMinutes) / 60).toFixed(2)} hours` : "—"}</p><p className="mt-0.5 text-[10px] text-slate-400">Estimated duration</p></div></div>
                 </div>
             </div>
         </div>

@@ -81,7 +81,7 @@ const RouteBounds = ({ coordinates, geometry }) => {
     return null
 }
 
-const StopNameAutocomplete = ({ stop, onEdit, onSelect }) => {
+export const StopNameAutocomplete = ({ stop, onEdit, onSelect, required = false, placeholder = "Enter stop name" }) => {
     const [search, setSearch] = useState({ status: 'idle', results: [], message: '' })
     const [activeIndex, setActiveIndex] = useState(-1)
     const [isOpen, setIsOpen] = useState(false)
@@ -173,6 +173,8 @@ const StopNameAutocomplete = ({ stop, onEdit, onSelect }) => {
         onSelect({
             name: result.display_place || result.name || result.display_name,
             location: result.display_address || result.display_name,
+            city: result.address?.city || result.address?.town || result.address?.village || result.address?.municipality || result.address?.county || "",
+            landmark: result.display_address || result.display_name || "",
             latitude,
             longitude,
             placeId: result.place_id == null ? undefined : String(result.place_id),
@@ -213,7 +215,8 @@ const StopNameAutocomplete = ({ stop, onEdit, onSelect }) => {
                     onEdit(event.target.value)
                     setIsOpen(true)
                 }}
-                placeholder="Enter stop name"
+                required={required}
+                placeholder={placeholder}
                 role="combobox"
                 aria-autocomplete="list"
                 aria-expanded={showDropdown}
@@ -317,7 +320,7 @@ const RouteStopsForm = ({ stops, setStops, onAddStop }) => {
 
     const handleStopChange = (id, value) => {
         setStops(current => current.map(stop => stop.id === id
-            ? { ...stop, name: value, location: '', latitude: undefined, longitude: undefined, placeId: undefined, locationVerified: false }
+            ? { ...stop, name: value, location: '', city: '', landmark: '', latitude: undefined, longitude: undefined, placeId: undefined, locationVerified: false }
             : stop))
     }
 
@@ -332,7 +335,9 @@ const RouteStopsForm = ({ stops, setStops, onAddStop }) => {
                 id: `stop-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
                 name: '',
                 type: 'stop',
-                location: ''
+                location: '',
+                city: '',
+                landmark: ''
             }
         ])
     }
@@ -444,6 +449,10 @@ const RouteStopsForm = ({ stops, setStops, onAddStop }) => {
                                     placeholder="Enter area or location"
                                     className={`w-full text-[9px] text-[#8191AA] outline-none bg-transparent placeholder:text-[#A0AEC0] ${stop.type !== 'stop' ? 'cursor-default' : ''}`}
                                 />
+                                {stop.type === 'stop' && <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                    <input type="text" value={stop.city || ''} onChange={event => setStops(current => current.map(item => item.id === stop.id ? { ...item, city: event.target.value } : item))} placeholder="City" aria-label={`City for ${stop.name || 'stop'}`} className="w-full rounded border border-[#E3EAF0] px-2 py-1 text-[9px] text-[#344054] outline-none focus:border-[#0F766E]" />
+                                    <input type="text" value={stop.landmark || ''} onChange={event => setStops(current => current.map(item => item.id === stop.id ? { ...item, landmark: event.target.value } : item))} placeholder="Landmark" aria-label={`Landmark for ${stop.name || 'stop'}`} className="w-full rounded border border-[#E3EAF0] px-2 py-1 text-[9px] text-[#344054] outline-none focus:border-[#0F766E]" />
+                                </div>}
                                 {stop.type === 'stop' && (
                                     <p className={`text-[8px] mt-0.5 ${stop.locationVerified ? 'text-[#0F766E]' : 'text-[#B45309]'}`}>
                                         {stop.locationVerified ? 'Selected location confirmed' : 'Choose a search suggestion to confirm this stop'}

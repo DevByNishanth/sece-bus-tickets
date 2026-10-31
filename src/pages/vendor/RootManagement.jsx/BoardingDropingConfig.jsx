@@ -17,8 +17,8 @@ export default function BoardingDroppingConfig({
             return {
                 ...current,
                 [stopId]: {
-                    boarding: permission === "boarding" ? enabled : (enabled ? false : Boolean(row.boarding)),
-                    dropping: permission === "dropping" ? enabled : (enabled ? false : Boolean(row.dropping)),
+                    boarding: permission === "boarding" ? enabled : Boolean(row.boarding),
+                    dropping: permission === "dropping" ? enabled : Boolean(row.dropping),
                 },
             };
         });

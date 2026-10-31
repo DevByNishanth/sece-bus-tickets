@@ -62,7 +62,7 @@ const BusTable = () => {
             try {
                 const baseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "");
                 if (!baseUrl) throw new Error("VITE_API_BASE_URL is not configured.");
-                const token = window.localStorage.getItem("ext-key");
+                const token = window.localStorage.getItem("exte_key");
                 if (!token) throw new Error("Authentication token was not found. Please sign in again.");
 
                 const query = new URLSearchParams({ page: String(currentPage), limit: String(PAGE_SIZE), search: debouncedSearch });

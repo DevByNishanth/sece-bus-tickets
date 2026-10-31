@@ -147,6 +147,7 @@ export const SleeperBerth = ({
 
 export default function SeatSelection({
   selectedSeats = [],
+  passengersState = [],
   onToggleSeat,
   busFare = 1100,
   bus,
@@ -166,6 +167,98 @@ export default function SeatSelection({
 
   const lowerDeckData = seatLayout?.lowerDeck;
   const upperDeckData = seatLayout?.upperDeck;
+
+  const defaultLowerRows = React.useMemo(() => {
+    const rows = [];
+    let seatIdx = 1;
+    for (let r = 1; r <= 6; r++) {
+      const s1 = `L${seatIdx++}`;
+      const s2 = `L${seatIdx++}`;
+      const s3 = `L${seatIdx++}`;
+      rows.push({
+        rowNumber: r,
+        rowLabel: `Row ${r}`,
+        berths: [
+          { seatNumber: s1, berthId: s1, type: 'Double Sleeper (Window)', fare: busFare || 650, available: true },
+          { seatNumber: s2, berthId: s2, type: 'Double Sleeper (Aisle)', fare: busFare || 650, available: true },
+          { seatNumber: s3, berthId: s3, type: 'Single Sleeper (Window)', fare: (busFare || 650) + 100, available: true }
+        ]
+      });
+    }
+    return rows;
+  }, [busFare]);
+
+  const defaultUpperRows = React.useMemo(() => {
+    const rows = [];
+    let seatIdx = 1;
+    for (let r = 1; r <= 6; r++) {
+      const s1 = `U${seatIdx++}`;
+      const s2 = `U${seatIdx++}`;
+      const s3 = `U${seatIdx++}`;
+      rows.push({
+        rowNumber: r,
+        rowLabel: `Row ${r}`,
+        berths: [
+          { seatNumber: s1, berthId: s1, type: 'Double Sleeper (Window)', fare: busFare || 650, available: true },
+          { seatNumber: s2, berthId: s2, type: 'Double Sleeper (Aisle)', fare: busFare || 650, available: true },
+          { seatNumber: s3, berthId: s3, type: 'Single Sleeper (Window)', fare: (busFare || 650) + 100, available: true }
+        ]
+      });
+    }
+    return rows;
+  }, [busFare]);
+
+  const lowerRows = (lowerDeckData?.rows && lowerDeckData.rows.length > 0)
+    ? lowerDeckData.rows
+    : defaultLowerRows;
+
+  const upperRows = (upperDeckData?.rows && upperDeckData.rows.length > 0)
+    ? upperDeckData.rows
+    : defaultUpperRows;
+
+  // Calculate gender for berths based on adjacent double berth
+  // If one seat in a double berth is chosen/booked by girl, adjacent seat becomes 'female' (pink)
+  // If one seat is chosen/booked by boy, adjacent seat becomes 'male' (indigo/blue)
+  const adjacentGenderRestrictions = React.useMemo(() => {
+    const restrictions = {};
+
+    const evaluateRow = (row) => {
+      const doubleBerths = (row.berths || []).filter(
+        (b) => b.type && b.type.toLowerCase().includes('double')
+      );
+      if (doubleBerths.length === 2) {
+        const [b1, b2] = doubleBerths;
+        const id1 = b1.seatNumber || b1.berthId;
+        const id2 = b2.seatNumber || b2.berthId;
+
+        const getBerthGender = (berth, seatId) => {
+          const pass = (passengersState || []).find((p) => p.seatId === seatId);
+          if (pass?.gender) return pass.gender.toLowerCase();
+          if (berth.gender) return String(berth.gender).toLowerCase();
+          if (berth.bookedGender) return String(berth.bookedGender).toLowerCase();
+          if (berth.status === 'female' || berth.status === 'male') return berth.status;
+          return null;
+        };
+
+        const g1 = getBerthGender(b1, id1);
+        const g2 = getBerthGender(b2, id2);
+
+        // If b1 has gender and b2 is not yet chosen/booked, b2 gets restricted to g1
+        if (g1 && !g2) {
+          restrictions[id2] = g1;
+        }
+        // If b2 has gender and b1 is not yet chosen/booked, b1 gets restricted to g2
+        if (g2 && !g1) {
+          restrictions[id1] = g2;
+        }
+      }
+    };
+
+    lowerRows.forEach(evaluateRow);
+    upperRows.forEach(evaluateRow);
+
+    return restrictions;
+  }, [lowerRows, upperRows, passengersState, selectedSeats]);
 
   // Active held seats list
   const activeHeldList = Object.values(heldSeats || {}).filter(
@@ -189,7 +282,6 @@ export default function SeatSelection({
   };
 
   // Compute lower deck statistics
-  const lowerRows = lowerDeckData?.rows || [];
   const lowerBerthsList = lowerRows.flatMap((r) => r.berths || []);
   const lowerCapacity = lowerDeckData?.passengerCapacity || 18;
   const lowerAvailableCount = lowerBerthsList.length > 0
@@ -197,7 +289,6 @@ export default function SeatSelection({
     : 18;
 
   // Compute upper deck statistics
-  const upperRows = upperDeckData?.rows || [];
   const upperBerthsList = upperRows.flatMap((r) => r.berths || []);
   const upperCapacity = upperDeckData?.passengerCapacity || 18;
   const upperAvailableCount = upperBerthsList.length > 0
@@ -211,6 +302,10 @@ export default function SeatSelection({
     if (getHoldInfo(seatId)) return 'booked';
     if (conflictedSeats.includes(seatId)) return 'booked';
     if (berth.available === false) return 'booked';
+    if (adjacentGenderRestrictions[seatId]) {
+      return adjacentGenderRestrictions[seatId];
+    }
+    if (berth.status === 'female' || berth.status === 'male') return berth.status;
     return 'available';
   };
 
@@ -420,7 +515,7 @@ export default function SeatSelection({
                           deck="Lower Deck"
                           price={berth.fare || 1250}
                           holdInfo={getHoldInfo(seatId)}
-                          onClick={onToggleSeat}
+                          onClick={(id) => onToggleSeat && onToggleSeat(id, adjacentGenderRestrictions[id])}
                         />
                       );
                     })}
@@ -449,7 +544,7 @@ export default function SeatSelection({
                           deck="Lower Deck"
                           price={berth.fare || 1350}
                           holdInfo={getHoldInfo(seatId)}
-                          onClick={onToggleSeat}
+                          onClick={(id) => onToggleSeat && onToggleSeat(id, adjacentGenderRestrictions[id])}
                         />
                       );
                     })}
@@ -522,7 +617,7 @@ export default function SeatSelection({
                           deck="Upper Deck"
                           price={berth.fare || 1100}
                           holdInfo={getHoldInfo(seatId)}
-                          onClick={onToggleSeat}
+                          onClick={(id) => onToggleSeat && onToggleSeat(id, adjacentGenderRestrictions[id])}
                         />
                       );
                     })}
@@ -551,7 +646,7 @@ export default function SeatSelection({
                           deck="Upper Deck"
                           price={berth.fare || 1200}
                           holdInfo={getHoldInfo(seatId)}
-                          onClick={onToggleSeat}
+                          onClick={(id) => onToggleSeat && onToggleSeat(id, adjacentGenderRestrictions[id])}
                         />
                       );
                     })}

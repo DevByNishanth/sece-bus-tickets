@@ -196,8 +196,8 @@ export async function fetchAdminOffers(options = {}) {
     baseUrl: customBaseUrl = null
   } = options;
 
-  const rawBase = (import.meta.env.VITE_API_URL );
-  const token =  getAuthToken();
+  const rawBase = (import.meta.env.VITE_API_BASE_URL);
+  const token = getAuthToken();
 
   // Query parameters according to user specifications
   const params = new URLSearchParams({

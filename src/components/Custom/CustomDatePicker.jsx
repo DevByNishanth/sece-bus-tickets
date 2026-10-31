@@ -118,18 +118,17 @@ export default function CustomDatePicker({
   }, []);
 
   const selectedDate = useMemo(() => {
-    return toDateObj(initialDate) || today;
+    const parsed = toDateObj(initialDate);
+    if (parsed && !isBeforeDay(parsed, today)) {
+      return parsed;
+    }
+    return today;
   }, [initialDate, today]);
 
   const minDate = useMemo(() => {
     if (customMinDate) return toDateObj(customMinDate);
-    // If initialDate is set to an earlier test date (e.g. in 2025), permit from that date, otherwise today
-    const initD = toDateObj(initialDate);
-    if (initD && isBeforeDay(initD, today)) {
-      return initD;
-    }
     return today;
-  }, [customMinDate, initialDate, today]);
+  }, [customMinDate, today]);
 
   const maxDate = useMemo(() => {
     if (customMaxDate) return toDateObj(customMaxDate);

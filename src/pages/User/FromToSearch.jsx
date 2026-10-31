@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef,useMemo } from 'react';
 import {
   ArrowLeft,
   MapPin,
@@ -140,17 +140,29 @@ function formatLocationSubtitle(item) {
   return item.address?.state ? `${item.address.state}, India` : 'India';
 }
 
+const getTodayDateStr = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 export default function FromToSearch({
   initialFrom = 'Chennai (Koyambedu)',
   initialTo = 'Coimbatore (Gandhipuram)',
-  initialDate = '2026-10-26',
+  initialDate = null,
   onSearch,
   onBack,
   showBack = true
 }) {
+  const todayStr = useMemo(() => getTodayDateStr(), []);
   const [from, setFrom] = useState(initialFrom);
   const [to, setTo] = useState(initialTo);
-  const [date, setDate] = useState(initialDate);
+  const [date, setDate] = useState(() => {
+    if (initialDate && initialDate >= todayStr) return initialDate;
+    return todayStr;
+  });
   const [swapRotation, setSwapRotation] = useState(0);
 
   // Dropdown states

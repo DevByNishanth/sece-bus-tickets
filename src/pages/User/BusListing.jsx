@@ -7,6 +7,14 @@ import { fetchBusesSearch } from '../../services/busService';
 import { SlidersHorizontal, X, Search, ArrowRight, ArrowLeft } from 'lucide-react';
 import TripOffers from '../../components/User/TripOffers';
 
+const getTodayDateStr = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 export default function BusListing() {
   const [buses, setBuses] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -18,7 +26,7 @@ export default function BusListing() {
   const [searchParams, setSearchParams] = useState({
     from: 'Chennai',
     to: 'Coimbatore',
-    date: '2026-10-26'
+    date: getTodayDateStr()
   });
 
   // Fetch buses whenever search parameters change
@@ -39,7 +47,7 @@ export default function BusListing() {
           setIsLiveBackend(Boolean(result.isLive));
         }
       } catch (err) {
-        console.error('[BusListing] Fetch error:', err);
+        console.error('BusListing Fetch error:', err);
       } finally {
         if (isSubscribed) {
           setLoading(false);

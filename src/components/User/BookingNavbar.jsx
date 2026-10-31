@@ -1,5 +1,5 @@
 import React from 'react';
-import { Bell, ChevronDown } from 'lucide-react';
+import { Bell, ChevronDown, Bookmark } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export default function BookingNavbar() {
@@ -37,7 +37,16 @@ export default function BookingNavbar() {
         </Link>
 
         {/* Right: Notifications & User Profile */}
-        <div className="flex items-center gap-3 sm:gap-4">
+        <div className="flex items-center gap-2 sm:gap-4">
+          {/* My Bookings Shortcut */}
+          <Link
+            to="/my-bookings"
+            className="hidden sm:flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:text-[#0F766E] px-3 py-1.5 rounded-xl hover:bg-slate-50 transition-colors"
+          >
+            <Bookmark className="w-3.5 h-3.5 text-teal-700" />
+            <span>My Bookings</span>
+          </Link>
+
           {/* Bell Icon with notification badge */}
           <button
             type="button"
@@ -49,7 +58,11 @@ export default function BookingNavbar() {
           </button>
 
           {/* User Profile Pill */}
-          <div className="flex items-center gap-2.5 pl-2 py-1 pr-1 sm:pr-2 rounded-full hover:bg-slate-50 transition-colors cursor-pointer border border-transparent hover:border-slate-200">
+          <Link
+            to="/my-bookings"
+            className="flex items-center gap-2.5 pl-2 py-1 pr-1 sm:pr-2 rounded-full hover:bg-slate-50 transition-colors cursor-pointer border border-transparent hover:border-slate-200"
+            title="View Profile and Bookings"
+          >
             <div className="w-8 h-8 rounded-full bg-[#0F766E] text-white flex items-center justify-center font-bold text-xs shadow-2xs">
               AM
             </div>
@@ -62,7 +75,7 @@ export default function BookingNavbar() {
               </span>
             </div>
             <ChevronDown className="w-4 h-4 text-slate-400" />
-          </div>
+          </Link>
         </div>
       </div>
     </header>

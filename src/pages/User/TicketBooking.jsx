@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Clock, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Clock, CheckCircle2, AlertCircle, X } from 'lucide-react';
 import BookingNavbar from '../../components/User/BookingNavbar';
 import BookingProcess from '../../components/User/BookingProcess';
 import SeatStatusDisplay from '../../components/User/SeatStatusDisplay';
@@ -9,13 +9,31 @@ import BusDetails from '../../components/User/BusDetails';
 import BookingContinueProcess from '../../components/User/BookingContinueProcess';
 import PassengerDetails from '../../components/User/PassengerDetails';
 import ReviewBookingModal from '../../components/User/ReviewBookingModal';
-import { holdSeatsBooking, createBooking, fetchBusSeatLayout, createPaymentOrder, redirectToPayUCheckout } from '../../services/busService';
+import { holdSeatsBooking, fetchBusSeatLayout } from '../../services/busService';
+import redirectToPayU, { redirectToPayU as namedRedirectToPayU } from '../../Utils/payu';
+
+const redirectPayU = (data) => {
+  if (typeof redirectToPayU === 'function') {
+    return redirectToPayU(data);
+  }
+  if (typeof namedRedirectToPayU === 'function') {
+    return namedRedirectToPayU(data);
+  }
+};
+
+const getTodayDateStr = () => {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
 
 export default function TicketBooking() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Selected bus data with fallback matching the screenshots and live backend
+  // Selected bus data with fallback matching live backend route
   const initialBus = location.state?.bus || {
     id: '6adb0a1474060137dbb0aa97',
     _id: '6adb0a1474060137dbb0aa97',
@@ -24,23 +42,23 @@ export default function TicketBooking() {
     busType: 'A/C Sleeper (2+1) • Multi-Axle Luxury Bharat Benz',
     rating: 4.6,
     reviewsCount: 456,
-    departureTime: '15:00',
-    departureCity: 'Chennai',
-    departurePoint: 'Chennai (Koyambedu)',
-    arrivalTime: '20:55',
-    arrivalCity: 'Coimbatore',
-    droppingPoint: 'Gandhipuram, CBE',
+    departureTime: '21:30',
+    departureCity: 'Coimbatore',
+    departurePoint: 'Gandhipuram Omni Bus Stand',
+    arrivalTime: '06:00',
+    arrivalCity: 'Chennai',
+    droppingPoint: 'Koyambedu (CMBT)',
     duration: '05 hrs 55 mins',
-    price: 849,
+    price: 650,
     originalPrice: 999
   };
 
   const [bus, setBus] = useState(initialBus);
 
   const searchParams = location.state?.searchParams || {
-    from: 'Chennai',
-    to: 'Coimbatore',
-    date: 'Saturday, 24 May',
+    from: 'Coimbatore',
+    to: 'Chennai',
+    date: getTodayDateStr(),
     passengers: '1 Traveller (All seats)'
   };
 
@@ -52,14 +70,28 @@ export default function TicketBooking() {
 
   const getBerthFare = (seatId) => {
     const found = allBerths.find((b) => b.seatNumber === seatId || b.berthId === seatId);
-    return found?.fare || bus.price || 1100;
+    return found?.fare || bus.price || 650;
   };
 
-  // State
-  // Default selected seat to ['L1'] or first available
-  const [selectedSeats, setSelectedSeats] = useState(['L1']);
+  // State: Default selected seats starts empty
+  const [selectedSeats, setSelectedSeats] = useState([]);
   const [currentStep, setCurrentStep] = useState(1);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+
+  // Floating bottom-right toast message (matching TripOffers coupon toast)
+  const [toastMessage, setToastMessage] = useState(null);
+
+  const showToast = (message) => {
+    setToastMessage(message);
+  };
+
+  useEffect(() => {
+    if (!toastMessage) return;
+    const timer = setTimeout(() => {
+      setToastMessage(null);
+    }, 3500);
+    return () => clearTimeout(timer);
+  }, [toastMessage]);
 
   // Seat Hold API State
   const [isHoldingSeats, setIsHoldingSeats] = useState(false);
@@ -93,30 +125,23 @@ export default function TicketBooking() {
     return {};
   });
 
-  // Confirmed permanently booked seats (e.g. seats confirmed booked after 10m check)
+  // Confirmed permanently booked seats
   const [confirmedBookedSeats, setConfirmedBookedSeats] = useState([]);
   const [statusNotification, setStatusNotification] = useState(null);
   const [isRefreshingSeats, setIsRefreshingSeats] = useState(false);
 
-  // Create Booking API State
+  // Booking details state
   const [isCreatingBooking, setIsCreatingBooking] = useState(false);
   const [bookingError, setBookingError] = useState(null);
   const [createdBooking, setCreatedBooking] = useState(null);
 
-  // Passengers State
-  const [passengersState, setPassengersState] = useState([
-    {
-      seatId: 'L1',
-      name: 'Alexandre Moros',
-      age: '29',
-      gender: 'male'
-    }
-  ]);
+  // Passengers State starts empty
+  const [passengersState, setPassengersState] = useState([]);
 
-  // Contact Info State
+  // Contact Info State starts empty
   const [contactState, setContactState] = useState({
-    email: 'alexandre.m@example.com',
-    phone: '98765 43210'
+    email: '',
+    phone: ''
   });
 
   // Persist heldSeats to sessionStorage
@@ -169,7 +194,7 @@ export default function TicketBooking() {
 
   // Normalize journeyDate to YYYY-MM-DD
   const formatJourneyDateParam = (val) => {
-    if (!val) return '2026-10-27';
+    if (!val) return getTodayDateStr();
     if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(val.trim())) {
       return val.trim();
     }
@@ -180,7 +205,7 @@ export default function TicketBooking() {
       const day = String(d.getDate()).padStart(2, '0');
       return `${y}-${m}-${day}`;
     }
-    return '2026-10-27';
+    return getTodayDateStr();
   };
 
   // Handle hold expiration after 600 seconds (10 minutes)
@@ -213,18 +238,14 @@ export default function TicketBooking() {
             (b) => (b.seatNumber || b.berthId) === seatNum
           );
           if (berth && berth.available === false) {
-            // User completed booking -> move permanently to booked
             newlyBooked.push(seatNum);
           } else {
-            // User did not complete booking -> revoke booked state to available
             newlyRevoked.push(seatNum);
           }
         });
 
-        // Update bus with fresh seat layout
         setBus(freshBus);
 
-        // Remove expired seats from heldSeats
         setHeldSeats((prev) => {
           const next = { ...prev };
           seatsArray.forEach((s) => delete next[s]);
@@ -246,7 +267,6 @@ export default function TicketBooking() {
           });
         }
       } else {
-        // Backend layout not available; since 10 mins elapsed, revoke hold so seat is re-enabled
         setHeldSeats((prev) => {
           const next = { ...prev };
           seatsArray.forEach((s) => delete next[s]);
@@ -257,8 +277,7 @@ export default function TicketBooking() {
           message: `10-minute hold on Seat(s) ${seatsArray.join(', ')} expired. Seat is now available for booking!`
         });
       }
-    } catch (err) {
-      // Fallback: revoke hold to re-enable booking
+    } catch {
       setHeldSeats((prev) => {
         const next = { ...prev };
         seatsArray.forEach((s) => delete next[s]);
@@ -271,7 +290,6 @@ export default function TicketBooking() {
     }
   };
 
-  // Manually check seat status with backend
   const handleRefreshSeatStatus = async () => {
     const activeSeatKeys = Object.keys(heldSeats);
     if (activeSeatKeys.length === 0) return;
@@ -281,7 +299,6 @@ export default function TicketBooking() {
     setIsRefreshingSeats(false);
   };
 
-  // Fast-forward / Expire test action for testing 10m revocation immediately
   const handleFastForwardHold = () => {
     const activeSeatKeys = Object.keys(heldSeats);
     if (activeSeatKeys.length === 0) return;
@@ -297,45 +314,84 @@ export default function TicketBooking() {
   );
 
   const initialBoardingStop = boardingStops[0] || {
-    name: bus.departurePoint || 'Koyambedu (CMBT)',
-    estimatedArrivalTime: bus.departureTime || '22:00',
-    landmark: 'Omni Bus Stand Platform Gate 2',
-    city: bus.departureCity || 'Chennai'
+    id: 'bp-1',
+    pointId: 'bp-1',
+    name: bus.departurePoint || 'Gandhipuram Omni Bus Stand',
+    estimatedArrivalTime: bus.departureTime || '21:30',
+    landmark: 'Near Central RTO',
+    city: bus.departureCity || 'Coimbatore'
   };
 
   const initialDroppingStop = droppingStops[droppingStops.length - 1] || {
-    name: bus.droppingPoint || 'Gandhipuram Omni Bus Stand',
-    estimatedArrivalTime: bus.arrivalTime || '06:30',
-    landmark: 'Near Central RTO',
-    city: bus.arrivalCity || 'Coimbatore'
+    id: 'dp-1',
+    pointId: 'dp-1',
+    name: bus.droppingPoint || 'Koyambedu (CMBT)',
+    estimatedArrivalTime: bus.arrivalTime || '06:00',
+    landmark: 'Omni Bus Stand Platform Gate 2',
+    city: bus.arrivalCity || 'Chennai'
   };
 
   // Boarding and Dropping Points State
   const [selectedBoarding, setSelectedBoarding] = useState({
     id: initialBoardingStop._id || 'bp-1',
-    pointId: initialBoardingStop._id,
-    time: initialBoardingStop.estimatedArrivalTime || '22:00',
+    pointId: initialBoardingStop._id || 'bp-1',
+    time: initialBoardingStop.estimatedArrivalTime || bus.departureTime || '21:30',
     name: initialBoardingStop.name,
-    city: initialBoardingStop.city || bus.departureCity || 'Origin',
+    city: initialBoardingStop.city || bus.departureCity || 'Coimbatore',
     badge: 'MAIN ORIGIN',
     address: initialBoardingStop.landmark || `${initialBoardingStop.name}, ${initialBoardingStop.city || ''}`,
-    reportingTime: initialBoardingStop.estimatedArrivalTime || '21:45'
+    reportingTime: initialBoardingStop.estimatedArrivalTime || '21:15'
   });
 
   const [selectedDropping, setSelectedDropping] = useState({
     id: initialDroppingStop._id || 'dp-1',
-    pointId: initialDroppingStop._id,
-    time: initialDroppingStop.estimatedArrivalTime || '06:30',
+    pointId: initialDroppingStop._id || 'dp-1',
+    time: initialDroppingStop.estimatedArrivalTime || bus.arrivalTime || '06:00',
     name: initialDroppingStop.name,
-    city: initialDroppingStop.city || bus.arrivalCity || 'Destination',
+    city: initialDroppingStop.city || bus.arrivalCity || 'Chennai',
     badge: 'TERMINUS',
     address: initialDroppingStop.landmark || `${initialDroppingStop.name}, ${initialDroppingStop.city || ''}`,
-    reportingTime: initialDroppingStop.estimatedArrivalTime || '06:20'
+    reportingTime: initialDroppingStop.estimatedArrivalTime || '05:45'
   });
 
+  // Keep Boarding & Dropping synchronized with loaded bus stops
+  useEffect(() => {
+    if (bus?.stops && bus.stops.length > 0) {
+      const bStops = bus.stops.filter((s) => s.stopType === 'boarding' || s.stopType === 'both');
+      const dStops = bus.stops.filter((s) => s.stopType === 'dropping' || s.stopType === 'both');
+
+      if (bStops.length > 0) {
+        const b = bStops[0];
+        setSelectedBoarding({
+          id: b._id || 'bp-1',
+          pointId: b._id || 'bp-1',
+          time: b.estimatedArrivalTime || b.scheduledTime || bus.departureTime || '21:30',
+          name: b.name,
+          city: b.city || bus.departureCity || 'Coimbatore',
+          badge: 'MAIN ORIGIN',
+          address: b.landmark ? `${b.landmark}${b.city ? `, ${b.city}` : ''}` : b.city || bus.departureCity || 'Coimbatore',
+          reportingTime: b.reportingTime || b.estimatedArrivalTime || '21:15'
+        });
+      }
+
+      if (dStops.length > 0) {
+        const d = dStops[dStops.length - 1];
+        setSelectedDropping({
+          id: d._id || 'dp-1',
+          pointId: d._id || 'dp-1',
+          time: d.estimatedArrivalTime || d.scheduledTime || bus.arrivalTime || '06:00',
+          name: d.name,
+          city: d.city || bus.arrivalCity || 'Chennai',
+          badge: 'TERMINUS',
+          address: d.landmark ? `${d.landmark}${d.city ? `, ${d.city}` : ''}` : d.city || bus.arrivalCity || 'Chennai',
+          reportingTime: d.reportingTime || d.estimatedArrivalTime || '05:45'
+        });
+      }
+    }
+  }, [bus]);
+
   // Toggle seat selection
-  const handleToggleSeat = (seatId) => {
-    // If seat is held by another user or permanently booked, disallow selection
+  const handleToggleSeat = (seatId, requiredGender = null) => {
     const isCurrentlyHeld = Boolean(heldSeats[seatId] && heldSeats[seatId].remainingSeconds > 0);
     const isPermanentlyBooked = confirmedBookedSeats.includes(seatId);
     if (isCurrentlyHeld || isPermanentlyBooked) {
@@ -351,16 +407,22 @@ export default function TicketBooking() {
         updated = [...prev, seatId];
       }
 
-      // Sync passengers array with selected seats
+      // Sync passengers array with selected seats preserving entered details
       setPassengersState((prevPassengers) => {
-        return updated.map((id, index) => {
+        return updated.map((id) => {
           const existing = prevPassengers.find((p) => p.seatId === id);
-          if (existing) return existing;
+          if (existing) {
+            return {
+              ...existing,
+              restrictedGender: requiredGender || existing.restrictedGender || null
+            };
+          }
           return {
             seatId: id,
-            name: index === 0 ? 'Alexandre Moros' : `Passenger ${index + 1}`,
-            age: '29',
-            gender: 'male'
+            name: '',
+            age: '',
+            gender: requiredGender || 'male',
+            restrictedGender: requiredGender || null
           };
         });
       });
@@ -386,161 +448,75 @@ export default function TicketBooking() {
 
     return {
       deck,
-      type: 'Single Sleeper Pod (Window)'
+      type: `${selectedSeats.length} Berth${selectedSeats.length > 1 ? 's' : ''} Selected`
     };
   };
 
-  // Handle Continue from bottom footer with Seat Hold & Create Booking API calls
-  const handleContinue = async () => {
-    if (selectedSeats.length === 0 || isHoldingSeats || isCreatingBooking) return;
-
+  // Handle Continue button: validates fields and transitions steps
+  const handleContinue = () => {
     if (currentStep === 1) {
-      setHoldError(null);
-      setIsHoldingSeats(true);
-
-      const busId = bus._id || bus.busId || bus.id || '6adb0a1474060137dbb0aa97';
-      const journeyDate = formatJourneyDateParam(searchParams.rawDate || searchParams.date);
-
-      try {
-        const result = await holdSeatsBooking({
-          busId,
-          journeyDate,
-          seatNumbers: selectedSeats
-        });
-
-        if (result.success && result.data) {
-          setHoldData(result.data);
-          // Advance to Step 2: Passenger Details
-          setCurrentStep(2);
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        } else {
-          // Seat Conflict (409 or failed hold)
-          const conflicts = Array.isArray(result.conflictedSeats) && result.conflictedSeats.length > 0
-            ? result.conflictedSeats
-            : (result.statusCode === 409 ? selectedSeats : []);
-
-          setHoldError(
-            result.message ||
-            (conflicts.length > 0
-              ? `Seat(s) ${conflicts.join(', ')} are currently held by another passenger. Please select alternative seats.`
-              : 'Seat(s) are currently held by another passenger. Please select alternative seats.')
-          );
-
-          if (conflicts.length > 0) {
-            setConflictedSeats(conflicts);
-
-            // 1. Remove conflicted seats from selectedSeats so they aren't selected
-            setSelectedSeats((prev) => {
-              const remaining = prev.filter((id) => !conflicts.includes(id));
-              setPassengersState((prevPassengers) =>
-                prevPassengers.filter((p) => !conflicts.includes(p.seatId))
-              );
-              return remaining;
-            });
-
-            // 2. Put conflicted seats into heldSeats with 600s (10 minutes) hold
-            const now = Date.now();
-            const HOLD_DURATION_SECONDS = 600; // 10 minutes = 600 seconds
-            setHeldSeats((prev) => {
-              const updated = { ...prev };
-              conflicts.forEach((seatNum) => {
-                updated[seatNum] = {
-                  seatNumber: seatNum,
-                  heldAt: now,
-                  expiresAt: now + HOLD_DURATION_SECONDS * 1000,
-                  remainingSeconds: HOLD_DURATION_SECONDS,
-                  status: 'held'
-                };
-              });
-              return updated;
-            });
-          }
-        }
-      } catch (err) {
-        setHoldError(err.message || 'Failed to hold seats. Please try again.');
-      } finally {
-        setIsHoldingSeats(false);
+      if (selectedSeats.length === 0) {
+        showToast('Please select at least one seat to continue.');
+        return;
       }
+      // Step 1 to Step 2: Smooth transition without premature blocking hold
+      setCurrentStep(2);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } else if (currentStep === 2) {
-      // Step 2: Create Booking via POST {{baseUrl}}/bookings
-      setBookingError(null);
-
-      // Validate passenger names
-      const missingIdx = passengersState.findIndex((p) => !p.name || !p.name.trim());
-      if (missingIdx !== -1) {
-        setBookingError(`Please provide the full name for Passenger ${missingIdx + 1}.`);
+      if (selectedSeats.length === 0) {
+        showToast('Please select at least one seat.');
         return;
       }
 
-      setIsCreatingBooking(true);
-
-      const busId = bus._id || bus.busId || bus.id || '6adb0a1474060137dbb0aa97';
-      const journeyDate = formatJourneyDateParam(searchParams.rawDate || searchParams.date);
-
-      // Format array of passenger details
-      const formattedPassengers = passengersState.map((p, idx) => ({
-        name: (p.name || '').trim() || `Passenger ${idx + 1}`,
-        age: parseInt(p.age, 10) || 28,
-        gender: (p.gender || 'female').toLowerCase()
-      }));
-
-      // Extract valid boarding and dropping point IDs
-      const boardingPointId =
-        selectedBoarding?.pointId ||
-        (selectedBoarding?.id && selectedBoarding.id.length === 24 ? selectedBoarding.id : null) ||
-        (bus.stops?.find((s) => s.stopType === 'boarding' || s.stopType === 'both')?._id) ||
-        '6adb0a1574060137dbb0aad0';
-
-      const droppingPointId =
-        selectedDropping?.pointId ||
-        (selectedDropping?.id && selectedDropping.id.length === 24 ? selectedDropping.id : null) ||
-        (bus.stops?.find((s) => s.stopType === 'dropping' || s.stopType === 'both')?._id) ||
-        '6adb0a1574060137dbb0aad8';
-
-      try {
-        const result = await createBooking({
-          busId,
-          journeyDate,
-          seatNumbers: selectedSeats,
-          passengers: formattedPassengers,
-          boardingPointId,
-          droppingPointId
-        });
-
-        if (result.success && result.data) {
-          setCreatedBooking(result.data);
-          // Open Review Your Booking popup modal with real booking details
-          setIsReviewModalOpen(true);
-        } else {
-          setBookingError(result.message || 'Unable to create booking. Please check your details and try again.');
+      // Validate all passenger details
+      for (let i = 0; i < passengersState.length; i++) {
+        const p = passengersState[i];
+        const berthLabel = p.seatId ? `Berth ${p.seatId}` : `Seat ${i + 1}`;
+        if (!p.name || !p.name.trim()) {
+          showToast(`Please enter full name for Passenger ${i + 1} (${berthLabel}).`);
+          return;
         }
-      } catch (err) {
-        setBookingError(err.message || 'Booking creation failed. Please try again.');
-      } finally {
-        setIsCreatingBooking(false);
+        const ageNum = parseInt(p.age, 10);
+        if (!p.age || isNaN(ageNum) || ageNum < 1 || ageNum > 120) {
+          showToast(`Please enter a valid age (1-120) for Passenger ${i + 1} (${berthLabel}).`);
+          return;
+        }
+        if (!p.gender || !p.gender.trim()) {
+          showToast(`Please select gender for Passenger ${i + 1} (${berthLabel}).`);
+          return;
+        }
       }
+
+      // Validate Contact Information
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!contactState.email || !emailRegex.test(contactState.email.trim())) {
+        showToast('Please enter a valid email address for booking voucher.');
+        return;
+      }
+      const phoneDigits = (contactState.phone || '').replace(/\D/g, '');
+      if (phoneDigits.length < 10) {
+        showToast('Please enter a valid 10-digit mobile number.');
+        return;
+      }
+
+      // Validate Boarding and Dropping Points
+      if (!selectedBoarding || (!selectedBoarding.id && !selectedBoarding.pointId)) {
+        showToast('Please select a boarding point.');
+        return;
+      }
+      if (!selectedDropping || (!selectedDropping.id && !selectedDropping.pointId)) {
+        showToast('Please select a dropping point.');
+        return;
+      }
+
+      // All validations passed -> Open Review Your Booking modal
+      setIsReviewModalOpen(true);
     }
   };
 
-  // Confirm booking in modal -> initiate PayU Hosted Checkout
-  const handleConfirmAndProceed = async (bookingData) => {
-    if (bookingData?.paymentData) {
-      redirectToPayUCheckout(bookingData.paymentData);
-      return;
-    }
-
-    const bookingId =
-      createdBooking?._id ||
-      createdBooking?.bookingId ||
-      createdBooking?.id ||
-      bookingData?.createdBooking?._id ||
-      bookingData?.createdBooking?.bookingId;
-
-    if (bookingId) {
-      const result = await createPaymentOrder({ bookingId });
-      if (result.success && result.data) {
-        redirectToPayUCheckout(result.data);
-      }
+  const handleConfirmAndProceed = (bookingData) => {
+    if (bookingData?.payment) {
+      redirectPayU(bookingData.payment);
     }
   };
 
@@ -557,10 +533,10 @@ export default function TicketBooking() {
       <main className="relative z-10 flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6 pb-36">
         {/* Route Banner & 4-Step Indicator */}
         <BookingProcess
-          from={searchParams.from || 'Chennai'}
-          to={searchParams.to || 'Coimbatore'}
-          date={searchParams.date || 'Saturday, 24 May'}
-          passengers={searchParams.passengers || '1 Traveller (All seats)'}
+          from={searchParams.from || 'Coimbatore'}
+          to={searchParams.to || 'Chennai'}
+          date={searchParams.date || getTodayDateStr()}
+          passengers={searchParams.passengers || `${selectedSeats.length || 1} Traveller(s)`}
           currentStep={currentStep}
           onStepChange={(step) => {
             if (step === 1) {
@@ -584,8 +560,9 @@ export default function TicketBooking() {
               <div className="lg:col-span-7 xl:col-span-7">
                 <SeatSelection
                   selectedSeats={selectedSeats}
+                  passengersState={passengersState}
                   onToggleSeat={handleToggleSeat}
-                  busFare={bus.price || 1100}
+                  busFare={bus.price || 650}
                   bus={bus}
                   heldSeats={heldSeats}
                   confirmedBookedSeats={confirmedBookedSeats}
@@ -651,6 +628,7 @@ export default function TicketBooking() {
               bookingError={bookingError}
               onDismissError={() => setBookingError(null)}
               isCreatingBooking={isCreatingBooking}
+              onShowToast={showToast}
             />
           </div>
         )}
@@ -663,9 +641,9 @@ export default function TicketBooking() {
         pricePerSeat={
           selectedSeats.length > 0
             ? Math.round(selectedSeats.reduce((acc, id) => acc + getBerthFare(id), 0) / selectedSeats.length)
-            : (bus.price || 1100)
+            : (bus.price || 650)
         }
-        originalPricePerSeat={Math.round((bus.price || 1100) * 1.25)}
+        originalPricePerSeat={Math.round((bus.price || 650) * 1.25)}
         currentStep={currentStep}
         onContinue={handleContinue}
         onChangeBus={handleBackToSearch}
@@ -683,7 +661,30 @@ export default function TicketBooking() {
         selectedBoarding={selectedBoarding}
         selectedDropping={selectedDropping}
         createdBooking={createdBooking}
+        contactState={contactState}
+        journeyDate={formatJourneyDateParam(searchParams.rawDate || searchParams.date)}
+        onShowToast={showToast}
       />
+
+      {/* 5. Floating Bottom-Right Toast Notification (matching TripOffers style) */}
+      {toastMessage && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 bg-slate-900 text-white text-xs sm:text-sm font-medium px-4 py-2.5 rounded-xl shadow-xl border border-slate-700 animate-in fade-in slide-in-from-bottom-3 duration-200"
+        >
+          <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+          <span>{toastMessage}</span>
+          <button
+            type="button"
+            onClick={() => setToastMessage(null)}
+            className="ml-2 text-slate-400 hover:text-white transition-colors cursor-pointer"
+            aria-label="Close notification"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

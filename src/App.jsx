@@ -26,6 +26,7 @@ import BusReviewPage from "./pages/vendor/BusManagement/BusReviewPage.jsx";
 
 import RoomManagementDashboard from "./pages/vendor/RootManagement.jsx/RoomManagementDashboard.jsx";
 import AddRoutepage from "./pages/vendor/RootManagement.jsx/AddRoutepage.jsx";
+import BusDetailView from "./pages/vendor/BusManagement/BusDetailView.jsx";
 
 function App() {
   const location = useLocation();
@@ -106,6 +107,10 @@ function App() {
           />
 
           <Route
+            path="/vendor/bus-management/buses/busDetailView/:busId"
+            element={<BusDetailView />}
+          />
+          <Route
             path="/vendor/buses/new"
             element={<BusDetailsPage />}
           />
@@ -114,6 +119,7 @@ function App() {
             path="/vendor/buses/:busId/review"
             element={<BusReviewPage />}
           />
+
 
           {/* Vendor route management */}
           <Route

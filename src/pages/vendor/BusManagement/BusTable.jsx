@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Download, Search, SlidersHorizontal, Eye, Pencil, Trash2 } from "lucide-react";
 import komban from '../../../assets/komban.jfif'
+import { Link } from "react-router-dom";
 
 const PAGE_SIZE = 10;
 const STATUS_OPTIONS = [
@@ -62,7 +63,7 @@ const BusTable = () => {
             try {
                 const baseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "");
                 if (!baseUrl) throw new Error("VITE_API_BASE_URL is not configured.");
-                const token = window.localStorage.getItem("ext-key");
+                const token = window.localStorage.getItem("exte_key");
                 if (!token) throw new Error("Authentication token was not found. Please sign in again.");
 
                 const query = new URLSearchParams({ page: String(currentPage), limit: String(PAGE_SIZE), search: debouncedSearch });
@@ -182,7 +183,7 @@ const BusTable = () => {
                                     <td className="whitespace-nowrap px-5 py-3 text-xs text-slate-700">{bus.passengerCapacity ?? bus.totalSeats ?? "—"}</td>
                                     <td className="whitespace-nowrap px-5 py-3"><span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-semibold capitalize ${statusClass(bus.status)}`}>{bus.status || "Unknown"}</span></td>
                                     <td className="px-5 py-2"><div className="flex items-center justify-center gap-2">
-                                        <button type="button" title="View bus" aria-label={`View ${bus.busName || "bus"}`} className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-slate-100 text-slate-600 transition hover:bg-slate-200"><Eye size={14} /></button>
+                                        <Link to={`/vendor/bus-management/buses/busDetailView/${bus?._id}`} className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-slate-100 text-slate-600 transition hover:bg-slate-200"><Eye size={14} /></Link>
                                         <button type="button" title="Edit bus" aria-label={`Edit ${bus.busName || "bus"}`} className="flex h-8 w-8 items-center justify-center rounded-full border border-emerald-200 bg-emerald-100 text-emerald-700 transition hover:bg-emerald-200"><Pencil size={13} /></button>
                                         <button type="button" title="Delete bus" aria-label={`Delete ${bus.busName || "bus"}`} className="flex h-8 w-8 items-center justify-center rounded-full border border-rose-200 bg-rose-100 text-rose-600 transition hover:bg-rose-200"><Trash2 size={13} /></button>
                                     </div></td>

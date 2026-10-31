@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 const TOKEN_KEY = 'exte_key';
 
 const AuthContext = createContext(null);

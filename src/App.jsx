@@ -32,6 +32,11 @@ import StaffManagementDashboard from "./pages/vendor/CrewManagement/StaffManagem
 import FinanceDashboard from "./pages/vendor/Finance/FinanceDashboard.jsx";
 import CalendarDashboard from "./pages/vendor/Calendar/CalendarDashboard.jsx";
 import BookingsDashboard from "./pages/vendor/Bookings/BookingsDashboard.jsx";
+import BusListing from './pages/User/BusListing.jsx';
+import TicketBooking from './pages/User/TicketBooking.jsx';
+import PayUCheckout from './pages/User/PayUCheckout.jsx';
+import PaymentResult from './pages/User/PaymentResult.jsx';
+import MyBookings from './pages/User/MyBookings.jsx';
 
 function App() {
   const location = useLocation();
@@ -143,6 +148,16 @@ function App() {
           <Route path="/vendor/finance" element={<FinanceDashboard />} />
           <Route path="/vendor/calendar" element={<CalendarDashboard />} />
           <Route path="/vendor/bookings" element={<BookingsDashboard />} />
+
+          <Route path="/" element={<BusListing />} />
+      <Route path="/buses" element={<BusListing />} />
+      <Route path="/ticket-booking" element={<TicketBooking />} />
+      <Route path="/booking" element={<TicketBooking />} />
+      <Route path="/checkout/payu" element={<PayUCheckout />} />
+      <Route path="/payu-checkout" element={<PayUCheckout />} />
+      <Route path="/booking/payment-result" element={<PaymentResult />} />
+      <Route path="/payment-result" element={<PaymentResult />} />
+      <Route path="/my-bookings" element={<MyBookings />} />
 
           {/* Standalone agent signup route */}
           <Route

@@ -37,7 +37,7 @@ function decodeJwt(token) {
 // ── Role → redirect path map (all lowercase normalized) ─────────────────────
 const ROLE_PATHS = {
   admin: "/admin",
-  travelagent: "/travelagent",
+  travelagent: "/vendor",
   operationcrew: "/crew",
   user: "/",
 };

@@ -5,6 +5,7 @@ import Signup from "./pages/Signup.jsx";
 import AgentSignup from "./pages/AgentSignup.jsx";
 
 import TravelAgentDashboard from "./pages/TravelAgentDashboard.jsx";
+import AdminDashboard from "./pages/AdminDashboard.jsx";
 import AdminBookingOverview from "./pages/AdminBookingOverview.jsx";
 import TravelsList from "./pages/TravelsList.jsx";
 
@@ -58,6 +59,10 @@ function App() {
           <Route
             path="/admin"
             element={<AdminBookingOverview />}
+          />
+          <Route
+            path="/admin-dashboard"
+            element={<AdminDashboard />}
           />
           <Route
             path="/travel-list"

@@ -1,5 +1,7 @@
 
 import { useEffect, useState } from "react";
+import axios from "axios";
+import { toast } from "react-toastify";
 
 import {
     X,
@@ -142,7 +144,7 @@ const CustomDropdown = ({
 // Profile Image Upload Component
 // --------------------------------------------------
 
-const ProfileImageUpload = ({ file, setFile }) => {
+const ProfileImageUpload = ({ file, setFile, existingUrl }) => {
     const [error, setError] = useState("");
 
     const [preview, setPreview] = useState("");
@@ -194,9 +196,9 @@ const ProfileImageUpload = ({ file, setFile }) => {
                 {/* Image Preview */}
                 <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white">
 
-                    {preview ? (
+                    {preview || existingUrl ? (
                         <img
-                            src={preview}
+                            src={preview || existingUrl}
                             alt="Profile preview"
                             className="h-full w-full object-cover"
                         />
@@ -233,7 +235,7 @@ const ProfileImageUpload = ({ file, setFile }) => {
                     ) : (
                         <>
                             <p className="text-xs font-medium text-slate-700">
-                                Upload profile photo
+                                {existingUrl ? "Current profile photo" : "Upload profile photo"}
                             </p>
 
                             <p className="mt-1 text-[10px] text-slate-400">
@@ -279,6 +281,7 @@ const DocumentUpload = ({
     setFile,
     maxSize = 1,
     allowedTypes = ["png", "jpg", "jpeg"],
+    existingFile,
 }) => {
     const [error, setError] = useState("");
 
@@ -362,6 +365,11 @@ const DocumentUpload = ({
 
                     </div>
 
+                ) : existingFile?.url ? (
+                    <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-teal-50 text-teal-700"><FileText size={20} /></div>
+                        <div className="min-w-0 flex-1"><a href={existingFile.url} target="_blank" rel="noreferrer" className="block truncate text-xs font-medium text-teal-700 hover:underline">View current document</a><p className="mt-1 text-[10px] text-slate-400">Upload a replacement if needed</p></div>
+                    </div>
                 ) : (
 
                     <label className="flex cursor-pointer flex-col items-center justify-center py-3 text-center">
@@ -408,9 +416,12 @@ const DocumentUpload = ({
 // MAIN ADD DRIVER FORM
 // ==================================================
 
-const AddDriverForm = ({ onClose }) => {
+const AddDriverForm = ({ onClose, driver = null, onSuccess }) => {
 
     const [currentStep, setCurrentStep] = useState(0);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [submitError, setSubmitError] = useState("");
+    const [stepError, setStepError] = useState("");
 
     useEffect(() => {
         const previousOverflow = document.body.style.overflow;
@@ -422,23 +433,23 @@ const AddDriverForm = ({ onClose }) => {
 
     // All text, dropdown, and date field values
     const [formData, setFormData] = useState({
-        agentId: "",
-        fullName: "",
-        mobile: "",
-        email: "",
-
-        licenseNumber: "",
-        licenseClass: "",
-        vehicleType: "",
-        licenseExpiry: "",
-
-        emergencyName: "",
-        relationship: "",
-        emergencyMobile: "",
-
-        employeeCode: "",
-        joiningDate: "",
-        employmentType: "",
+        agentId: driver?.agentId || "",
+        fullName: driver?.fullName || "",
+        mobile: driver?.mobile || "",
+        email: driver?.email || "",
+        licenseNumber: driver?.drivingLicenseNumber || "",
+        licenseClass: driver?.licenseClass || "",
+        vehicleType: driver?.vehicleType || "",
+        licenseExpiry: driver?.licenseExpiryDate?.slice?.(0, 10) || "",
+        emergencyName: driver?.emergencyContact?.name || "",
+        relationship: driver?.emergencyContact?.relationship || "",
+        emergencyMobile: driver?.emergencyContact?.phone || "",
+        employeeCode: driver?.employeeCode || "",
+        joiningDate: driver?.joiningDate?.slice?.(0, 10) || "",
+        employmentType: driver?.employmentType || "",
+        status: driver?.status || "available",
+        fitnessCertificateNumber: driver?.fitnessCertificateNumber || "",
+        fitnessExpiryDate: driver?.fitnessExpiryDate?.slice?.(0, 10) || "",
     });
 
     // Uploaded files
@@ -493,6 +504,35 @@ const AddDriverForm = ({ onClose }) => {
 
     // Move to next step
     const handleNext = () => {
+        setStepError("");
+        const phoneIsValid = (value) => /^\+?[\d\s()-]{10,18}$/.test(value.trim());
+        const validations = {
+            0: () => {
+                if (!formData.fullName.trim() || !formData.mobile.trim()) return "Full name and mobile number are required.";
+                if (!phoneIsValid(formData.mobile)) return "Enter a valid mobile number.";
+                if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) return "Enter a valid email address.";
+            },
+            1: () => {
+                if (!formData.licenseNumber.trim() || !formData.licenseClass || !formData.vehicleType || !formData.licenseExpiry) return "Complete all required license details.";
+                if (new Date(formData.licenseExpiry) < new Date(new Date().toDateString())) return "License expiry date must be in the future.";
+            },
+            2: () => {
+                if (!formData.emergencyName.trim() || !formData.relationship || !formData.emergencyMobile.trim()) return "Complete all emergency contact details.";
+                if (!phoneIsValid(formData.emergencyMobile)) return "Enter a valid emergency mobile number.";
+            },
+            3: () => {
+                if (!formData.employeeCode.trim() || !formData.joiningDate || !formData.employmentType || !formData.status) return "Complete all required employment details.";
+            },
+            4: () => {
+                if (!driver && (!licenseDocument || !fitnessCertificate)) return "Upload the driving license and fitness certificate.";
+                if (!formData.fitnessCertificateNumber.trim() || !formData.fitnessExpiryDate) return "Enter the fitness certificate number and expiry date.";
+            },
+        };
+        const validationError = validations[currentStep]?.();
+        if (validationError) {
+            setStepError(validationError);
+            return;
+        }
         if (currentStep < steps.length - 1) {
             setCurrentStep(currentStep + 1);
         }
@@ -500,8 +540,60 @@ const AddDriverForm = ({ onClose }) => {
 
     // Move to previous step
     const handlePrevious = () => {
+        setStepError("");
         if (currentStep > 0) {
             setCurrentStep(currentStep - 1);
+        }
+    };
+
+    const handleSubmit = async () => {
+        setSubmitError("");
+        setIsSubmitting(true);
+        try {
+            const baseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "");
+            const token = window.localStorage.getItem("exte_key");
+            if (!baseUrl) throw new Error("API URL is not configured.");
+            const body = new FormData();
+            const fields = {
+                fullName: formData.fullName.trim(),
+                mobile: formData.mobile.trim(),
+                email: formData.email.trim(),
+                drivingLicenseNumber: formData.licenseNumber.trim(),
+                licenseClass: formData.licenseClass,
+                vehicleType: formData.vehicleType,
+                licenseExpiryDate: formData.licenseExpiry,
+                employeeCode: formData.employeeCode.trim(),
+                joiningDate: formData.joiningDate,
+                employmentType: formData.employmentType,
+                status: formData.status,
+                emergencyContact: JSON.stringify({
+                    name: formData.emergencyName.trim(),
+                    relationship: formData.relationship,
+                    phone: formData.emergencyMobile.trim(),
+                }),
+                fitnessCertificateNumber: formData.fitnessCertificateNumber.trim(),
+                fitnessExpiryDate: formData.fitnessExpiryDate,
+            };
+            Object.entries(fields).forEach(([key, value]) => body.append(key, value));
+            if (profileImage) body.append("profilePhoto", profileImage);
+            if (licenseDocument) body.append("licenseDoc", licenseDocument);
+            if (fitnessCertificate) body.append("fitnessCertificate", fitnessCertificate);
+
+            const response = await axios({
+                method: driver ? "put" : "post",
+                url: driver
+                    ? `${baseUrl}/agent/drivers/${driver._id || driver.id}`
+                    : `${baseUrl}/agent/drivers`,
+                data: body,
+                headers: token ? { Authorization: `Bearer ${token}` } : {},
+            });
+            toast.success(response.data?.message || (driver ? "Driver updated successfully." : "Driver added successfully."));
+            await onSuccess?.();
+            onClose();
+        } catch (error) {
+            setSubmitError(error.response?.data?.message || error.message || "Could not save driver details.");
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -521,6 +613,9 @@ const AddDriverForm = ({ onClose }) => {
         { label: "Employee Code", value: formData.employeeCode },
         { label: "Joining Date", value: formData.joiningDate },
         { label: "Employment Type", value: formData.employmentType },
+        { label: "Driver Status", value: formData.status },
+        { label: "Fitness Certificate Number", value: formData.fitnessCertificateNumber },
+        { label: "Fitness Certificate Expiry", value: formData.fitnessExpiryDate },
     ];
 
     return (
@@ -529,7 +624,7 @@ const AddDriverForm = ({ onClose }) => {
             {/* Background Overlay */}
             <div
                 className="fixed inset-0 z-40 bg-black/50 backdrop-blur-[4px]"
-                onClick={onClose}
+                onClick={() => !isSubmitting && onClose()}
             />
 
             {/* Main Modal */}
@@ -550,7 +645,7 @@ const AddDriverForm = ({ onClose }) => {
 
                         <div>
                             <h2 className="text-base font-semibold tracking-tight text-slate-900 sm:text-lg">
-                                Add Driver Details
+                                {driver ? "Edit Driver Details" : "Add Driver Details"}
                             </h2>
 
                             <p className="mt-0.5 text-[11px] text-slate-500 sm:text-xs">
@@ -562,7 +657,7 @@ const AddDriverForm = ({ onClose }) => {
 
                     <button
                         type="button"
-                        onClick={onClose}
+                        onClick={() => !isSubmitting && onClose()}
                         aria-label="Close Add Driver form"
                         className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-slate-200 hover:text-slate-900"
                     >
@@ -614,7 +709,7 @@ const AddDriverForm = ({ onClose }) => {
                                     <button
                                         key={step.title}
                                         type="button"
-                                        onClick={() => setCurrentStep(index)}
+                                        onClick={() => index <= currentStep && setCurrentStep(index)}
                                         className={`flex min-w-36 shrink-0 items-center gap-2.5 rounded-lg border p-2 text-left transition md:min-w-0 ${
                                             isActive
                                                 ? "border-teal-100 bg-teal-50/80"
@@ -750,6 +845,7 @@ const AddDriverForm = ({ onClose }) => {
                                     <ProfileImageUpload
                                         file={profileImage}
                                         setFile={setProfileImage}
+                                        existingUrl={driver?.profilePhoto?.url}
                                     />
 
                                 </div>
@@ -970,6 +1066,14 @@ const AddDriverForm = ({ onClose }) => {
 
                                 </div>
 
+                                <CustomDropdown
+                                    label="Driver Status"
+                                    value={formData.status}
+                                    onChange={(value) => handleDropdownChange("status", value)}
+                                    options={["available", "assigned", "not-available", "leave"]}
+                                    required
+                                />
+
                             </div>
 
                         )}
@@ -982,6 +1086,24 @@ const AddDriverForm = ({ onClose }) => {
                         {currentStep === 4 && (
 
                             <div className="space-y-5 max-h-[340px] overflow-auto">
+
+                                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                                    <FormInput
+                                        label="Fitness Certificate Number"
+                                        name="fitnessCertificateNumber"
+                                        placeholder="Enter certificate number"
+                                        value={formData.fitnessCertificateNumber}
+                                        onChange={handleChange}
+                                        required
+                                    />
+                                    <CustomDatePicker
+                                        label="Fitness Certificate Expiry Date"
+                                        name="fitnessExpiryDate"
+                                        value={formData.fitnessExpiryDate}
+                                        onChange={handleChange}
+                                        required
+                                    />
+                                </div>
 
                                 <div>
 
@@ -999,6 +1121,7 @@ const AddDriverForm = ({ onClose }) => {
                                         setFile={setLicenseDocument}
                                         maxSize={1}
                                         allowedTypes={["png", "jpg", "jpeg"]}
+                                        existingFile={driver?.licenseDoc}
                                     />
 
                                 </div>
@@ -1024,6 +1147,7 @@ const AddDriverForm = ({ onClose }) => {
                                             "jpg",
                                             "jpeg",
                                         ]}
+                                        existingFile={driver?.fitnessCertificate}
                                     />
 
                                 </div>
@@ -1146,10 +1270,14 @@ const AddDriverForm = ({ onClose }) => {
                 {/* FOOTER */}
                 <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/70 px-4 py-3 sm:px-6">
 
+                    <div className="min-w-0 flex-1">
+                        {(stepError || submitError) && <p role="alert" className="text-xs text-rose-600">{stepError || submitError}</p>}
+                    </div>
+
                     <button
                         type="button"
                         onClick={handlePrevious}
-                        disabled={currentStep === 0}
+                        disabled={currentStep === 0 || isSubmitting}
                         className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 sm:px-4"
                     >
                         <ChevronLeft size={15} />
@@ -1167,6 +1295,7 @@ const AddDriverForm = ({ onClose }) => {
                             <button
                                 type="button"
                                 onClick={handleNext}
+                                disabled={isSubmitting}
                                 className="inline-flex items-center gap-2 rounded-lg bg-teal-800 px-4 py-2 text-xs font-semibold text-white transition hover:bg-teal-900"
                             >
                                 Save & Continue
@@ -1177,16 +1306,12 @@ const AddDriverForm = ({ onClose }) => {
 
                             <button
                                 type="button"
-                                onClick={() => {
-                                    console.log("Driver Form Data:", formData);
-                                    console.log("Profile Image:", profileImage);
-                                    console.log("License Document:", licenseDocument);
-                                    console.log("Fitness Certificate:", fitnessCertificate);
-                                }}
-                                className="inline-flex items-center gap-2 rounded-lg bg-teal-800 px-4 py-2 text-xs font-semibold text-white transition hover:bg-teal-900"
+                                onClick={handleSubmit}
+                                disabled={isSubmitting}
+                                className="inline-flex items-center gap-2 rounded-lg bg-teal-800 px-4 py-2 text-xs font-semibold text-white transition hover:bg-teal-900 disabled:cursor-wait disabled:opacity-60"
                             >
-                                Complete Setup
-                                <Check size={15} />
+                                {isSubmitting ? "Saving..." : driver ? "Save Changes" : "Complete Setup"}
+                                {!isSubmitting && <Check size={15} />}
                             </button>
 
                         )}

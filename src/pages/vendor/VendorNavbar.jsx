@@ -1,10 +1,11 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import { ChevronDown, Plus, Search, Bell, BusFront, Road, Luggage, CalendarDays, UsersRound, Wallet, Ticket } from 'lucide-react';
 
 import logo from '../../assets/vendor-logo.svg';
 
 const VendorNavbar = () => {
-
+    const { pathname } = useLocation();
+    const isStaffSectionActive = pathname === "/vendor/crew-management" || pathname === "/vendor/-staff-management";
 
     return (
         <>
@@ -81,19 +82,25 @@ const VendorNavbar = () => {
                                 <span className="text-sm"><Luggage size={13} /></span>
                                 Trips
                             </NavLink>
-                            <NavLink
-                                to="/vendor/crew-management"
-                                end
-                                className={({ isActive }) =>
-                                    `flex items-center gap-2 whitespace-nowrap rounded-full px-3 py-2 text-xs transition-colors ${isActive
-                                        ? 'bg-[#0E7A88] text-white'
-                                        : 'text-[#627B77] hover:bg-white hover:text-[#087f95]'
-                                    }`
-                                }
-                            >
-                                <span className="text-sm"><UsersRound size={13} /></span>
-                                Crew
-                            </NavLink>
+                            <div className="group relative">
+                                <button
+                                    type="button"
+                                    aria-haspopup="true"
+                                    className={`flex items-center gap-2 whitespace-nowrap rounded-full px-3 py-2 text-xs transition-colors ${isStaffSectionActive ? 'bg-[#0E7A88] text-white' : 'text-[#627B77] hover:bg-white hover:text-[#087f95]'}`}
+                                >
+                                    <UsersRound size={13} />
+                                    Staffs
+                                    <ChevronDown size={12} className="transition-transform group-hover:rotate-180 group-focus-within:rotate-180" />
+                                </button>
+                                <div className="invisible absolute left-0 top-full z-50 min-w-36 translate-y-1 rounded-xl border border-slate-100 bg-white p-1.5 opacity-0 shadow-lg transition group-hover:visible group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:visible group-focus-within:translate-y-0 group-focus-within:opacity-100">
+                                    <NavLink to="/vendor/crew-management" className={({ isActive }) => `block rounded-lg px-3 py-2 text-xs transition-colors ${isActive ? 'bg-teal-50 font-semibold text-teal-800' : 'text-[#627B77] hover:bg-slate-50 hover:text-[#087f95]'}`}>
+                                        Driver
+                                    </NavLink>
+                                    <NavLink to="/vendor/-staff-management" className={({ isActive }) => `block rounded-lg px-3 py-2 text-xs transition-colors ${isActive ? 'bg-teal-50 font-semibold text-teal-800' : 'text-[#627B77] hover:bg-slate-50 hover:text-[#087f95]'}`}>
+                                        Crew
+                                    </NavLink>
+                                </div>
+                            </div>
 
                             {/* Bookings */}
                             <NavLink
@@ -148,7 +155,7 @@ const VendorNavbar = () => {
                             {/* Add Button */}
                             <button
                                 type="button"
-                                className="flex h-10 w-10 items-center justify-center rounded-full bg-[#0E7A88] text-white transition-colors hover:bg-[#0D6D78]"
+                                className="flex h-8 w-8 items-center justify-center rounded-full bg-[#0E7A88] text-white transition-colors hover:bg-[#0D6D78]"
                             >
                                 <Plus size={14} className="text-white" />
                             </button>
@@ -156,7 +163,7 @@ const VendorNavbar = () => {
                             {/* Search Button */}
                             <button
                                 type="button"
-                                className="flex h-10 w-10 items-center justify-center rounded-full bg-[#f2f8f9] text-[#607D7D] transition-colors hover:bg-[#E5EEEE]"
+                                className="flex h-8 w-8 items-center justify-center rounded-full bg-[#f2f8f9] text-[#607D7D] transition-colors hover:bg-[#E5EEEE]"
                             >
                                 <Search size={14} />
                             </button>
@@ -164,7 +171,7 @@ const VendorNavbar = () => {
                             {/* Notification Button */}
                             <button
                                 type="button"
-                                className="relative flex h-10 w-10 items-center justify-center rounded-full bg-[#f2f8f9] text-[#607D7D] transition-colors hover:bg-[#E5EEEE]"
+                                className="relative flex h-8 w-8 items-center justify-center rounded-full bg-[#f2f8f9] text-[#607D7D] transition-colors hover:bg-[#E5EEEE]"
                             >
                                 <Bell size={14} />
 
@@ -175,8 +182,8 @@ const VendorNavbar = () => {
                         <div className="flex items-center gap-3 rounded-full border border-[#eff1f1] bg-[#f2f8f9] py-1 pl-2 pr-4">
 
                             {/* User Avatar */}
-                            <div className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-white bg-[#107F8C] text-white">
-                                <span className="text-xl font-medium">
+                            <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-[#107F8C] text-white">
+                                <span className="font-medium">
                                     V
                                 </span>
                             </div>

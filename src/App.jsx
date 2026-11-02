@@ -28,7 +28,7 @@ import RoomManagementDashboard from "./pages/vendor/RootManagement.jsx/RoomManag
 import AddRoutepage from "./pages/vendor/RootManagement.jsx/AddRoutepage.jsx";
 import BusDetailView from "./pages/vendor/BusManagement/BusDetailView.jsx";
 import TripsManagmentDashboard from "./pages/vendor/TripsManagment/TripsManagmentDashboard.jsx";
-import CrewManagementDashboard from "./pages/vendor/CrewManagement/CrewManagementDashboard.jsx";
+import StaffManagementDashboard from "./pages/vendor/CrewManagement/StaffManagementDashboard.jsx";
 import FinanceDashboard from "./pages/vendor/Finance/FinanceDashboard.jsx";
 import CalendarDashboard from "./pages/vendor/Calendar/CalendarDashboard.jsx";
 import BookingsDashboard from "./pages/vendor/Bookings/BookingsDashboard.jsx";
@@ -139,6 +139,7 @@ function App() {
 
           <Route path="/vendor/trip-management" element={<TripsManagmentDashboard />} />
           <Route path="/vendor/crew-management" element={<DriverManagementDashboard />} />
+          <Route path="/vendor/-staff-management" element={<StaffManagementDashboard />} />
           <Route path="/vendor/finance" element={<FinanceDashboard />} />
           <Route path="/vendor/calendar" element={<CalendarDashboard />} />
           <Route path="/vendor/bookings" element={<BookingsDashboard />} />

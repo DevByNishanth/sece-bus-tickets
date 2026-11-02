@@ -1,9 +1,10 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import FromToSearch from './FromToSearch';
 import BusFilters from '../../components/User/BusFilters';
 import BusListingCards from '../../components/User/AvailableBusListing';
 import { fetchBusesSearch } from '../../services/busService';
+import { initialBuses } from '../../data/mockBuses';
 import { SlidersHorizontal, X, Search, ArrowRight, ArrowLeft } from 'lucide-react';
 import TripOffers from '../../components/User/TripOffers';
 
@@ -19,6 +20,8 @@ export default function BusListing() {
   const [buses, setBuses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isLiveBackend, setIsLiveBackend] = useState(false);
+  const [backendError, setBackendError] = useState(null);
+  const [retryTrigger, setRetryTrigger] = useState(0);
   const [sortBy, setSortBy] = useState('recommended');
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
@@ -29,7 +32,17 @@ export default function BusListing() {
     date: getTodayDateStr()
   });
 
-  // Fetch buses whenever search parameters change
+  const handleRetry = useCallback(() => {
+    setRetryTrigger((prev) => prev + 1);
+  }, []);
+
+  const handleLoadDemoBuses = useCallback(() => {
+    setBuses(initialBuses);
+    setIsLiveBackend(false);
+    setBackendError(null);
+  }, []);
+
+  // Fetch buses whenever search parameters change or retry is triggered
   useEffect(() => {
     let isSubscribed = true;
 
@@ -42,12 +55,24 @@ export default function BusListing() {
           journeyDate: searchParams.date
         });
 
-        if (isSubscribed && result && result.buses) {
-          setBuses(result.buses);
-          setIsLiveBackend(Boolean(result.isLive));
+        if (isSubscribed) {
+          if (result && result.success) {
+            setBuses(result.buses || []);
+            setIsLiveBackend(Boolean(result.isLive));
+            setBackendError(null);
+          } else {
+            setBuses(result?.buses || []);
+            setIsLiveBackend(false);
+            setBackendError(result?.error || 'Unable to connect to bus search server');
+          }
         }
       } catch (err) {
-        console.error('BusListing Fetch error:', err);
+        console.warn('BusListing load error:', err);
+        if (isSubscribed) {
+          setBuses([]);
+          setIsLiveBackend(false);
+          setBackendError(err.message || 'Unable to connect to bus service');
+        }
       } finally {
         if (isSubscribed) {
           setLoading(false);
@@ -60,7 +85,7 @@ export default function BusListing() {
     return () => {
       isSubscribed = false;
     };
-  }, [searchParams.from, searchParams.to, searchParams.date]);
+  }, [searchParams.from, searchParams.to, searchParams.date, retryTrigger]);
 
   const handleSearch = (searchData) => {
     setSearchParams((prev) => ({
@@ -339,6 +364,9 @@ export default function BusListing() {
               onResetFilters={handleResetFilters}
               loading={loading}
               isLive={isLiveBackend}
+              backendError={backendError}
+              onRetry={handleRetry}
+              onLoadDemoBuses={handleLoadDemoBuses}
             />
           </section>
         </div>

@@ -419,21 +419,31 @@ export default function PassengerDetails({
       </div>
 
       {/* Boarding and Dropping Points Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+      <div id="boarding-dropping-section" className="grid grid-cols-1 md:grid-cols-2 gap-5">
         {/* Boarding Hubs Card */}
-        <div className="bg-white rounded-3xl border border-slate-200/90 p-5 sm:p-6 shadow-xs space-y-4">
-          <div className="flex items-center justify-between">
+        <div className={`bg-white rounded-3xl border p-5 sm:p-6 shadow-xs space-y-4 transition-all ${
+          !selectedBoarding ? 'border-amber-200/90 ring-1 ring-amber-200/50' : 'border-slate-200/90'
+        }`}>
+          <div className="flex items-center justify-between gap-2 flex-wrap">
             <div>
-              <h4 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight">
-                Choose your Boarding Point
+              <h4 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight flex items-center gap-2">
+                <span>Choose your Boarding Point</span>
+                <span className="text-rose-500">*</span>
               </h4>
               <p className="text-[11px] text-slate-400 font-medium">
                 Please arrive 15 minutes before the reporting time
               </p>
             </div>
-            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-              {boardingPoints.length} Boarding Hubs
-            </span>
+            {selectedBoarding ? (
+              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-300 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                <Check className="w-3 h-3 text-emerald-600 stroke-[3]" />
+                Selected
+              </span>
+            ) : (
+              <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-300 px-2.5 py-0.5 rounded-full animate-pulse">
+                Selection Required
+              </span>
+            )}
           </div>
 
           <div className="space-y-2.5">
@@ -484,19 +494,29 @@ export default function PassengerDetails({
         </div>
 
         {/* Dropping Hubs Card */}
-        <div className="bg-white rounded-3xl border border-slate-200/90 p-5 sm:p-6 shadow-xs space-y-4">
-          <div className="flex items-center justify-between">
+        <div className={`bg-white rounded-3xl border p-5 sm:p-6 shadow-xs space-y-4 transition-all ${
+          !selectedDropping ? 'border-amber-200/90 ring-1 ring-amber-200/50' : 'border-slate-200/90'
+        }`}>
+          <div className="flex items-center justify-between gap-2 flex-wrap">
             <div>
-              <h4 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight">
-                Choose your Dropping Point
+              <h4 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight flex items-center gap-2">
+                <span>Choose your Dropping Point</span>
+                <span className="text-rose-500">*</span>
               </h4>
               <p className="text-[11px] text-slate-400 font-medium">
                 Expected arrival time is subject to highway traffic conditions
               </p>
             </div>
-            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-              {droppingPoints.length} Dropping Hubs
-            </span>
+            {selectedDropping ? (
+              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-300 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                <Check className="w-3 h-3 text-emerald-600 stroke-[3]" />
+                Selected
+              </span>
+            ) : (
+              <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-300 px-2.5 py-0.5 rounded-full animate-pulse">
+                Selection Required
+              </span>
+            )}
           </div>
 
           <div className="space-y-2.5">

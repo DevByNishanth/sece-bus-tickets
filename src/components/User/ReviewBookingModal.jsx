@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShieldCheck, X, Star, ArrowRight, Check, Loader2, AlertCircle } from 'lucide-react';
+import { ShieldCheck, X, Star, ArrowRight, Check, Loader2, AlertCircle, Ticket, Tag } from 'lucide-react';
 import { holdSeatsBooking, checkoutBooking } from '../../services/busService';
 import redirectToPayU, { redirectToPayU as namedRedirectToPayU } from '../../Utils/payu';
 
@@ -29,6 +29,40 @@ export default function ReviewBookingModal({
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [paymentError, setPaymentError] = useState(null);
 
+  // Static Coupon State (supports SECE500 / flat 500 discount)
+  const [couponInput, setCouponInput] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
+  const [couponError, setCouponError] = useState('');
+  const [couponSuccess, setCouponSuccess] = useState('');
+
+  const handleApplyCoupon = (codeToApply) => {
+    const rawCode = typeof codeToApply === 'string' ? codeToApply : couponInput;
+    const cleanCode = (rawCode || '').trim().toUpperCase();
+
+    if (!cleanCode) {
+      setCouponError('Please enter a coupon code.');
+      setCouponSuccess('');
+      return;
+    }
+
+    // Static coupon application: gives flat ₹500 off as requested
+    const discountAmount = 500;
+    setAppliedCoupon({
+      code: cleanCode,
+      discount: discountAmount,
+      description: `Flat ₹${discountAmount} off on ticket fare`
+    });
+    setCouponError('');
+    setCouponSuccess(`Coupon ${cleanCode} applied! ₹${discountAmount} discount deducted from ticket fare.`);
+    setCouponInput('');
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponSuccess('');
+    setCouponError('');
+  };
+
   if (!isOpen) return null;
 
   const allBerths = [
@@ -43,10 +77,67 @@ export default function ReviewBookingModal({
 
   const seatsCount = selectedSeats.length || 1;
   const baseTicketFare = createdBooking?.fareBreakdown?.baseFare || (seatFareSum > 0 ? seatFareSum : (bus?.price || 1100) * seatsCount);
-  const insurance = createdBooking?.fareBreakdown?.insuranceCharges !== undefined ? createdBooking.fareBreakdown.insuranceCharges : 15.00 * seatsCount;
-  const gst = createdBooking?.fareBreakdown?.taxes !== undefined ? createdBooking.fareBreakdown.taxes : Number((baseTicketFare * 0.05).toFixed(2));
+
+  // Coupon discount deducted from Base Ticket Fare
+  const couponDiscount = appliedCoupon ? Math.min(appliedCoupon.discount, baseTicketFare) : 0.00;
+  const effectiveBaseFare = Math.max(0, baseTicketFare - couponDiscount);
+
+  // 1. BusGo Shield Travel Insurance: must show 0 as requested
+  const insurance = 0.00;
+
+  // 2. Operator GST: if came from backend then display percentage and its amount, else 0
+  const backendGstPercentage =
+    bus?.gstPercentage !== undefined && bus?.gstPercentage !== null
+      ? Number(bus.gstPercentage)
+      : (bus?.raw?.gstPercentage !== undefined && bus?.raw?.gstPercentage !== null
+          ? Number(bus.raw.gstPercentage)
+          : (bus?.raw?.taxPercentage !== undefined && bus?.raw?.taxPercentage !== null
+              ? Number(bus.raw.taxPercentage)
+              : null));
+
+  const backendGstAmount =
+    bus?.gst !== undefined && bus?.gst !== null
+      ? Number(bus.gst)
+      : (bus?.raw?.gst !== undefined && bus?.raw?.gst !== null
+          ? Number(bus.raw.gst)
+          : (bus?.raw?.tax !== undefined && bus?.raw?.tax !== null
+              ? Number(bus.raw.tax)
+              : (createdBooking?.fareBreakdown?.taxes !== undefined && createdBooking?.fareBreakdown?.taxes !== null
+                  ? Number(createdBooking.fareBreakdown.taxes)
+                  : null)));
+
+  let gstRate = 0;
+  let gstAmount = 0.00;
+
+  if (backendGstPercentage !== null && !isNaN(backendGstPercentage) && backendGstPercentage > 0) {
+    gstRate = backendGstPercentage;
+    gstAmount = Number((effectiveBaseFare * (gstRate / 100)).toFixed(2));
+  } else if (backendGstAmount !== null && !isNaN(backendGstAmount) && backendGstAmount > 0) {
+    gstAmount = Number(backendGstAmount);
+    gstRate = Number(((gstAmount / (baseTicketFare || 1)) * 100).toFixed(0));
+  } else {
+    gstRate = 0;
+    gstAmount = 0.00;
+  }
+
+  // 3. Agent Service Charge: commission percentage from backend (e.g. commission: 10 => 10%)
+  const commissionRate =
+    bus?.commission !== undefined && bus?.commission !== null
+      ? Number(bus.commission)
+      : (bus?.raw?.commission !== undefined && bus?.raw?.commission !== null
+          ? Number(bus.raw.commission)
+          : 10);
+
+  const perSeatBaseFare = seatsCount > 0 ? (baseTicketFare / seatsCount) : (bus?.price || 1100);
+  const agentServiceChargePerSeat = Number((perSeatBaseFare * (commissionRate / 100)).toFixed(2));
+  const totalAgentServiceCharge = Number((agentServiceChargePerSeat * seatsCount).toFixed(2));
+
+  // 4. Special Promotional discount from backend (if any)
   const discount = createdBooking?.fareBreakdown?.discount !== undefined ? createdBooking.fareBreakdown.discount : 0.00;
-  const totalAmount = createdBooking?.totalAmount || createdBooking?.fareBreakdown?.totalPayable || Number((baseTicketFare + insurance + gst - discount).toFixed(2));
+
+  // 5. Total Amount
+  const totalAmount = createdBooking?.totalAmount || createdBooking?.fareBreakdown?.totalPayable ||
+    Number((effectiveBaseFare + totalAgentServiceCharge + gstAmount + insurance - discount).toFixed(2));
 
   const operatorName = bus?.operatorName || 'Sri Kumaran Travels';
   const busType = bus?.busType || 'Double Deck Sleeper (2+1) • Luxury Multi-Axle';
@@ -119,6 +210,7 @@ export default function ReviewBookingModal({
     const cleanPhone = (contactState?.phone || '').replace(/\D/g, '') || '9876543210';
 
     try {
+      const bookingAmount = totalAmount || baseTicketFare || seatFareSum || 0;
       const result = await checkoutBooking({
         busId,
         journeyDate: dateParam,
@@ -127,6 +219,7 @@ export default function ReviewBookingModal({
         contactPhone: cleanPhone,
         boardingPointId,
         droppingPointId,
+        amount: bookingAmount,
         paymentMethod: 'UPI',
         upiType: 'checkout'
       });
@@ -137,6 +230,7 @@ export default function ReviewBookingModal({
             totalAmount,
             passengers,
             selectedSeats,
+            coupon: appliedCoupon,
             booking: result.data.booking,
             payment: result.data.payment
           });
@@ -342,6 +436,103 @@ export default function ReviewBookingModal({
             </div>
           </div>
 
+          {/* Coupon Code Section (Placed Directly Above Fare Summary) */}
+          <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50/70 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Ticket className="w-4 h-4 text-[#0F766E]" />
+                <span className="text-xs font-bold text-slate-800 uppercase tracking-wide">
+                  Have a Coupon Code?
+                </span>
+              </div>
+              {!appliedCoupon && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleApplyCoupon('SECE500');
+                  }}
+                  className="text-[11px] text-[#0F766E] font-bold hover:underline cursor-pointer"
+                >
+                  Apply SECE500 (-₹500)
+                </button>
+              )}
+            </div>
+
+            {appliedCoupon ? (
+              <div className="flex items-center justify-between p-3 rounded-xl bg-emerald-50 border border-emerald-200 animate-in fade-in">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-7 h-7 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 shrink-0">
+                    <Check className="w-4 h-4 stroke-[3]" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-extrabold text-emerald-900 tracking-wider">
+                        {appliedCoupon.code}
+                      </span>
+                      <span className="text-[10px] font-bold bg-emerald-200/90 text-emerald-900 px-1.5 py-0.2 rounded">
+                        APPLIED
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-emerald-700 font-medium">
+                      ₹{appliedCoupon.discount} discount deducted from ticket fare
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleRemoveCoupon}
+                  className="text-xs font-bold text-rose-600 hover:text-rose-800 hover:underline px-2.5 py-1 cursor-pointer transition-colors"
+                >
+                  Remove
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <Tag className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      value={couponInput}
+                      onChange={(e) => {
+                        setCouponInput(e.target.value.toUpperCase());
+                        if (couponError) setCouponError('');
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleApplyCoupon(couponInput);
+                        }
+                      }}
+                      placeholder="Enter coupon code (e.g. SECE500)"
+                      className="w-full pl-9 pr-3 py-2 text-xs font-semibold rounded-xl border border-slate-300 focus:outline-none focus:border-[#0F766E] focus:ring-1 focus:ring-[#0F766E] uppercase placeholder:normal-case placeholder:font-normal placeholder:text-slate-400 bg-white"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleApplyCoupon(couponInput)}
+                    className="px-4 py-2 bg-[#0F766E] hover:bg-[#0D6962] text-white text-xs font-bold rounded-xl transition-colors cursor-pointer shadow-xs active:scale-95"
+                  >
+                    Apply
+                  </button>
+                </div>
+
+                {couponError && (
+                  <p className="text-[11px] font-medium text-rose-600 flex items-center gap-1">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    {couponError}
+                  </p>
+                )}
+                {couponSuccess && (
+                  <p className="text-[11px] font-medium text-emerald-700 flex items-center gap-1">
+                    <Check className="w-3.5 h-3.5 shrink-0" />
+                    {couponSuccess}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Fare Summary (Blue Highlighted Box) */}
           <div className="p-4 sm:p-5 rounded-2xl border-2 border-dashed border-teal-400 bg-teal-50/20 space-y-3">
             <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-800">
@@ -354,14 +545,38 @@ export default function ReviewBookingModal({
                 <span className="font-semibold text-slate-900">₹{baseTicketFare.toFixed(2)}</span>
               </div>
 
+              {/* Coupon Discount deduction */}
+              {appliedCoupon && couponDiscount > 0 && (
+                <div className="flex justify-between text-emerald-700 font-semibold bg-emerald-50/90 px-2.5 py-1.5 rounded-lg border border-emerald-200">
+                  <div className="flex items-center gap-1.5">
+                    <Tag className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Coupon Discount ({appliedCoupon.code})</span>
+                  </div>
+                  <span className="font-bold">- ₹{couponDiscount.toFixed(2)}</span>
+                </div>
+              )}
+
+              {/* BusGo Shield Travel Insurance - always 0 as requested */}
               <div className="flex justify-between text-slate-600">
                 <span>BusGo Shield Travel Insurance</span>
                 <span className="font-semibold text-slate-900">₹{insurance.toFixed(2)}</span>
               </div>
 
+              {/* Operator GST - from backend if available, else 0 */}
               <div className="flex justify-between text-slate-600">
-                <span>Operator GST (5%)</span>
-                <span className="font-semibold text-slate-900">₹{gst.toFixed(2)}</span>
+                <span>Operator GST {gstRate > 0 ? `(${gstRate}%)` : '(0%)'}</span>
+                <span className="font-semibold text-slate-900">₹{gstAmount.toFixed(2)}</span>
+              </div>
+
+              {/* Agent Service Charge - backend commission % and per-seat calculation */}
+              <div className="flex justify-between text-slate-600">
+                <div className="flex flex-col">
+                  <span>Agent Service Charge ({commissionRate}%)</span>
+                  <span className="text-[10px] text-slate-400">
+                    ₹{agentServiceChargePerSeat.toFixed(2)} per seat × {seatsCount} seat{seatsCount > 1 ? 's' : ''}
+                  </span>
+                </div>
+                <span className="font-semibold text-slate-900">₹{totalAgentServiceCharge.toFixed(2)}</span>
               </div>
 
               {discount > 0 && (

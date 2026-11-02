@@ -9,7 +9,7 @@ import BusDetails from '../../components/User/BusDetails';
 import BookingContinueProcess from '../../components/User/BookingContinueProcess';
 import PassengerDetails from '../../components/User/PassengerDetails';
 import ReviewBookingModal from '../../components/User/ReviewBookingModal';
-import { holdSeatsBooking, fetchBusSeatLayout } from '../../services/busService';
+import { holdSeatsBooking, fetchBusSeatLayout, getUserProfile } from '../../services/busService';
 import redirectToPayU, { redirectToPayU as namedRedirectToPayU } from '../../Utils/payu';
 
 const redirectPayU = (data) => {
@@ -138,11 +138,47 @@ export default function TicketBooking() {
   // Passengers State starts empty
   const [passengersState, setPassengersState] = useState([]);
 
-  // Contact Info State starts empty
-  const [contactState, setContactState] = useState({
-    email: '',
-    phone: ''
+  // Contact Info State auto-fetched from user profile (editable by user)
+  const [contactState, setContactState] = useState(() => {
+    const profile = getUserProfile();
+    return {
+      email: profile?.email || '',
+      phone: profile?.phone || ''
+    };
   });
+
+  // Ensure contactState receives user profile once available
+  useEffect(() => {
+    if (!contactState.email && !contactState.phone) {
+      const profile = getUserProfile();
+      if (profile?.email || profile?.phone) {
+        setContactState({
+          email: profile.email || '',
+          phone: profile.phone || ''
+        });
+      }
+    }
+  }, []);
+
+  // Pre-fill passenger 1 from profile when passenger state is populated but name is empty
+  useEffect(() => {
+    if (passengersState.length > 0 && !passengersState[0]?.name) {
+      const profile = getUserProfile();
+      if (profile?.name) {
+        setPassengersState((prev) => {
+          if (prev.length === 0 || prev[0]?.name) return prev;
+          const updated = [...prev];
+          updated[0] = {
+            ...updated[0],
+            name: updated[0].name || profile.name || '',
+            age: updated[0].age || profile.age || '',
+            gender: updated[0].restrictedGender || updated[0].gender || profile.gender || 'male'
+          };
+          return updated;
+        });
+      }
+    }
+  }, [passengersState]);
 
   // Persist heldSeats to sessionStorage
   useEffect(() => {
@@ -331,64 +367,9 @@ export default function TicketBooking() {
     city: bus.arrivalCity || 'Chennai'
   };
 
-  // Boarding and Dropping Points State
-  const [selectedBoarding, setSelectedBoarding] = useState({
-    id: initialBoardingStop._id || 'bp-1',
-    pointId: initialBoardingStop._id || 'bp-1',
-    time: initialBoardingStop.estimatedArrivalTime || bus.departureTime || '21:30',
-    name: initialBoardingStop.name,
-    city: initialBoardingStop.city || bus.departureCity || 'Coimbatore',
-    badge: 'MAIN ORIGIN',
-    address: initialBoardingStop.landmark || `${initialBoardingStop.name}, ${initialBoardingStop.city || ''}`,
-    reportingTime: initialBoardingStop.estimatedArrivalTime || '21:15'
-  });
-
-  const [selectedDropping, setSelectedDropping] = useState({
-    id: initialDroppingStop._id || 'dp-1',
-    pointId: initialDroppingStop._id || 'dp-1',
-    time: initialDroppingStop.estimatedArrivalTime || bus.arrivalTime || '06:00',
-    name: initialDroppingStop.name,
-    city: initialDroppingStop.city || bus.arrivalCity || 'Chennai',
-    badge: 'TERMINUS',
-    address: initialDroppingStop.landmark || `${initialDroppingStop.name}, ${initialDroppingStop.city || ''}`,
-    reportingTime: initialDroppingStop.estimatedArrivalTime || '05:45'
-  });
-
-  // Keep Boarding & Dropping synchronized with loaded bus stops
-  useEffect(() => {
-    if (bus?.stops && bus.stops.length > 0) {
-      const bStops = bus.stops.filter((s) => s.stopType === 'boarding' || s.stopType === 'both');
-      const dStops = bus.stops.filter((s) => s.stopType === 'dropping' || s.stopType === 'both');
-
-      if (bStops.length > 0) {
-        const b = bStops[0];
-        setSelectedBoarding({
-          id: b._id || 'bp-1',
-          pointId: b._id || 'bp-1',
-          time: b.estimatedArrivalTime || b.scheduledTime || bus.departureTime || '21:30',
-          name: b.name,
-          city: b.city || bus.departureCity || 'Coimbatore',
-          badge: 'MAIN ORIGIN',
-          address: b.landmark ? `${b.landmark}${b.city ? `, ${b.city}` : ''}` : b.city || bus.departureCity || 'Coimbatore',
-          reportingTime: b.reportingTime || b.estimatedArrivalTime || '21:15'
-        });
-      }
-
-      if (dStops.length > 0) {
-        const d = dStops[dStops.length - 1];
-        setSelectedDropping({
-          id: d._id || 'dp-1',
-          pointId: d._id || 'dp-1',
-          time: d.estimatedArrivalTime || d.scheduledTime || bus.arrivalTime || '06:00',
-          name: d.name,
-          city: d.city || bus.arrivalCity || 'Chennai',
-          badge: 'TERMINUS',
-          address: d.landmark ? `${d.landmark}${d.city ? `, ${d.city}` : ''}` : d.city || bus.arrivalCity || 'Chennai',
-          reportingTime: d.reportingTime || d.estimatedArrivalTime || '05:45'
-        });
-      }
-    }
-  }, [bus]);
+  // Boarding and Dropping Points State: Must be chosen by user
+  const [selectedBoarding, setSelectedBoarding] = useState(null);
+  const [selectedDropping, setSelectedDropping] = useState(null);
 
   // Toggle seat selection
   const handleToggleSeat = (seatId, requiredGender = null) => {
@@ -407,9 +388,11 @@ export default function TicketBooking() {
         updated = [...prev, seatId];
       }
 
-      // Sync passengers array with selected seats preserving entered details
+      // Sync passengers array with selected seats:
+      // Passenger 1 is automatically prefilled from user profile, but remains fully editable
       setPassengersState((prevPassengers) => {
-        return updated.map((id) => {
+        const profile = getUserProfile();
+        return updated.map((id, idx) => {
           const existing = prevPassengers.find((p) => p.seatId === id);
           if (existing) {
             return {
@@ -419,9 +402,9 @@ export default function TicketBooking() {
           }
           return {
             seatId: id,
-            name: '',
-            age: '',
-            gender: requiredGender || 'male',
+            name: idx === 0 ? (profile?.name || '') : '',
+            age: idx === 0 ? (profile?.age || '') : '',
+            gender: requiredGender || (idx === 0 ? (profile?.gender || 'male') : 'male'),
             restrictedGender: requiredGender || null
           };
         });
@@ -499,13 +482,22 @@ export default function TicketBooking() {
         return;
       }
 
-      // Validate Boarding and Dropping Points
-      if (!selectedBoarding || (!selectedBoarding.id && !selectedBoarding.pointId)) {
-        showToast('Please select a boarding point.');
-        return;
-      }
-      if (!selectedDropping || (!selectedDropping.id && !selectedDropping.pointId)) {
-        showToast('Please select a dropping point.');
+      // Validate Boarding and Dropping Points (Mandatory user choice)
+      const hasBoarding = Boolean(selectedBoarding && (selectedBoarding.id || selectedBoarding.pointId));
+      const hasDropping = Boolean(selectedDropping && (selectedDropping.id || selectedDropping.pointId));
+
+      if (!hasBoarding || !hasDropping) {
+        if (!hasBoarding && !hasDropping) {
+          showToast('Please choose your boarding and dropping points to continue.');
+        } else if (!hasBoarding) {
+          showToast('Please choose your boarding point to continue.');
+        } else {
+          showToast('Please choose your dropping point to continue.');
+        }
+        const sectionEl = document.getElementById('boarding-dropping-section');
+        if (sectionEl) {
+          sectionEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
         return;
       }
 

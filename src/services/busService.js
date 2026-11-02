@@ -93,6 +93,135 @@ export function getAuthToken() {
 }
 
 /**
+ * Resolves the primary API base URL.
+ * Supports:
+ * - customBase if provided
+ * - import.meta.env.VITE_API_BASE_URL
+ * - import.meta.env.VITE_API_URL
+ * - '/api' (default relative endpoint via Vite proxy)
+ */
+export function getApiBaseUrl(customBase = null) {
+  if (customBase && typeof customBase === 'string' && customBase.trim()) {
+    return customBase.trim().replace(/\/+$/, '');
+  }
+  const envBase = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL;
+  if (envBase && typeof envBase === 'string' && envBase.trim()) {
+    return envBase.trim().replace(/\/+$/, '');
+  }
+  return '/api';
+}
+
+/**
+ * Returns prioritized candidate base URLs for failover.
+ * If the configured base URL fails to connect (e.g. due to network disconnection or CORS),
+ * requests gracefully attempt relative proxy ('/api') or local dev server.
+ */
+export function getCandidateBaseUrls(customBase = null) {
+  const primary = getApiBaseUrl(customBase);
+  const candidates = [primary];
+
+  const fallbacks = [
+    '/api',
+    'http://localhost:8000/api',
+    'http://127.0.0.1:8000/api',
+    'http://10.57.1.245:8000/api'
+  ];
+
+  for (const fb of fallbacks) {
+    if (!candidates.includes(fb)) {
+      candidates.push(fb);
+    }
+  }
+
+  return candidates;
+}
+
+/**
+ * Retrieves the user profile from browser storage:
+ * Checks localStorage, sessionStorage, or user objects.
+ * Returns { name, email, phone, age, gender }
+ */
+export function getUserProfile() {
+  if (typeof window === 'undefined') return null;
+  const candidateKeys = [
+    'user',
+    'userData',
+    'userProfile',
+    'profile',
+    'currentUser',
+    'authUser',
+    'auth',
+    'login_data',
+    'user_info',
+    'passenger_profile'
+  ];
+
+  for (const key of candidateKeys) {
+    try {
+      const raw = localStorage.getItem(key) || sessionStorage.getItem(key);
+      if (raw) {
+        const parsed =
+          typeof raw === 'string' && (raw.startsWith('{') || raw.startsWith('['))
+            ? JSON.parse(raw)
+            : null;
+        if (parsed) {
+          const u = parsed.user || parsed.data || parsed.profile || parsed;
+          const fullName =
+            u.fullName ||
+            u.name ||
+            (u.firstName ? `${u.firstName} ${u.lastName || ''}`.trim() : '');
+          const email = u.email || u.emailAddress || u.contactEmail || '';
+          const phone = u.phone || u.mobile || u.phoneNumber || u.contactPhone || '';
+          const age = u.age || u.userAge || '';
+          const gender = u.gender || '';
+
+          if (fullName || email || phone) {
+            return {
+              name: fullName || '',
+              fullName: fullName || '',
+              email: email || '',
+              phone: phone ? String(phone).replace(/\D/g, '').slice(-10) : '',
+              age: age ? String(age) : '',
+              gender: (gender || 'male').toLowerCase() === 'female' ? 'female' : 'male'
+            };
+          }
+        }
+      }
+    } catch {
+      // not JSON
+    }
+  }
+
+  // Also check direct individual keys
+  const directName = localStorage.getItem('userName') || localStorage.getItem('fullName') || '';
+  const directEmail = localStorage.getItem('userEmail') || localStorage.getItem('email') || '';
+  const directPhone = localStorage.getItem('userPhone') || localStorage.getItem('phone') || '';
+  const directAge = localStorage.getItem('userAge') || localStorage.getItem('age') || '';
+  const directGender = localStorage.getItem('userGender') || localStorage.getItem('gender') || '';
+
+  if (directName || directEmail || directPhone) {
+    return {
+      name: directName || '',
+      fullName: directName || '',
+      email: directEmail || '',
+      phone: directPhone ? String(directPhone).replace(/\D/g, '').slice(-10) : '',
+      age: directAge ? String(directAge) : '',
+      gender: directGender ? (directGender.toLowerCase() === 'female' ? 'female' : 'male') : 'male'
+    };
+  }
+
+  // Default fallback profile matching the Navbar profile pill
+  return {
+    name: 'Alexandre M.',
+    fullName: 'Alexandre M.',
+    email: 'alexandre.m@example.com',
+    phone: '9876543210',
+    age: '26',
+    gender: 'male'
+  };
+}
+
+/**
  * Format duration minutes to string e.g. 510 -> "8h 30m"
  */
 export function formatDuration(minutes) {
@@ -307,6 +436,9 @@ export function mapApiBusToUiBus(apiBus, index = 0) {
     stops: stops,
     notes: apiBus.notes || '',
     status: apiBus.status || 'scheduled',
+    commission: apiBus.commission !== undefined ? Number(apiBus.commission) : (apiBus.agentCommission !== undefined ? Number(apiBus.agentCommission) : 10),
+    gst: apiBus.gst !== undefined ? Number(apiBus.gst) : (apiBus.tax !== undefined ? Number(apiBus.tax) : null),
+    gstPercentage: apiBus.gstPercentage !== undefined ? Number(apiBus.gstPercentage) : (apiBus.taxPercentage !== undefined ? Number(apiBus.taxPercentage) : null),
     raw: apiBus
   };
 }
@@ -316,75 +448,104 @@ export function mapApiBusToUiBus(apiBus, index = 0) {
  * GET {{baseUrl}}/buses/search?source={source}&destination={destination}&journeyDate={journeyDate}
  * 
  * Uses live API with authentication token retrieved from browser inspect -> Application.
- * If no response or error, returns empty list so the UI displays
- * "No buses available for this date" as requested.
+ * Tries prioritized candidate endpoints (configured baseUrl, Vite proxy /api, localhost:8000)
+ * so that unreachable private IPs or CORS restrictions do not cause unhandled crashes.
  */
 export async function fetchBusesSearch({
   source = 'Chennai',
   destination = 'Coimbatore',
   journeyDate = '2026-10-26',
+  baseUrl = null,
   token = getAuthToken()
 } = {}) {
-  try {
-    const cleanSource = typeof source === 'string' ? source.split('(')[0].trim() : 'Chennai';
-    const cleanDest = typeof destination === 'string' ? destination.split('(')[0].trim() : 'Coimbatore';
-    let dateParam = journeyDate;
-    if (journeyDate instanceof Date) {
-      dateParam = journeyDate.toISOString().split('T')[0];
-    } else if (typeof journeyDate === 'string' && journeyDate.length > 10) {
-      const parsed = new Date(journeyDate);
-      if (!isNaN(parsed.getTime())) {
-        dateParam = parsed.toISOString().split('T')[0];
-      }
+  const cleanSource = typeof source === 'string' ? source.split('(')[0].trim() : 'Chennai';
+  const cleanDest = typeof destination === 'string' ? destination.split('(')[0].trim() : 'Coimbatore';
+  let dateParam = journeyDate;
+  if (journeyDate instanceof Date) {
+    dateParam = journeyDate.toISOString().split('T')[0];
+  } else if (typeof journeyDate === 'string' && journeyDate.length > 10) {
+    const parsed = new Date(journeyDate);
+    if (!isNaN(parsed.getTime())) {
+      dateParam = parsed.toISOString().split('T')[0];
     }
-
-    const queryParams = new URLSearchParams({
-      source: cleanSource,
-      destination: cleanDest,
-      journeyDate: dateParam
-    });
-
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/buses/search?${queryParams.toString()}`, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`
-      }
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.message || `API returned status ${response.status}`);
-    }
-
-    const busList = Array.isArray(data)
-      ? data
-      : (Array.isArray(data.data) ? data.data : (Array.isArray(data.buses) ? data.buses : []));
-
-    return {
-      success: true,
-      source: cleanSource,
-      destination: cleanDest,
-      journeyDate: dateParam,
-      count: busList.length,
-      buses: busList.map((item, idx) => mapApiBusToUiBus(item, idx)),
-      isLive: true
-    };
-  } catch (error) {
-    console.error("Fetch Buses Search Error:", error);
-
-    return {
-      success: false,
-      source: typeof source === 'string' ? source.split('(')[0].trim() : '',
-      destination: typeof destination === 'string' ? destination.split('(')[0].trim() : '',
-      journeyDate,
-      count: 0,
-      buses: [],
-      isLive: false,
-      error: error.message || "Unable to connect to bus search server"
-    };
   }
+
+  const queryParams = new URLSearchParams({
+    source: cleanSource,
+    destination: cleanDest,
+    journeyDate: dateParam
+  });
+
+  const candidateBases = getCandidateBaseUrls(baseUrl);
+  let lastError = null;
+
+  for (const base of candidateBases) {
+    const targetUrl = `${base}/buses/search?${queryParams.toString()}`;
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
+
+      const headers = {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      };
+
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+        headers['exte_key'] = token;
+        headers['x-auth-token'] = token;
+      }
+
+      const response = await fetch(targetUrl, {
+        method: 'GET',
+        headers,
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        if (response.status === 404) {
+          lastError = new Error(errData.message || `Endpoint not found at ${base}`);
+          continue;
+        }
+        throw new Error(errData.message || `API returned status ${response.status}`);
+      }
+
+      const data = await response.json();
+      const busList = Array.isArray(data)
+        ? data
+        : (Array.isArray(data.data) ? data.data : (Array.isArray(data.buses) ? data.buses : []));
+
+      return {
+        success: true,
+        source: cleanSource,
+        destination: cleanDest,
+        journeyDate: dateParam,
+        count: busList.length,
+        buses: busList.map((item, idx) => mapApiBusToUiBus(item, idx)),
+        isLive: true
+      };
+    } catch (error) {
+      lastError = error;
+      // Network failure, timeout, or CORS block on this candidate -> try next
+      continue;
+    }
+  }
+
+  console.warn('[busService] Unable to connect to bus search server:', lastError?.message || 'Server unreachable');
+
+  return {
+    success: false,
+    source: cleanSource,
+    destination: cleanDest,
+    journeyDate: dateParam,
+    count: 0,
+    buses: [],
+    isLive: false,
+    error: lastError ? (lastError.name === 'AbortError' ? 'Connection timed out' : lastError.message) : 'Unable to connect to bus search server'
+  };
 }
 
 /**
@@ -402,66 +563,85 @@ export async function holdSeatsBooking({
   busId,
   journeyDate,
   seatNumbers,
+  baseUrl = null,
   token = getAuthToken()
 }) {
-  try {
-    let dateParam = journeyDate;
-    if (journeyDate instanceof Date) {
-      dateParam = journeyDate.toISOString().split('T')[0];
-    } else if (typeof journeyDate === 'string' && journeyDate.length > 10) {
-      const parsed = new Date(journeyDate);
-      if (!isNaN(parsed.getTime())) {
-        dateParam = parsed.toISOString().split('T')[0];
-      }
-    } else if (!dateParam) {
-      dateParam = new Date().toISOString().split('T')[0];
+  let dateParam = journeyDate;
+  if (journeyDate instanceof Date) {
+    dateParam = journeyDate.toISOString().split('T')[0];
+  } else if (typeof journeyDate === 'string' && journeyDate.length > 10) {
+    const parsed = new Date(journeyDate);
+    if (!isNaN(parsed.getTime())) {
+      dateParam = parsed.toISOString().split('T')[0];
     }
-
-    const seats = Array.isArray(seatNumbers) ? seatNumbers : [seatNumbers];
-
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/bookings/hold-seats`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`
-      },
-      body: JSON.stringify({
-        busId: String(busId),
-        journeyDate: String(dateParam),
-        seatNumbers: seats
-      })
-    });
-
-    const data = await response.json().catch(() => null);
-
-    if (!response.ok || !data?.success) {
-      return {
-        success: false,
-        statusCode: response.status,
-        message: data?.message || (response.status === 409
-          ? `Seat(s) ${seats.join(', ')} are currently held by another passenger. Please select alternative seats.`
-          : `Failed to hold seats (Status ${response.status})`),
-        conflictedSeats: data?.conflictedSeats || (response.status === 409 ? seats : []),
-        data: data?.data
-      };
-    }
-
-    return {
-      success: true,
-      statusCode: response.status,
-      message: data.message || "Seats held successfully for 10 minutes",
-      data: data.data
-    };
-  } catch (error) {
-    console.error("Hold Seats Error:", error);
-
-    return {
-      success: false,
-      statusCode: 0,
-      message: error.message || "Unable to connect to reservation server",
-      conflictedSeats: []
-    };
+  } else if (!dateParam) {
+    dateParam = new Date().toISOString().split('T')[0];
   }
+
+  const seats = Array.isArray(seatNumbers) ? seatNumbers : [seatNumbers];
+  const candidateBases = getCandidateBaseUrls(baseUrl);
+  let lastError = null;
+
+  for (const base of candidateBases) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 6000);
+
+      const headers = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+        headers['exte_key'] = token;
+        headers['x-auth-token'] = token;
+      }
+
+      const response = await fetch(`${base}/bookings/hold-seats`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          busId: String(busId),
+          journeyDate: String(dateParam),
+          seatNumbers: seats
+        }),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok || !data?.success) {
+        return {
+          success: false,
+          statusCode: response.status,
+          message: data?.message || (response.status === 409
+            ? `Seat(s) ${seats.join(', ')} are currently held by another passenger. Please select alternative seats.`
+            : `Failed to hold seats (Status ${response.status})`),
+          conflictedSeats: data?.conflictedSeats || (response.status === 409 ? seats : []),
+          data: data?.data
+        };
+      }
+
+      return {
+        success: true,
+        statusCode: response.status,
+        message: data.message || 'Seats held successfully for 10 minutes',
+        data: data.data
+      };
+    } catch (error) {
+      lastError = error;
+      continue;
+    }
+  }
+
+  return {
+    success: false,
+    statusCode: 0,
+    message: lastError?.message || 'Unable to connect to reservation server',
+    conflictedSeats: []
+  };
 }
 
 /**
@@ -472,27 +652,45 @@ export async function fetchBusSeatLayout({
   journeyDate,
   source = 'Chennai',
   destination = 'Coimbatore',
+  baseUrl = null,
   token = getAuthToken()
 }) {
-  // 1. Try direct bus endpoint: /api/buses/:busId
-  try {
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/buses/${busId}`, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`
-      }
-    });
+  const candidateBases = getCandidateBaseUrls(baseUrl);
 
-    if (response.ok) {
-      const data = await response.json();
-      const rawBus = data?.data || data?.bus || data;
-      if (rawBus && (rawBus.seatLayout || rawBus._id)) {
-        return mapApiBusToUiBus(rawBus);
+  // 1. Try direct bus endpoint: /buses/:busId
+  for (const base of candidateBases) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+      const headers = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+        headers['exte_key'] = token;
+        headers['x-auth-token'] = token;
       }
+
+      const response = await fetch(`${base}/buses/${busId}`, {
+        method: 'GET',
+        headers,
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      if (response.ok) {
+        const data = await response.json();
+        const rawBus = data?.data || data?.bus || data;
+        if (rawBus && (rawBus.seatLayout || rawBus._id)) {
+          return mapApiBusToUiBus(rawBus);
+        }
+      }
+    } catch {
+      continue;
     }
-  } catch {
-    // Fallback below
   }
 
   // 2. Fallback: Search API to get updated bus seat layout
@@ -511,7 +709,7 @@ export async function fetchBusSeatLayout({
       ) || null;
     }
   } catch (error) {
-    console.error("Fetch Bus Seat Layout Error:", error);
+    console.warn('[busService] Fetch Bus Seat Layout Error:', error);
   }
 
   return null;
@@ -544,63 +742,83 @@ export async function createBooking({
   passengers,
   boardingPointId,
   droppingPointId,
+  baseUrl = null,
   token = getAuthToken()
 }) {
-  try {
-    let dateParam = journeyDate;
-    if (journeyDate instanceof Date) {
-      dateParam = journeyDate.toISOString().split('T')[0];
-    } else if (typeof journeyDate === 'string' && journeyDate.length > 10) {
-      const parsed = new Date(journeyDate);
-      if (!isNaN(parsed.getTime())) {
-        dateParam = parsed.toISOString().split('T')[0];
-      }
-    } else if (!dateParam) {
-      dateParam = new Date().toISOString().split('T')[0];
+  let dateParam = journeyDate;
+  if (journeyDate instanceof Date) {
+    dateParam = journeyDate.toISOString().split('T')[0];
+  } else if (typeof journeyDate === 'string' && journeyDate.length > 10) {
+    const parsed = new Date(journeyDate);
+    if (!isNaN(parsed.getTime())) {
+      dateParam = parsed.toISOString().split('T')[0];
     }
-
-    const formattedPassengers = (passengers || []).map((p, idx) => ({
-      name: (p.name || '').trim() || `Passenger ${idx + 1}`,
-      age: parseInt(p.age, 10) || 28,
-      gender: (p.gender || 'female').toLowerCase()
-    }));
-
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/bookings`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`
-      },
-      body: JSON.stringify({
-        busId: String(busId),
-        journeyDate: String(dateParam),
-        seatNumbers: Array.isArray(seatNumbers) ? seatNumbers : [seatNumbers],
-        passengers: formattedPassengers,
-        boardingPointId: String(boardingPointId),
-        droppingPointId: String(droppingPointId)
-      })
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.message || `Failed to create booking (Status ${response.status})`);
-    }
-
-    return {
-      success: true,
-      message: data.message || "Booking created successfully",
-      data: data.data || data
-    };
-  } catch (error) {
-    console.error("Create Booking Error:", error);
-
-    return {
-      success: false,
-      message: error.message || "Unable to connect to booking server",
-      data: null
-    };
+  } else if (!dateParam) {
+    dateParam = new Date().toISOString().split('T')[0];
   }
+
+  const formattedPassengers = (passengers || []).map((p, idx) => ({
+    name: (p.name || '').trim() || `Passenger ${idx + 1}`,
+    age: parseInt(p.age, 10) || 28,
+    gender: (p.gender || 'female').toLowerCase()
+  }));
+
+  const candidateBases = getCandidateBaseUrls(baseUrl);
+  let lastError = null;
+
+  for (const base of candidateBases) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+      const headers = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+        headers['exte_key'] = token;
+        headers['x-auth-token'] = token;
+      }
+
+      const response = await fetch(`${base}/bookings`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          busId: String(busId),
+          journeyDate: String(dateParam),
+          seatNumbers: Array.isArray(seatNumbers) ? seatNumbers : [seatNumbers],
+          passengers: formattedPassengers,
+          boardingPointId: String(boardingPointId),
+          droppingPointId: String(droppingPointId)
+        }),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.message || `Failed to create booking (Status ${response.status})`);
+      }
+
+      return {
+        success: true,
+        message: data.message || 'Booking created successfully',
+        data: data.data || data
+      };
+    } catch (error) {
+      lastError = error;
+      continue;
+    }
+  }
+
+  return {
+    success: false,
+    message: lastError?.message || 'Unable to connect to booking server',
+    data: null
+  };
 }
 
 /**
@@ -616,6 +834,7 @@ export async function createBooking({
  *   "contactPhone": "...",
  *   "boardingPointId": "...",
  *   "droppingPointId": "...",
+ *   "amount": 1250,
  *   "paymentMethod": "UPI",
  *   "upiType": "checkout"
  * }
@@ -628,48 +847,73 @@ export async function checkoutBooking({
   contactPhone,
   boardingPointId,
   droppingPointId,
-  paymentMethod = "UPI",
-  upiType = "checkout",
-  baseUrl = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '/api',
+  amount,
+  paymentMethod = 'UPI',
+  upiType = 'checkout',
+  baseUrl = null,
   token = getAuthToken()
 }) {
-  try {
-    const cleanBase = (baseUrl || '/api').replace(/\/+$/, '');
-    const response = await fetch(`${cleanBase}/bookings/checkout`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`
-      },
-      body: JSON.stringify({
-        busId: String(busId),
-        journeyDate: String(journeyDate),
-        passengerDetails,
-        contactEmail,
-        contactPhone,
-        boardingPointId: String(boardingPointId),
-        droppingPointId: String(droppingPointId),
-        paymentMethod,
-        upiType
-      })
-    });
+  const candidateBases = getCandidateBaseUrls(baseUrl);
+  let lastError = null;
 
-    const data = await response.json();
+  const finalAmount =
+    amount !== undefined && amount !== null && !isNaN(Number(amount))
+      ? Number(amount)
+      : (amount || 0);
 
-    if (!response.ok) {
-      throw new Error(data.message || `Checkout failed with status ${response.status}`);
+  for (const base of candidateBases) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+      const headers = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+        headers['exte_key'] = token;
+        headers['x-auth-token'] = token;
+      }
+
+      const response = await fetch(`${base}/bookings/checkout`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          busId: String(busId),
+          journeyDate: String(journeyDate),
+          passengerDetails,
+          contactEmail,
+          contactPhone,
+          boardingPointId: String(boardingPointId),
+          droppingPointId: String(droppingPointId),
+          amount: finalAmount,
+          paymentMethod,
+          upiType
+        }),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || `Checkout failed with status ${response.status}`);
+      }
+
+      return data;
+    } catch (error) {
+      lastError = error;
+      continue;
     }
-
-    return data;
-  } catch (error) {
-    console.error("Checkout Booking Error:", error);
-
-    return {
-      success: false,
-      message: error.message || "Unable to connect to checkout server",
-      data: null
-    };
   }
+
+  return {
+    success: false,
+    message: lastError?.message || 'Unable to connect to checkout server',
+    data: null
+  };
 }
 
 /**
@@ -683,33 +927,53 @@ export async function checkoutBooking({
  */
 export async function createPaymentOrder({
   bookingId,
+  baseUrl = null,
   token = getAuthToken()
 }) {
-  try {
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/payments/create-order`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`
-      },
-      body: JSON.stringify({ bookingId })
-    });
+  const candidateBases = getCandidateBaseUrls(baseUrl);
+  let lastError = null;
 
-    const data = await response.json();
+  for (const base of candidateBases) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 9000);
 
-    if (!response.ok) {
-      throw new Error(data.message || "Payment initiation failed");
+      const headers = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+        headers['exte_key'] = token;
+        headers['x-auth-token'] = token;
+      }
+
+      const response = await fetch(`${base}/payments/create-order`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ bookingId: String(bookingId) }),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Payment initiation failed');
+      }
+
+      return data;
+    } catch (error) {
+      lastError = error;
+      continue;
     }
-
-    return data;
-  } catch (error) {
-    console.error("Create Payment Order Error:", error);
-
-    return {
-      success: false,
-      message: error.message || "Unable to connect to payment server"
-    };
   }
+
+  return {
+    success: false,
+    message: lastError?.message || 'Unable to connect to payment server'
+  };
 }
 
 /**
@@ -765,7 +1029,7 @@ export function redirectToPayUCheckout(paymentData) {
  */
 export async function fetchBookingDetails(params) {
   const bookingId = typeof params === 'object' && params !== null ? params.bookingId : params;
-  const baseUrl = (typeof params === 'object' && params?.baseUrl) || import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '/api';
+  const customBase = typeof params === 'object' && params !== null ? params.baseUrl : null;
   const token = (typeof params === 'object' && params?.token) || getAuthToken();
 
   if (!bookingId) {
@@ -776,34 +1040,47 @@ export async function fetchBookingDetails(params) {
     };
   }
 
-  try {
-    const cleanBase = (baseUrl || '/api').replace(/\/+$/, '');
-    const response = await fetch(`${cleanBase}/bookings/${bookingId}`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {})
+  const candidateBases = getCandidateBaseUrls(customBase);
+  let lastError = null;
+
+  for (const base of candidateBases) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 6000);
+
+      const response = await fetch(`${base}/bookings/${bookingId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.message || `Failed to fetch booking details (Status ${response.status})`);
       }
-    });
 
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.message || `Failed to fetch booking details (Status ${response.status})`);
+      return {
+        success: true,
+        data: data.data || data.booking || data
+      };
+    } catch (error) {
+      lastError = error;
+      continue;
     }
-
-    return {
-      success: true,
-      data: data.data || data.booking || data
-    };
-  } catch (error) {
-    console.error('Fetch Booking Details Error:', error);
-    return {
-      success: false,
-      message: error.message || 'Unable to connect to booking server',
-      data: null
-    };
   }
+
+  return {
+    success: false,
+    message: lastError?.message || 'Unable to connect to booking server',
+    data: null
+  };
 }
 
 /**
@@ -812,7 +1089,7 @@ export async function fetchBookingDetails(params) {
  */
 export async function fetchPaymentDetails(params) {
   const txnid = typeof params === 'object' && params !== null ? params.txnid : params;
-  const baseUrl = (typeof params === 'object' && params?.baseUrl) || import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '/api';
+  const customBase = typeof params === 'object' && params !== null ? params.baseUrl : null;
   const token = (typeof params === 'object' && params?.token) || getAuthToken();
 
   if (!txnid) {
@@ -823,34 +1100,47 @@ export async function fetchPaymentDetails(params) {
     };
   }
 
-  try {
-    const cleanBase = (baseUrl || '/api').replace(/\/+$/, '');
-    const response = await fetch(`${cleanBase}/payments/transaction/${txnid}`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {})
+  const candidateBases = getCandidateBaseUrls(customBase);
+  let lastError = null;
+
+  for (const base of candidateBases) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 6000);
+
+      const response = await fetch(`${base}/payments/transaction/${txnid}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.message || `Failed to fetch payment details (Status ${response.status})`);
       }
-    });
 
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.message || `Failed to fetch payment details (Status ${response.status})`);
+      return {
+        success: true,
+        data: data.data || data.transaction || data.payment || data
+      };
+    } catch (error) {
+      lastError = error;
+      continue;
     }
-
-    return {
-      success: true,
-      data: data.data || data.transaction || data.payment || data
-    };
-  } catch (error) {
-    console.error('Fetch Payment Details Error:', error);
-    return {
-      success: false,
-      message: error.message || 'Unable to connect to payment server',
-      data: null
-    };
   }
+
+  return {
+    success: false,
+    message: lastError?.message || 'Unable to connect to payment server',
+    data: null
+  };
 }
 
 /**
@@ -858,37 +1148,50 @@ export async function fetchPaymentDetails(params) {
  * GET {{baseUrl}}/bookings/my-bookings
  */
 export async function fetchMyBookings(params = {}) {
-  const baseUrl = params?.baseUrl || import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '/api';
+  const customBase = params?.baseUrl || null;
   const token = params?.token || getAuthToken();
 
-  try {
-    const cleanBase = (baseUrl || '/api').replace(/\/+$/, '');
-    const response = await fetch(`${cleanBase}/bookings`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {})
+  const candidateBases = getCandidateBaseUrls(customBase);
+  let lastError = null;
+
+  for (const base of candidateBases) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 6000);
+
+      const response = await fetch(`${base}/bookings`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.message || `Failed to fetch bookings (Status ${response.status})`);
       }
-    });
 
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.message || `Failed to fetch bookings (Status ${response.status})`);
+      return {
+        success: true,
+        data: Array.isArray(data.data) ? data.data : (data.bookings || [])
+      };
+    } catch (error) {
+      lastError = error;
+      continue;
     }
-
-    return {
-      success: true,
-      data: Array.isArray(data.data) ? data.data : (data.bookings || [])
-    };
-  } catch (error) {
-    console.error('Fetch My Bookings Error:', error);
-    return {
-      success: false,
-      message: error.message || 'Unable to connect to bookings server',
-      data: []
-    };
   }
+
+  return {
+    success: false,
+    message: lastError?.message || 'Unable to connect to bookings server',
+    data: []
+  };
 }
 
 

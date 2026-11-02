@@ -10,7 +10,10 @@ export default function BusListingCards({
   onViewSeats,
   onResetFilters,
   loading = false,
-  isLive = false
+  isLive = false,
+  backendError = null,
+  onRetry = null,
+  onLoadDemoBuses = null
 }) {
   const sortOptions = [
     { id: 'recommended', label: 'Recommended' },
@@ -109,6 +112,36 @@ export default function BusListingCards({
               onViewSeats={onViewSeats}
             />
           ))}
+        </div>
+      ) : backendError ? (
+        <div className="bg-white rounded-2xl border border-amber-200/80 p-8 sm:p-12 text-center shadow-xs">
+          <div className="w-16 h-16 rounded-full bg-amber-50 text-amber-500 flex items-center justify-center mx-auto mb-4 text-2xl border border-amber-200">
+            ⚠️
+          </div>
+          <h3 className="text-base font-bold text-slate-800">Unable to Connect to Bus Service</h3>
+          <p className="text-sm text-slate-500 mt-1.5 max-w-md mx-auto">
+            {backendError}
+          </p>
+          <div className="mt-5 flex items-center justify-center gap-3 flex-wrap">
+            {onRetry && (
+              <button
+                type="button"
+                onClick={onRetry}
+                className="px-5 py-2.5 bg-[#0A6A69] text-white text-xs font-semibold rounded-xl hover:bg-[#085453] transition cursor-pointer shadow-xs"
+              >
+                Retry Connection
+              </button>
+            )}
+            {onLoadDemoBuses && (
+              <button
+                type="button"
+                onClick={onLoadDemoBuses}
+                className="px-5 py-2.5 bg-slate-100 text-slate-700 text-xs font-semibold rounded-xl hover:bg-slate-200 transition cursor-pointer"
+              >
+                Load Demo Buses
+              </button>
+            )}
+          </div>
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-slate-200/80 p-12 text-center shadow-xs">

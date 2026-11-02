@@ -27,6 +27,11 @@ import BusReviewPage from "./pages/vendor/BusManagement/BusReviewPage.jsx";
 import RoomManagementDashboard from "./pages/vendor/RootManagement.jsx/RoomManagementDashboard.jsx";
 import AddRoutepage from "./pages/vendor/RootManagement.jsx/AddRoutepage.jsx";
 import BusDetailView from "./pages/vendor/BusManagement/BusDetailView.jsx";
+import TripsManagmentDashboard from "./pages/vendor/TripsManagment/TripsManagmentDashboard.jsx";
+import CrewManagementDashboard from "./pages/vendor/CrewManagement/CrewManagementDashboard.jsx";
+import FinanceDashboard from "./pages/vendor/Finance/FinanceDashboard.jsx";
+import CalendarDashboard from "./pages/vendor/Calendar/CalendarDashboard.jsx";
+import BookingsDashboard from "./pages/vendor/Bookings/BookingsDashboard.jsx";
 
 function App() {
   const location = useLocation();
@@ -131,6 +136,12 @@ function App() {
             path="/vendor/root-management/add-route"
             element={<AddRoutepage />}
           />
+
+          <Route path="/vendor/trip-management" element={<TripsManagmentDashboard />} />
+          <Route path="/vendor/crew-management" element={<CrewManagementDashboard />} />
+          <Route path="/vendor/finance" element={<FinanceDashboard />} />
+          <Route path="/vendor/calendar" element={<CalendarDashboard />} />
+          <Route path="/vendor/bookings" element={<BookingsDashboard />} />
 
           {/* Standalone agent signup route */}
           <Route

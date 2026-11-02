@@ -5,7 +5,9 @@ import Signup from "./pages/Signup.jsx";
 import AgentSignup from "./pages/AgentSignup.jsx";
 
 import TravelAgentDashboard from "./pages/TravelAgentDashboard.jsx";
-import AdminDashboardPage from "./pages/AdminDashboardPage.jsx";
+import AdminDashboard from "./pages/AdminDashboard.jsx";
+import AdminBookingOverview from "./pages/AdminBookingOverview.jsx";
+import TravelsList from "./pages/TravelsList.jsx";
 
 import { Routes, Route, useLocation } from "react-router-dom";
 
@@ -67,7 +69,15 @@ function App() {
           {/* Admin routes */}
           <Route
             path="/admin"
-            element={<AdminDashboardPage />}
+            element={<AdminBookingOverview />}
+          />
+          <Route
+            path="/admin-dashboard"
+            element={<AdminDashboard />}
+          />
+          <Route
+            path="/travel-list"
+            element={<TravelsList />}
           />
 
           {/* Travel agent routes */}

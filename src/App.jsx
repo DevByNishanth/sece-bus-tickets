@@ -149,7 +149,7 @@ function App() {
           <Route path="/vendor/calendar" element={<CalendarDashboard />} />
           <Route path="/vendor/bookings" element={<BookingsDashboard />} />
 
-          <Route path="/" element={<BusListing />} />
+          {/* <Route path="/" element={<BusListing />} /> */}
       <Route path="/buses" element={<BusListing />} />
       <Route path="/ticket-booking" element={<TicketBooking />} />
       <Route path="/booking" element={<TicketBooking />} />

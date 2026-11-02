@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Clock, CheckCircle2, AlertCircle, X } from 'lucide-react';
+import { Clock, CheckCircle2, AlertCircle, X, Users } from 'lucide-react';
 import BookingNavbar from '../../components/User/BookingNavbar';
 import BookingProcess from '../../components/User/BookingProcess';
 import SeatStatusDisplay from '../../components/User/SeatStatusDisplay';
@@ -59,8 +59,21 @@ export default function TicketBooking() {
     from: 'Coimbatore',
     to: 'Chennai',
     date: getTodayDateStr(),
-    passengers: '1 Traveller (All seats)'
+    passengers: 1
   };
+
+  const maxPassengerCount = useMemo(() => {
+    const rawVal = searchParams?.passengers !== undefined ? searchParams.passengers : searchParams?.passengersCount;
+    if (typeof rawVal === 'number' && rawVal > 0) return rawVal;
+    if (typeof rawVal === 'string') {
+      const match = rawVal.match(/\d+/);
+      if (match) {
+        const parsed = parseInt(match[0], 10);
+        if (parsed > 0) return parsed;
+      }
+    }
+    return 6;
+  }, [searchParams?.passengers, searchParams?.passengersCount]);
 
   // All berths for fare lookup
   const allBerths = [
@@ -147,9 +160,11 @@ export default function TicketBooking() {
     };
   });
 
-  // Ensure contactState receives user profile once available
+  // Ensure contactState receives user profile once on initial mount if empty (does not overwrite user edits)
+  const hasInitializedContactRef = useRef(false);
   useEffect(() => {
-    if (!contactState.email && !contactState.phone) {
+    if (!hasInitializedContactRef.current && !contactState.email && !contactState.phone) {
+      hasInitializedContactRef.current = true;
       const profile = getUserProfile();
       if (profile?.email || profile?.phone) {
         setContactState({
@@ -159,26 +174,6 @@ export default function TicketBooking() {
       }
     }
   }, []);
-
-  // Pre-fill passenger 1 from profile when passenger state is populated but name is empty
-  useEffect(() => {
-    if (passengersState.length > 0 && !passengersState[0]?.name) {
-      const profile = getUserProfile();
-      if (profile?.name) {
-        setPassengersState((prev) => {
-          if (prev.length === 0 || prev[0]?.name) return prev;
-          const updated = [...prev];
-          updated[0] = {
-            ...updated[0],
-            name: updated[0].name || profile.name || '',
-            age: updated[0].age || profile.age || '',
-            gender: updated[0].restrictedGender || updated[0].gender || profile.gender || 'male'
-          };
-          return updated;
-        });
-      }
-    }
-  }, [passengersState]);
 
   // Persist heldSeats to sessionStorage
   useEffect(() => {
@@ -379,6 +374,14 @@ export default function TicketBooking() {
       return;
     }
 
+    // Validation: Enforce maximum seat selection based on searched passenger count
+    if (!selectedSeats.includes(seatId) && selectedSeats.length >= maxPassengerCount) {
+      showToast(
+        `The passenger count was ${maxPassengerCount}. You can only select up to ${maxPassengerCount} seat${maxPassengerCount > 1 ? 's' : ''} regarding that.`
+      );
+      return;
+    }
+
     setHoldError(null);
     setSelectedSeats((prev) => {
       let updated;
@@ -389,14 +392,15 @@ export default function TicketBooking() {
       }
 
       // Sync passengers array with selected seats:
-      // Passenger 1 is automatically prefilled from user profile, but remains fully editable
+      // Preserves any details already entered by the user
       setPassengersState((prevPassengers) => {
         const profile = getUserProfile();
         return updated.map((id, idx) => {
-          const existing = prevPassengers.find((p) => p.seatId === id);
+          const existing = prevPassengers.find((p) => p.seatId === id) || prevPassengers[idx];
           if (existing) {
             return {
               ...existing,
+              seatId: id,
               restrictedGender: requiredGender || existing.restrictedGender || null
             };
           }
@@ -528,7 +532,11 @@ export default function TicketBooking() {
           from={searchParams.from || 'Coimbatore'}
           to={searchParams.to || 'Chennai'}
           date={searchParams.date || getTodayDateStr()}
-          passengers={searchParams.passengers || `${selectedSeats.length || 1} Traveller(s)`}
+          passengers={
+            typeof searchParams.passengers === 'number'
+              ? `${searchParams.passengers} Passenger${searchParams.passengers > 1 ? 's' : ''}`
+              : searchParams.passengers || `${maxPassengerCount} Passenger(s)`
+          }
           currentStep={currentStep}
           onStepChange={(step) => {
             if (step === 1) {
@@ -545,6 +553,23 @@ export default function TicketBooking() {
           <div className="space-y-4 sm:space-y-5">
             {/* Step 1 Header & Seat Status Legend */}
             <SeatStatusDisplay />
+
+            {/* Passenger Count Guidance Banner */}
+            <div className="flex flex-wrap items-center justify-between gap-2 p-3.5 bg-teal-50/70 border border-teal-200/80 rounded-2xl text-xs">
+              <div className="flex items-center gap-2 text-teal-900 font-semibold">
+                <Users className="w-4 h-4 text-[#0F766E] shrink-0" />
+                <span>
+                  Passenger Allocation: <strong>{maxPassengerCount} Passenger{maxPassengerCount > 1 ? 's' : ''}</strong> searched. Please select up to {maxPassengerCount} seat{maxPassengerCount > 1 ? 's' : ''}.
+                </span>
+              </div>
+              <span className={`font-bold px-2.5 py-0.5 rounded-full text-[11px] shadow-2xs border ${
+                selectedSeats.length === maxPassengerCount
+                  ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                  : 'bg-white text-teal-800 border-teal-200'
+              }`}>
+                {selectedSeats.length} / {maxPassengerCount} Seats Selected
+              </span>
+            </div>
 
             {/* Grid Layout: Left Decks (Lower + Upper) & Right Bus Details */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">

@@ -27,7 +27,9 @@ export default function PassengerDetails({
   const handlePassengerChange = (index, field, value) => {
     setPassengersState((prev) => {
       const updated = [...prev];
-      updated[index] = { ...updated[index], [field]: value };
+      if (updated[index]) {
+        updated[index] = { ...updated[index], [field]: value };
+      }
       return updated;
     });
   };
@@ -338,8 +340,11 @@ export default function PassengerDetails({
                 </span>
                 <input
                   type="email"
-                  value={contactState.email || ''}
-                  onChange={(e) => setContactState({ ...contactState, email: e.target.value })}
+                  value={contactState?.email ?? ''}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setContactState((prev) => ({ ...(prev || {}), email: val }));
+                  }}
                   placeholder="e.g. aarav@example.com"
                   className="w-full text-xs sm:text-sm px-3 py-2.5 bg-white font-medium text-slate-800 placeholder-slate-400 focus:outline-none"
                 />
@@ -357,8 +362,11 @@ export default function PassengerDetails({
                 <input
                   type="tel"
                   maxLength="10"
-                  value={contactState.phone || ''}
-                  onChange={(e) => setContactState({ ...contactState, phone: e.target.value })}
+                  value={contactState?.phone ?? ''}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setContactState((prev) => ({ ...(prev || {}), phone: val }));
+                  }}
                   placeholder="9876543210"
                   className="w-full text-xs sm:text-sm px-3.5 py-2.5 bg-white font-medium text-slate-800 placeholder-slate-400 focus:outline-none"
                 />

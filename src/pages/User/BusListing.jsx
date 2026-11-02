@@ -29,7 +29,8 @@ export default function BusListing() {
   const [searchParams, setSearchParams] = useState({
     from: 'Chennai',
     to: 'Coimbatore',
-    date: getTodayDateStr()
+    date: getTodayDateStr(),
+    passengers: 1
   });
 
   const handleRetry = useCallback(() => {
@@ -51,8 +52,10 @@ export default function BusListing() {
       try {
         const result = await fetchBusesSearch({
           source: searchParams.from,
+          origin: searchParams.from,
           destination: searchParams.to,
-          journeyDate: searchParams.date
+          journeyDate: searchParams.date,
+          passengers: searchParams.passengers !== undefined ? searchParams.passengers : 1
         });
 
         if (isSubscribed) {
@@ -85,13 +88,14 @@ export default function BusListing() {
     return () => {
       isSubscribed = false;
     };
-  }, [searchParams.from, searchParams.to, searchParams.date, retryTrigger]);
+  }, [searchParams.from, searchParams.to, searchParams.date, searchParams.passengers, retryTrigger]);
 
   const handleSearch = (searchData) => {
     setSearchParams((prev) => ({
       ...prev,
       ...searchData,
-      date: searchData.rawDate || searchData.date || prev.date
+      date: searchData.rawDate || searchData.date || prev.date,
+      passengers: searchData.passengers !== undefined ? searchData.passengers : prev.passengers || 1
     }));
     setIsMobileSearchOpen(false);
   };
@@ -305,6 +309,7 @@ export default function BusListing() {
             initialFrom={searchParams.from}
             initialTo={searchParams.to}
             initialDate={searchParams.date}
+            initialPassengers={searchParams.passengers || 1}
             onSearch={handleSearch}
             onBack={() => console.log('Back to search clicked')}
             showBack={false}
@@ -402,6 +407,7 @@ export default function BusListing() {
               initialFrom={searchParams.from}
               initialTo={searchParams.to}
               initialDate={searchParams.date}
+              initialPassengers={searchParams.passengers || 1}
               onSearch={handleSearch}
               onBack={() => setIsMobileSearchOpen(false)}
               showBack={false}

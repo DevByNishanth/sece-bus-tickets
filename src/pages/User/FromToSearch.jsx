@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef,useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   ArrowLeft,
   MapPin,
@@ -7,7 +7,8 @@ import {
   Loader2,
   X,
   Sparkles,
-  AlertCircle
+  AlertCircle,
+  Users
 } from 'lucide-react';
 import CustomDatePicker from '../../components/Custom/CustomDatePicker';
 
@@ -152,6 +153,7 @@ export default function FromToSearch({
   initialFrom = 'Chennai (Koyambedu)',
   initialTo = 'Coimbatore (Gandhipuram)',
   initialDate = null,
+  initialPassengers = 1,
   onSearch,
   onBack,
   showBack = true
@@ -162,6 +164,11 @@ export default function FromToSearch({
   const [date, setDate] = useState(() => {
     if (initialDate && initialDate >= todayStr) return initialDate;
     return todayStr;
+  });
+  const [passengers, setPassengers] = useState(() => {
+    if (typeof initialPassengers === 'number') return initialPassengers;
+    const p = parseInt(initialPassengers, 10);
+    return !isNaN(p) && p >= 0 ? p : 1;
   });
   const [swapRotation, setSwapRotation] = useState(0);
 
@@ -192,6 +199,13 @@ export default function FromToSearch({
   useEffect(() => {
     if (initialDate) setDate(initialDate);
   }, [initialDate]);
+
+  useEffect(() => {
+    if (initialPassengers !== undefined && initialPassengers !== null) {
+      const p = typeof initialPassengers === 'number' ? initialPassengers : parseInt(initialPassengers, 10);
+      if (!isNaN(p)) setPassengers(p);
+    }
+  }, [initialPassengers]);
 
   // Handle outside click to close dropdowns
   useEffect(() => {
@@ -290,8 +304,16 @@ export default function FromToSearch({
   const handleSearch = () => {
     setIsFromOpen(false);
     setIsToOpen(false);
+    const passCount = passengers === '' || isNaN(parseInt(passengers, 10)) ? 1 : Math.max(0, parseInt(passengers, 10));
     if (onSearch) {
-      onSearch({ from, to, date: formatDisplayDate(date), rawDate: date });
+      onSearch({
+        from,
+        to,
+        date: formatDisplayDate(date),
+        rawDate: date,
+        passengers: passCount,
+        passengersCount: passCount
+      });
     }
   };
 
@@ -598,7 +620,7 @@ export default function FromToSearch({
         </div>
 
         {/* DATE Field with Custom Date Picker */}
-        <div className="flex-1">
+        <div className="flex-1 min-w-[150px]">
           <CustomDatePicker
             date={date}
             onChange={(newDateStr) => {
@@ -610,6 +632,33 @@ export default function FromToSearch({
             label="DATE OF JOURNEY"
             align="right"
           />
+        </div>
+
+        {/* PASSENGERS Field */}
+        <div className="w-full lg:w-auto lg:min-w-[150px]">
+          <div className="flex items-center gap-3 px-3 lg:px-4 border rounded-2xl py-2.5 bg-[#f8fafc]/70 hover:border-gray-200 focus-within:border-[#0F766E] focus-within:ring-2 focus-within:ring-[#0F766E]/15 focus-within:bg-white transition-all border-gray-100">
+            <div className="w-8 h-8 rounded-lg bg-[#F0FBFA] flex items-center justify-center shrink-0">
+              <Users className="text-[#0F766E] w-4 h-4" />
+            </div>
+
+            <div className="flex flex-col min-w-0 flex-1">
+              <span className="text-[10px] font-semibold text-[#8C9BAA] uppercase select-none leading-none tracking-wider">
+                PASSENGERS
+              </span>
+              <input
+                type="number"
+                min="0"
+                max="10"
+                value={passengers}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setPassengers(val === '' ? '' : parseInt(val, 10));
+                }}
+                placeholder="1"
+                className="w-full bg-transparent text-[14px] font-semibold text-[#111827] focus:outline-none border-none p-0 tracking-tight mt-0.5"
+              />
+            </div>
+          </div>
         </div>
 
         {/* Search / Modify Search Button */}

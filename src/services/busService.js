@@ -453,12 +453,14 @@ export function mapApiBusToUiBus(apiBus, index = 0) {
  */
 export async function fetchBusesSearch({
   source = 'Chennai',
+  origin = null,
   destination = 'Coimbatore',
   journeyDate = '2026-10-26',
+  passengers = 1,
   baseUrl = null,
   token = getAuthToken()
 } = {}) {
-  const cleanSource = typeof source === 'string' ? source.split('(')[0].trim() : 'Chennai';
+  const cleanSource = typeof (origin || source) === 'string' ? (origin || source).split('(')[0].trim() : 'Chennai';
   const cleanDest = typeof destination === 'string' ? destination.split('(')[0].trim() : 'Coimbatore';
   let dateParam = journeyDate;
   if (journeyDate instanceof Date) {
@@ -470,11 +472,14 @@ export async function fetchBusesSearch({
     }
   }
 
-  const queryParams = new URLSearchParams({
-    source: cleanSource,
-    destination: cleanDest,
-    journeyDate: dateParam
-  });
+  const queryParams = new URLSearchParams();
+  queryParams.append('source', cleanSource);
+  queryParams.append('origin', cleanSource);
+  queryParams.append('destination', cleanDest);
+  queryParams.append('journeyDate', dateParam);
+  if (passengers !== undefined && passengers !== null) {
+    queryParams.append('passengers', String(passengers));
+  }
 
   const candidateBases = getCandidateBaseUrls(baseUrl);
   let lastError = null;

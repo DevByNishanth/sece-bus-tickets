@@ -1,3 +1,5 @@
+import axios from "axios";
+import { useEffect, useState } from "react";
 import {
     BarChart,
     Bar,
@@ -5,216 +7,98 @@ import {
     YAxis,
     CartesianGrid,
     ResponsiveContainer,
-    ReferenceLine,
-    ReferenceDot,
     Cell,
     LabelList,
 } from "recharts";
 
-// Monthly driver statistics
-const driverData = [
-    { month: "JAN", height: 1400, count: 123 }, 
-    { month: "FEB", height: 2300, count: 157 },
-    { month: "MAR", height: 1650, count: 173 },
-    { month: "ABR", height: 1200, count: 21 },
-    { month: "MAY", height: 1650, count: 413 },
-    { month: "JUN", height: 3750, count: 527 },
-    { month: "JUL", height: 2800, count: 167 },
-    { month: "AUG", height: 1400, count: 187 },
-    { month: "SEP", height: 2400, count: 213 },
-    { month: "OCT", height: 1750, count: 123 },
-    { month: "NOV", height: 900, count: 97 },
-    { month: "DEC", height: 2950, count: 67 },
-];
-
-const selectedMonth = driverData.find(
-    (item) => item.month === "JUN"
-);
-
-// Draw the striped background and solid bar together
-const CustomDriverBar = (props) => {
-    const {
-        x,
-        y,
-        width,
-        height,
-        payload,
-        background,
-    } = props;
-
-    // Background bar dimensions
-    const backgroundY = background.y;
-    const backgroundHeight = background.height;
-
-    // Actual bar color
-    const isSelected = payload.month === "JUN";
-    const barColor = isSelected ? "#117F89" : "#56A4AD";
-
-    const radius = Math.min(12, width / 2);
-
-    return (
-        <g>
-            {/* Striped background */}
-            <rect
-                x={x}
-                y={backgroundY}
-                width={width}
-                height={backgroundHeight}
-                rx={radius}
-                ry={radius}
-                fill="url(#barStripe)"
-            />
-
-            {/* Actual value bar */}
-            <path
-                d={`
-                    M ${x},${y + height}
-                    L ${x},${y + radius}
-                    Q ${x},${y} ${x + radius},${y}
-                    L ${x + width - radius},${y}
-                    Q ${x + width},${y} ${x + width},${y + radius}
-                    L ${x + width},${y + height}
-                    Z
-                `}
-                fill={barColor}
-            />
-
-            {/* Value at the bottom of the bar */}
-            <text
-                x={x + width / 2}
-                y={y + height - 10}
-                textAnchor="middle"
-                fontSize={12}
-                fontWeight={isSelected ? 600 : 400}
-                fill={isSelected ? "#FFFFFF" : "#17212B"}
-            >
-                {payload.count}
-            </text>
-        </g>
-    );
-};
-
 const DriverCountOverviewChart = () => {
+    const [monthlyData, setMonthlyData] = useState([]);
+    const [year, setYear] = useState(new Date().getFullYear());
+    const [totalDrivers, setTotalDrivers] = useState(0);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState("");
+
+    useEffect(() => {
+        const controller = new AbortController();
+        const fetchGraphData = async () => {
+            try {
+                const token = window.localStorage.getItem("exte_key");
+                const baseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "");
+                if (!baseUrl) throw new Error("API URL is not configured.");
+                const response = await axios.get(`${baseUrl}/agent/drivers/monthly-overview`, {
+                    headers: token ? { Authorization: `Bearer ${token}` } : {},
+                    signal: controller.signal,
+                });
+                const result = response.data;
+                setMonthlyData(Array.isArray(result?.data)
+                    ? [...result.data].sort((a, b) => a.monthIndex - b.monthIndex)
+                    : []);
+                setYear(result?.year ?? new Date().getFullYear());
+                setTotalDrivers(result?.totalDriversInYear ?? 0);
+            } catch (fetchError) {
+                if (fetchError.code === "ERR_CANCELED") return;
+                setError(fetchError.response?.data?.message || fetchError.message || "Could not load driver statistics.");
+            } finally {
+                if (!controller.signal.aborted) setIsLoading(false);
+            }
+        };
+        fetchGraphData();
+        return () => controller.abort();
+    }, []);
+
+    const currentMonth = new Date().getMonth() + 1;
+    const maxCount = Math.max(1, ...monthlyData.map((item) => Number(item.count) || 0));
+
     return (
-        <div className="w-full rounded-2xl mt-4 border border-slate-200 bg-white p-4 shadow-sm">
-
-            {/* Heading */}
-            <div className="mb-7">
-                <h2 className="font-semibold text-[#17212B]">
-                    Driver Count Overview
-                </h2>
-
-                <p className="text-[12px] text-[#718096]">
-                    Daily gross ticket collections vs total reservations
-                </p>
+        <div className="mt-4 w-full rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="mb-5 flex flex-wrap items-start justify-between gap-2">
+                <div>
+                    <h2 className="font-semibold text-[#17212B]">Driver Count Overview</h2>
+                    <p className="text-[12px] text-[#718096]">Drivers added each month in {year}</p>
+                </div>
+                {!isLoading && !error && (
+                    <p className="rounded-lg bg-teal-50 px-3 py-1.5 text-xs text-teal-800">
+                        <span className="font-semibold">{totalDrivers}</span> drivers this year
+                    </p>
+                )}
             </div>
 
-            {/* Chart */}
-            <div className="h-[260px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
-                        data={driverData}
-                        margin={{
-                            top: 10,
-                            right: 4,
-                            left: -8,
-                            bottom: 0,
-                        }}
-                        barCategoryGap="24%"
-                    >
-                        {/* SVG striped pattern */}
-                        <defs>
-                            <pattern
-                                id="barStripe"
-                                patternUnits="userSpaceOnUse"
-                                width="8"
-                                height="8"
-                                patternTransform="rotate(-15)"
-                            >
-                                <rect
-                                    width="8"
-                                    height="8"
-                                    fill="#F8FBFE"
-                                />
-
-                                <line
-                                    x1="0"
-                                    y1="0"
-                                    x2="8"
-                                    y2="0"
-                                    stroke="#DCECFB"
-                                    strokeWidth="1"
-                                />
-                            </pattern>
-                        </defs>
-
-                        {/* Grid lines */}
-                        <CartesianGrid
-                            vertical={false}
-                            stroke="#E7EEF5"
-                            strokeDasharray="3 4"
-                        />
-
-                        {/* Y axis */}
-                        <YAxis
-                            domain={[0, 5000]}
-                            ticks={[0, 1000, 2000, 3000, 4000, 5000]}
-                            tickFormatter={(value) =>
-                                value === 0 ? "0" : `${value / 1000}K`
-                            }
-                            axisLine={false}
-                            tickLine={false}
-                            tick={{
-                                fill: "#7183A5",
-                                fontSize: 10,
-                            }}
-                            width={32}
-                        />
-
-                        {/* X axis */}
-                        <XAxis
-                            dataKey="month"
-                            axisLine={false}
-                            tickLine={false}
-                            tick={{
-                                fill: "#7183A5",
-                                fontSize: 10,
-                            }}
-                            tickMargin={12}
-                        />
-
-                        {/* Highlight line */}
-                        <ReferenceLine
-                            y={selectedMonth.height}
-                            stroke="#117F89"
-                            strokeWidth={1.5}
-                        />
-
-                        {/* Background and actual bars share the same position */}
-                        <Bar
-                            dataKey="height"
-                            maxBarSize={52}
-                            background={{
-                                fill: "transparent",
-                            }}
-                            shape={(props) => (
-                                <CustomDriverBar {...props} />
-                            )}
-                            isAnimationActive={false}
-                        />
-
-                        {/* Selected June marker */}
-                        <ReferenceDot
-                            x="JUN"
-                            y={selectedMonth.height}
-                            r={5}
-                            fill="#117F89"
-                            stroke="#FFFFFF"
-                            strokeWidth={2}
-                        />
-                    </BarChart>
-                </ResponsiveContainer>
-            </div>
+            {isLoading ? (
+                <div className="h-[260px] animate-pulse rounded-lg bg-slate-50" role="status" aria-label="Loading driver chart" />
+            ) : error ? (
+                <div role="alert" className="flex h-[260px] items-center justify-center rounded-lg bg-rose-50 px-4 text-sm text-rose-700">{error}</div>
+            ) : monthlyData.length === 0 ? (
+                <div className="flex h-[260px] items-center justify-center rounded-lg bg-slate-50 text-sm text-slate-500">No monthly driver data available.</div>
+            ) : (
+                <div className="h-[260px] w-full" aria-label={`Monthly driver count for ${year}`}>
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={monthlyData} margin={{ top: 18, right: 8, left: -8, bottom: 0 }} barCategoryGap="24%">
+                            <CartesianGrid vertical={false} stroke="#E7EEF5" strokeDasharray="3 4" />
+                            <YAxis
+                                domain={[0, Math.ceil(maxCount * 1.25) || 1]}
+                                allowDecimals={false}
+                                axisLine={false}
+                                tickLine={false}
+                                tick={{ fill: "#7183A5", fontSize: 10 }}
+                                width={32}
+                            />
+                            <XAxis
+                                dataKey="month"
+                                axisLine={false}
+                                tickLine={false}
+                                tick={{ fill: "#7183A5", fontSize: 10 }}
+                                tickMargin={12}
+                            />
+                            <Bar dataKey="count" maxBarSize={52} radius={[8, 8, 0, 0]}>
+                                {monthlyData.map((item) => (
+                                    <Cell key={item.monthNumber} fill={item.monthNumber === currentMonth ? "#117F89" : "#56A4AD"} />
+                                ))}
+                                <LabelList dataKey="count" position="top" fill="#526174" fontSize={10} />
+                            </Bar>
+                        </BarChart>
+                    </ResponsiveContainer>
+                </div>
+            )}
         </div>
     );
 };

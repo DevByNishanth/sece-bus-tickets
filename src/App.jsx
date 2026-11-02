@@ -138,7 +138,7 @@ function App() {
           />
 
           <Route path="/vendor/trip-management" element={<TripsManagmentDashboard />} />
-          <Route path="/vendor/crew-management" element={<CrewManagementDashboard />} />
+          <Route path="/vendor/crew-management" element={<DriverManagementDashboard />} />
           <Route path="/vendor/finance" element={<FinanceDashboard />} />
           <Route path="/vendor/calendar" element={<CalendarDashboard />} />
           <Route path="/vendor/bookings" element={<BookingsDashboard />} />

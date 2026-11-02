@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { ChevronDown, Plus, Search, Bell, } from 'lucide-react';
+import { ChevronDown, Plus, Search, Bell, BusFront, Road, Luggage, CalendarDays, UsersRound, Wallet, Ticket } from 'lucide-react';
 
 import logo from '../../assets/vendor-logo.svg';
 
@@ -9,7 +9,7 @@ const VendorNavbar = () => {
     return (
         <>
             <div className="nav-main-container w-full sticky top-0 py-2 z-20 bg-[#f7f9fa] m-auto">
-                <div className="navbar-container w-[94%]  h-16 m-auto px-4 flex items-center rounded-full bg-white shadow">
+                <div className="navbar-container w-[94%]  h-16 m-auto px-4 flex  items-center rounded-full bg-white shadow">
 
                     {/* Container 1: Logo */}
                     <div className="container-1 shrink-0">
@@ -17,16 +17,16 @@ const VendorNavbar = () => {
                     </div>
 
                     {/* Container 2: Navigation Links */}
-                    <div className="container-2 flex-1 flex items-center justify-center">
+                    <div className="container-2 flex-1 flex items-center  justify-center">
 
-                        <nav className="flex items-center border border-[#eff1f1] gap-1 rounded-full bg-[#f2f8f9] p-1">
+                        <nav className="flex items-center gap-1 border border-[#eff1f1] rounded-full bg-[#f2f8f9] px-2 py-1">
 
                             {/* Dashboard */}
                             <NavLink
                                 to="/vendor"
                                 end
                                 className={({ isActive }) =>
-                                    `flex items-center gap-2 rounded-full px-5 py-2 text-xs transition-colors ${isActive
+                                    `flex items-center gap-2 whitespace-nowrap rounded-full px-3 py-2 text-xs transition-colors ${isActive
                                         ? 'bg-[#0E7A88] text-white'
                                         : 'text-[#627B77] hover:bg-white hover:text-[#087f95]'
                                     }`
@@ -37,184 +37,104 @@ const VendorNavbar = () => {
                             </NavLink>
 
                             {/* Fleet Dropdown */}
-                            <div className="group relative">
-
-                                <button
-                                    type="button"
-                                    className="flex items-center font-medium gap-1 rounded-full px-4 py-2 text-xs text-[#627B77] transition-colors hover:bg-white hover:text-[#087f95]"
-                                >
-                                    Fleet
-                                    <ChevronDown
-                                        size={13}
-                                        className="transition-transform font-medium duration-200 group-hover:rotate-180"
-                                    />
-                                </button>
-
-                                {/* Fleet Dropdown Menu */}
-                                <div className="invisible absolute left-0 top-full z-50 w-40 pt-2 opacity-0 transition-all duration-200 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
-
-                                    <div className="rounded-xl border border-gray-100 bg-white p-2 shadow-lg">
-
-                                        <NavLink
-                                            to="/vendor/fleet/lorem"
-                                            className={({ isActive }) =>
-                                                `block rounded-lg px-3 py-2 text-xs ${isActive
-                                                    ? 'bg-[#e6f5f5]  text-[#087f95]'
-                                                    : 'text-gray-600 hover:bg-gray-50'
-                                                }`
-                                            }
-                                        >
-                                            Lorem
-                                        </NavLink>
-
-                                        <NavLink
-                                            to="/vendor/fleet/lorem-2"
-                                            className={({ isActive }) =>
-                                                `mt-1 block rounded-lg px-3 py-2 text-xs ${isActive
-                                                    ? 'bg-[#e6f5f5] text-[#087f95]'
-                                                    : 'text-gray-600 hover:bg-gray-50'
-                                                }`
-                                            }
-                                        >
-                                            Lorem 2
-                                        </NavLink>
-
-                                    </div>
-                                </div>
-                            </div>
+                            <NavLink
+                                to="/vendor/bus-management"
+                                end
+                                className={({ isActive }) =>
+                                    `flex items-center gap-2 whitespace-nowrap rounded-full px-3 py-2 text-xs transition-colors ${isActive
+                                        ? 'bg-[#0E7A88] text-white'
+                                        : 'text-[#627B77] hover:bg-white hover:text-[#087f95]'
+                                    }`
+                                }
+                            >
+                                <span className="text-sm"><BusFront size={13} /></span>
+                                Bus
+                            </NavLink>
 
                             {/* Routes Dropdown */}
-                            <div className="group relative">
+                            <NavLink
+                                to="/vendor/root-management"
+                                end
+                                className={({ isActive }) =>
+                                    `flex items-center gap-2 whitespace-nowrap rounded-full px-3 py-2 text-xs transition-colors ${isActive
+                                        ? 'bg-[#0E7A88] text-white'
+                                        : 'text-[#627B77] hover:bg-white hover:text-[#087f95]'
+                                    }`
+                                }
+                            >
 
-                                <button
-                                    type="button"
-                                    className="flex items-center gap-1 rounded-full font-medium px-4 py-2 text-xs text-[#627B77] transition-colors hover:bg-white hover:text-[#087f95]"
-                                >
-                                    Routes
-                                    <ChevronDown
-                                        size={13}
-                                        className="transition-transform duration-200 group-hover:rotate-180"
-                                    />
-                                </button>
-
-                                {/* Routes Dropdown Menu */}
-                                <div className="invisible absolute left-0 top-full z-50 w-40 pt-2 opacity-0 transition-all duration-200 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
-
-                                    <div className="rounded-xl border border-gray-100 bg-white p-2 shadow-lg">
-
-                                        <NavLink
-                                            to="/vendor/routes/lorem"
-                                            className={({ isActive }) =>
-                                                `block rounded-lg px-3 py-2 text-xs ${isActive
-                                                    ? 'bg-[#e6f5f5] text-[#087f95]'
-                                                    : 'text-gray-600 hover:bg-gray-50'
-                                                }`
-                                            }
-                                        >
-                                            Lorem
-                                        </NavLink>
-
-                                        <NavLink
-                                            to="/vendor/routes/lorem-2"
-                                            className={({ isActive }) =>
-                                                `mt-1 block rounded-lg px-3 py-2 text-xs ${isActive
-                                                    ? 'bg-[#e6f5f5] text-[#087f95]'
-                                                    : 'text-gray-600 hover:bg-gray-50'
-                                                }`
-                                            }
-                                        >
-                                            Lorem 2
-                                        </NavLink>
-
-                                    </div>
-                                </div>
-                            </div>
+                                <span className="text-sm"><Road size={13} /></span>
+                                Routes
+                            </NavLink>
 
                             {/* Trips Dropdown */}
-                            <div className="group relative">
-
-                                <button
-                                    type="button"
-                                    className="flex items-center gap-1 font-medium rounded-full px-4 py-2 text-xs text-[#627B77] transition-colors hover:bg-white hover:text-[#087f95]"
-                                >
-                                    Trips
-                                    <ChevronDown
-                                        size={13}
-                                        className="transition-transform duration-200 group-hover:rotate-180"
-                                    />
-                                </button>
-
-                                {/* Trips Dropdown Menu */}
-                                <div className="invisible absolute left-0 top-full z-50 w-40 pt-2 opacity-0 transition-all duration-200 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
-
-                                    <div className="rounded-xl border border-gray-100 bg-white p-2 shadow-lg">
-
-                                        <NavLink
-                                            to="/vendor/trips/lorem"
-                                            className={({ isActive }) =>
-                                                `block rounded-lg px-3 py-2 text-xs ${isActive
-                                                    ? 'bg-[#e6f5f5] text-[#087f95]'
-                                                    : 'text-gray-600 hover:bg-gray-50'
-                                                }`
-                                            }
-                                        >
-                                            Lorem
-                                        </NavLink>
-
-                                        <NavLink
-                                            to="/vendor/trips/lorem-2"
-                                            className={({ isActive }) =>
-                                                `mt-1 block rounded-lg px-3 py-2 text-xs ${isActive
-                                                    ? 'bg-[#e6f5f5] text-[#087f95]'
-                                                    : 'text-gray-600 hover:bg-gray-50'
-                                                }`
-                                            }
-                                        >
-                                            Lorem 2
-                                        </NavLink>
-
-                                    </div>
-                                </div>
-                            </div>
+                            <NavLink
+                                to="/vendor/trip-management"
+                                end
+                                className={({ isActive }) =>
+                                    `flex items-center gap-2 whitespace-nowrap rounded-full px-3 py-2 text-xs transition-colors ${isActive
+                                        ? 'bg-[#0E7A88] text-white'
+                                        : 'text-[#627B77] hover:bg-white hover:text-[#087f95]'
+                                    }`
+                                }
+                            >
+                                <span className="text-sm"><Luggage size={13} /></span>
+                                Trips
+                            </NavLink>
+                            <NavLink
+                                to="/vendor/crew-management"
+                                end
+                                className={({ isActive }) =>
+                                    `flex items-center gap-2 whitespace-nowrap rounded-full px-3 py-2 text-xs transition-colors ${isActive
+                                        ? 'bg-[#0E7A88] text-white'
+                                        : 'text-[#627B77] hover:bg-white hover:text-[#087f95]'
+                                    }`
+                                }
+                            >
+                                <span className="text-sm"><UsersRound size={13} /></span>
+                                Crew
+                            </NavLink>
 
                             {/* Bookings */}
                             <NavLink
                                 to="/vendor/bookings"
                                 className={({ isActive }) =>
-                                    `rounded-full px-4 py-2 text-xs transition-colors ${isActive
+                                    `flex items-center gap-2 whitespace-nowrap rounded-full px-3 py-2 text-xs transition-colors ${isActive
                                         ? 'bg-[#087f95] text-white font-medium'
                                         : 'text-[#627B77] hover:bg-white font-medium hover:text-[#087f95]'
                                     }`
                                 }
                             >
+                                <Ticket size={13} />
                                 Bookings
                             </NavLink>
-
-                            {/* Finance */}
                             <NavLink
                                 to="/vendor/finance"
                                 className={({ isActive }) =>
-                                    `rounded-full px-4 py-2 text-xs transition-colors ${isActive
+                                    `flex items-center gap-2 whitespace-nowrap rounded-full px-3 py-2 text-xs transition-colors ${isActive
                                         ? 'bg-[#087f95] text-white font-medium'
                                         : 'text-[#627B77] hover:bg-white font-medium hover:text-[#087f95]'
                                     }`
                                 }
                             >
+                                <Wallet size={13} />
                                 Finance
                             </NavLink>
-
-                            {/* Calendar */}
                             <NavLink
                                 to="/vendor/calendar"
                                 className={({ isActive }) =>
-                                    `rounded-full px-4 py-2 text-xs transition-colors ${isActive
+                                    `flex items-center gap-2 whitespace-nowrap rounded-full px-3 py-2 text-xs transition-colors ${isActive
                                         ? 'bg-[#087f95] text-white font-medium'
-                                        : 'text-[#627B77] font-medium hover:bg-white hover:text-[#087f95]'
+                                        : 'text-[#627B77] hover:bg-white font-medium hover:text-[#087f95]'
                                     }`
                                 }
                             >
+                                <CalendarDays size={13} />
                                 Calendar
                             </NavLink>
+
+
+
 
                         </nav>
                     </div>

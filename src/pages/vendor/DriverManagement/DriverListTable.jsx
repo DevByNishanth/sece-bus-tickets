@@ -7,136 +7,22 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import DriverDeleteModal from "./DriverDeleteModal";
-const data = [
-    {
-        "id": 1,
-        "initials": "AK",
-        "name": "Arun Kumar",
-        "route": "Coimbatore → Chennai",
-        "from": "Coimbatore",
-        "to": "Chennai",
-        "date": "16 Oct 2026",
-        "seat": "U2",
-        "status": "Active"
-    },
-    {
-        "id": 2,
-        "initials": "PS",
-        "name": "Priya S",
-        "route": "Chennai → Coimbatore",
-        "from": "Chennai",
-        "to": "Coimbatore",
-        "date": "16 Oct 2026",
-        "seat": "L4",
-        "status": "In-Active"
-    },
-    {
-        "id": 3,
-        "initials": "KR",
-        "name": "Karthik R",
-        "route": "Coimbatore → Bengaluru",
-        "from": "Coimbatore",
-        "to": "Bengaluru",
-        "date": "17 Oct 2026",
-        "seat": "U6",
-        "status": "Pending"
-    },
-    {
-        "id": 4,
-        "initials": "DM",
-        "name": "Divya M",
-        "route": "Madurai → Chennai",
-        "from": "Madurai",
-        "to": "Chennai",
-        "date": "17 Oct 2026",
-        "seat": "L2",
-        "status": "Available"
-    },
-    {
-        "id": 5,
-        "initials": "SN",
-        "name": "Suresh N",
-        "route": "Coimbatore → Chennai",
-        "from": "Coimbatore",
-        "to": "Chennai",
-        "date": "18 Oct 2026",
-        "seat": "U8",
-        "status": "Rejected"
-    },
-    {
-        "id": 6,
-        "initials": "LK",
-        "name": "Lokesh K",
-        "route": "Chennai → Madurai",
-        "from": "Chennai",
-        "to": "Madurai",
-        "date": "18 Oct 2026",
-        "seat": "L1",
-        "status": "Active"
-    },
-    {
-        "id": 7,
-        "initials": "AN",
-        "name": "Ananya N",
-        "route": "Bengaluru → Coimbatore",
-        "from": "Bengaluru",
-        "to": "Coimbatore",
-        "date": "19 Oct 2026",
-        "seat": "U5",
-        "status": "Active"
-    },
-    {
-        "id": 8,
-        "initials": "VP",
-        "name": "Vijay P",
-        "route": "Coimbatore → Chennai",
-        "from": "Coimbatore",
-        "to": "Chennai",
-        "date": "19 Oct 2026",
-        "seat": "L7",
-        "status": "In-Active"
-    },
-    {
-        "id": 9,
-        "initials": "RG",
-        "name": "Ramesh G",
-        "route": "Chennai → Bengaluru",
-        "from": "Chennai",
-        "to": "Bengaluru",
-        "date": "20 Oct 2026",
-        "seat": "U3",
-        "status": "Pending"
-    },
-    {
-        "id": 10,
-        "initials": "SV",
-        "name": "Sneha V",
-        "route": "Madurai → Coimbatore",
-        "from": "Madurai",
-        "to": "Coimbatore",
-        "date": "20 Oct 2026",
-        "seat": "L9",
-        "status": "Available"
-    }
-]
+import axios from "axios";
+
 
 // Set badge colors based on driver status
 const getStatusStyle = (status) => {
     switch (status) {
-        case "Active":
+        case "available":
             return "bg-teal-100 text-teal-700";
 
-        case "In-Active":
-            return "bg-red-100 text-red-600";
+        case "not-available":
+            return "bg-pink-100 text-pink-700";
+        case "assigned":
+            return "bg-green-100 text-green-700";
 
-        case "Pending":
-            return "bg-orange-100 text-orange-700";
-
-        case "Available":
-            return "bg-cyan-100 text-cyan-700";
-
-        case "Rejected":
-            return "bg-red-100 text-red-600";
+        case "leave":
+            return "bg-amber-100 text-amber-600";
 
         default:
             return "bg-gray-100 text-gray-600";
@@ -197,7 +83,7 @@ const RejectDriverModal = ({ driver, onClose, onConfirm }) => {
             if (event.target === event.currentTarget) onClose();
         }}>
             <section
-               
+
                 className="flex h-[100vh] w-full max-w-md absolute top-0 right-0 flex-col overflow-hidden border border-slate-200 bg-white shadow-2xl"
             >
                 <header className="flex items-start justify-between border-b border-slate-100 px-5 py-4 sm:px-6">
@@ -269,9 +155,17 @@ const RejectDriverModal = ({ driver, onClose, onConfirm }) => {
 
 const DriverListTable = () => {
 
+    // Auth
+    const token = localStorage.getItem("exte_key");
+
     const [deletePopup, setDeletePopup] = useState(false)
     const [rejectDriver, setRejectDriver] = useState(null);
-    const [drivers, setDrivers] = useState(data);
+    const [drivers, setDrivers] = useState([]);
+    const [search, setSearch] = useState("");
+    const [status, setStatus] = useState("");
+    const [isFilterOpen, setIsFilterOpen] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
+    const [loadError, setLoadError] = useState("");
 
     const handleReject = (driver) => {
         setDrivers((currentDrivers) => currentDrivers.map((item) =>
@@ -280,6 +174,37 @@ const DriverListTable = () => {
         setRejectDriver(null);
     };
 
+    // functions
+
+    useEffect(() => {
+        const controller = new AbortController();
+        const timer = window.setTimeout(async () => {
+            setIsLoading(true);
+            setLoadError("");
+            try {
+                const baseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "");
+                if (!baseUrl) throw new Error("API URL is not configured.");
+                const res = await axios.get(`${baseUrl}/agent/drivers`, {
+                    params: { page: 1, limit: 10, status, search: search.trim() },
+                    headers: token ? { Authorization: `Bearer ${token}` } : {},
+                    signal: controller.signal,
+                });
+                const result = res.data?.drivers ?? res.data?.data?.drivers ?? res.data?.data;
+                setDrivers(Array.isArray(result) ? result : []);
+            } catch (err) {
+                if (err.code === "ERR_CANCELED") return;
+                setDrivers([]);
+                setLoadError(err.response?.data?.message || err.message || "Could not load drivers.");
+            } finally {
+                if (!controller.signal.aborted) setIsLoading(false);
+            }
+        }, search.trim() ? 350 : 0);
+
+        return () => {
+            window.clearTimeout(timer);
+            controller.abort();
+        };
+    }, [token, search, status]);
 
     return (
         <>
@@ -311,19 +236,35 @@ const DriverListTable = () => {
 
                             <input
                                 type="text"
-                                placeholder="Search PNR, passenger..."
+                                value={search}
+                                onChange={(event) => setSearch(event.target.value)}
+                                placeholder="Search name, mobile, license..."
+                                aria-label="Search drivers"
                                 className="w-full rounded-full border border-slate-200 bg-slate-100/80 py-1.5 pl-7 pr-3 text-[14px] text-slate-700 outline-none placeholder:text-slate-400 "
                             />
                         </div>
 
                         {/* Filter */}
-                        <button
-                            type="button"
-                            className="inline-flex items-center gap-1.5 border border-slate-200 rounded-full bg-slate-100/80 px-3 py-1.5 text-[14px] text-black "
-                        >
-                            <SlidersHorizontal size={13} />
-                            <span>Filter</span>
-                        </button>
+                        <div className="relative">
+                            <button
+                                type="button"
+                                aria-expanded={isFilterOpen}
+                                onClick={() => setIsFilterOpen((open) => !open)}
+                                className="inline-flex items-center gap-1.5 border border-slate-200 rounded-full bg-slate-100/80 px-3 py-1.5 text-[14px] text-black"
+                            >
+                                <SlidersHorizontal size={13} />
+                                <span>{status ? status.replace("-", " ") : "Filter"}</span>
+                            </button>
+                            {isFilterOpen && (
+                                <div className="absolute right-0 top-full z-20 mt-2 min-w-40 rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg">
+                                    {[["", "All drivers"], ["available", "Available"], ["assigned", "Assigned"], ["leave", "On leave"]].map(([value, label]) => (
+                                        <button key={value || "all"} type="button" onClick={() => { setStatus(value); setIsFilterOpen(false); }} className={`block w-full rounded-lg px-3 py-2 text-left text-xs capitalize hover:bg-slate-50 ${status === value ? "font-semibold text-teal-700" : "text-slate-700"}`}>
+                                            {label}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
 
                         {/* Export CSV */}
                         <button
@@ -357,19 +298,19 @@ const DriverListTable = () => {
                         <thead className="bg-[#E5EBEF] sticky top-0">
                             <tr className="text-[10px] text-left font-medium uppercase text-slate-700">
                                 <th className="px-5 py-3 font-medium">
-                                    Route
-                                </th>
-
-                                <th className="px-4 py-3 font-medium">
                                     Driver Name
                                 </th>
 
                                 <th className="px-4 py-3 font-medium">
-                                    Travel Date
+                                    Mobile
                                 </th>
 
                                 <th className="px-4 py-3 font-medium">
-                                    Seat Berth
+                                    License No
+                                </th>
+
+                                <th className="px-4 py-3 font-medium">
+                                    Employee code
                                 </th>
 
                                 <th className="px-4 py-3 font-medium">
@@ -384,44 +325,51 @@ const DriverListTable = () => {
 
                         {/* Table Body */}
                         <tbody>
-                            {drivers.map((driver, index) => (
+                            {isLoading ? Array.from({ length: 5 }, (_, index) => (
+                                <tr key={`skeleton-${index}`} className="animate-pulse border-t border-slate-100">
+                                    {Array.from({ length: 6 }, (_, cell) => <td key={cell} className="px-4 py-4"><div className="h-3 rounded bg-slate-100" /></td>)}
+                                </tr>
+                            )) : loadError ? (
+                                <tr><td colSpan={6} className="px-4 py-10 text-center text-sm text-rose-700">{loadError}</td></tr>
+                            ) : drivers.length === 0 ? (
+                                <tr><td colSpan={6} className="px-4 py-10 text-center text-sm text-slate-500">No drivers found. Try a different search or status filter.</td></tr>
+                            ) : drivers.map((driver, index) => (
                                 <tr
-                                    key={driver.id}
+                                    key={driver._id || driver.id}
                                     className="border-t border-slate-100 transition-colors hover:bg-slate-50"
                                 >
-
                                     {/* Route */}
-                                    <td className="px-5 py-3 text-">
-                                        <span className="whitespace-nowrap text-xs text-slate-700">
-                                            {driver.route}
-                                        </span>
-                                    </td>
+
 
                                     {/* Driver Name */}
                                     <td className="px-4 py-3">
                                         <div className="flex items-center gap-2 whitespace-nowrap">
 
                                             <div
-                                                className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold ${getInitialsStyle(index)}`}
+                                                className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[14px] font-semibold ${getInitialsStyle(index)}`}
                                             >
-                                                {driver.initials}
+                                                {driver?.profilePhoto?.url ? <img className="w-10 h-10 rounded-full object-cover" src={driver?.profilePhoto?.url} /> : <p>{driver?.fullName?.slice(0, 1)}</p>}
+
                                             </div>
 
                                             <span className="text-xs font-medium text-slate-800">
-                                                {driver.name}
+                                                {driver.fullName}
                                             </span>
 
                                         </div>
                                     </td>
 
-                                    {/* Travel Date */}
+                                    {/* mobile  */}
                                     <td className="whitespace-nowrap px-4 py-3 text-xs text-slate-500">
-                                        {driver.date}
+                                        {driver.mobile}
                                     </td>
 
                                     {/* Seat Berth */}
                                     <td className="px-4 py-3 text-xs font-semibold text-slate-800">
-                                        {driver.seat}
+                                        {driver.drivingLicenseNumber}
+                                    </td>
+                                    <td className="px-4 py-3 text-xs font-semibold text-slate-800">
+                                        {driver.employeeCode}
                                     </td>
 
                                     {/* Status */}
@@ -429,7 +377,7 @@ const DriverListTable = () => {
                                         <span
                                             className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-medium ${getStatusStyle(driver.status)}`}
                                         >
-                                            {driver.status}
+                                            {driver?.status?.toUpperCase()}
                                         </span>
                                     </td>
 
@@ -467,7 +415,7 @@ const DriverListTable = () => {
                                                 <Trash2 size={14} />
                                             </button>
 
-                                           
+
                                         </div>
                                     </td>
 

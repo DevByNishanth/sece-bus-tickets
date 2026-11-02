@@ -6,8 +6,11 @@ import RouteStopsForm from './RouteStopsForm'
 import { ArrowLeft, ArrowRight, Search, X } from 'lucide-react'
 import BoardingDroppingConfig from './BoardingDropingConfig'
 import RouteReview from './RouteReview'
+import { useNavigate } from 'react-router-dom'
+import { toast } from 'react-toastify'
 
 const AddRoutepage = () => {
+    const navigate = useNavigate()
 
     const [activeStep, setActiveStep] = useState(1)
     const [isSubmitting, setIsSubmitting] = useState(false)
@@ -230,8 +233,9 @@ const AddRoutepage = () => {
                 const responseText = await response.text()
                 let responseBody = {}
                 try { responseBody = responseText ? JSON.parse(responseText) : {} } catch { responseBody = { message: responseText } }
-                if (!response.ok || responseBody.success === false) throw new Error(responseBody.message || `Route submission failed (${response.status}).`)
-                setSubmitSuccess(responseBody.message || "Route submitted successfully.")
+                if (response.status !== 201 || responseBody.success === false) throw new Error(responseBody.message || `Route submission failed (${response.status}).`)
+                toast.success("Route added successfully.")
+                navigate("/vendor/root-management")
             } catch (error) {
                 setSubmitError(error.message || "Could not submit the route. Please try again.")
             } finally {

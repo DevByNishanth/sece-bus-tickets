@@ -2,6 +2,7 @@ import {
     ChevronRight,
     X,
     ArrowRight,
+    ArrowLeft,
     Check,
     Info,
 } from "lucide-react";
@@ -39,10 +40,10 @@ const SeatGenerationPage = () => {
 
                 {/* header  */}
                 <header className="w-[94%] m-auto mt-3">
-                    {/* Header Title */}
-                    <h1 className="text-xl font-semibold text-gray-800">
-                        Fleet Management
-                    </h1>
+                    <div className="flex items-center justify-between gap-3">
+                        <h1 className="text-xl font-semibold text-gray-800">Fleet Management</h1>
+                        <button type="button" onClick={() => navigate(`/vendor/buses/new?draftId=${encodeURIComponent(busId)}`)} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"><ArrowLeft size={16} />Back to bus details</button>
+                    </div>
 
                     {/* Breadcrumb Navigation */}
                     {/* <nav className="mt-2 flex items-center gap-2 text-xs text-gray-500">
@@ -84,7 +85,7 @@ const SeatGenerationPage = () => {
                             </p>
 
                             <h1 className="mt-2 text-[24px] font-semibold leading-tight tracking-tight text-[#1b2d3c]">
-                                Create Your Seat Layout
+                                Create Your Seat Layout <span className="text-rose-600" aria-label="required">*</span>
                             </h1>
 
                             <p className="mt-1 text-[10px] leading-[17px] text-[#71869a] sm:text-[11px]">

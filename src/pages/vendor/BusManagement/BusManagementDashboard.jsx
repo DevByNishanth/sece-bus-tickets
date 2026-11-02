@@ -2,6 +2,7 @@
 import VendorNavbar from "../VendorNavbar"
 import { useNavigate } from "react-router-dom";
 import plus from '../../../assets/plus.svg'
+import BusTable from "./BusTable";
 const BusManagementDashboard = () => {
     const navigate = useNavigate();
     return (
@@ -22,6 +23,20 @@ const BusManagementDashboard = () => {
                             Add Bus
                         </button>
                     </header>
+
+                    {/* -------------------------  Statcard ------------   */}
+
+                    <div className="statcard grid grid-cols-4 gap-3 mt-4">
+
+                        {[1, 2, 3, 4].map((item) => {
+                            return <div className="card border border-gray-300 rounded p-2"></div>
+                        })}
+
+                    </div>
+
+                    {/* -------------------------  Table ------------   */}
+
+                    <BusTable />
                 </div>
             </div>
         </>

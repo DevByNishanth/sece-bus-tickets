@@ -14,6 +14,8 @@ import AddDriverForm from './AddDriverForm';
 
 const DriverManagementDashboard = () => {
     const [isAddDriverFormOpen, setIsAddDriverFormOpen] = useState(false);
+    const [driverRefreshKey, setDriverRefreshKey] = useState(0);
+    const refreshDrivers = () => setDriverRefreshKey((key) => key + 1);
 
     return (
         <>
@@ -107,7 +109,7 @@ const DriverManagementDashboard = () => {
 
                     {/* ------------- driver list table -------------- */}
 
-                    <DriverListTable />
+                    <DriverListTable refreshKey={driverRefreshKey} onDriversChanged={refreshDrivers} />
 
 
 
@@ -115,7 +117,7 @@ const DriverManagementDashboard = () => {
                 </div>
             </div>
             {isAddDriverFormOpen && (
-                <AddDriverForm onClose={() => setIsAddDriverFormOpen(false)} />
+                <AddDriverForm onClose={() => setIsAddDriverFormOpen(false)} onSuccess={refreshDrivers} />
             )}
         </>
     )

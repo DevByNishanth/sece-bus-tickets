@@ -28,6 +28,17 @@ import BusReviewPage from "./pages/vendor/BusManagement/BusReviewPage.jsx";
 
 import RoomManagementDashboard from "./pages/vendor/RootManagement.jsx/RoomManagementDashboard.jsx";
 import AddRoutepage from "./pages/vendor/RootManagement.jsx/AddRoutepage.jsx";
+import BusDetailView from "./pages/vendor/BusManagement/BusDetailView.jsx";
+import TripsManagmentDashboard from "./pages/vendor/TripsManagment/TripsManagmentDashboard.jsx";
+import StaffManagementDashboard from "./pages/vendor/CrewManagement/StaffManagementDashboard.jsx";
+import FinanceDashboard from "./pages/vendor/Finance/FinanceDashboard.jsx";
+import CalendarDashboard from "./pages/vendor/Calendar/CalendarDashboard.jsx";
+import BookingsDashboard from "./pages/vendor/Bookings/BookingsDashboard.jsx";
+import BusListing from './pages/User/BusListing.jsx';
+import TicketBooking from './pages/User/TicketBooking.jsx';
+import PayUCheckout from './pages/User/PayUCheckout.jsx';
+import PaymentResult from './pages/User/PaymentResult.jsx';
+import MyBookings from './pages/User/MyBookings.jsx';
 
 function App() {
   const location = useLocation();
@@ -116,6 +127,10 @@ function App() {
           />
 
           <Route
+            path="/vendor/bus-management/buses/busDetailView/:busId"
+            element={<BusDetailView />}
+          />
+          <Route
             path="/vendor/buses/new"
             element={<BusDetailsPage />}
           />
@@ -124,6 +139,7 @@ function App() {
             path="/vendor/buses/:busId/review"
             element={<BusReviewPage />}
           />
+
 
           {/* Vendor route management */}
           <Route
@@ -135,6 +151,23 @@ function App() {
             path="/vendor/root-management/add-route"
             element={<AddRoutepage />}
           />
+
+          <Route path="/vendor/trip-management" element={<TripsManagmentDashboard />} />
+          <Route path="/vendor/crew-management" element={<DriverManagementDashboard />} />
+          <Route path="/vendor/-staff-management" element={<StaffManagementDashboard />} />
+          <Route path="/vendor/finance" element={<FinanceDashboard />} />
+          <Route path="/vendor/calendar" element={<CalendarDashboard />} />
+          <Route path="/vendor/bookings" element={<BookingsDashboard />} />
+
+          <Route path="/" element={<BusListing />} />
+      <Route path="/buses" element={<BusListing />} />
+      <Route path="/ticket-booking" element={<TicketBooking />} />
+      <Route path="/booking" element={<TicketBooking />} />
+      <Route path="/checkout/payu" element={<PayUCheckout />} />
+      <Route path="/payu-checkout" element={<PayUCheckout />} />
+      <Route path="/booking/payment-result" element={<PaymentResult />} />
+      <Route path="/payment-result" element={<PaymentResult />} />
+      <Route path="/my-bookings" element={<MyBookings />} />
 
           {/* Standalone agent signup route */}
           <Route

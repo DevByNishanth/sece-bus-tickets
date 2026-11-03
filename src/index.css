@@ -26,8 +26,8 @@ body{
 }
 
 .custom-scroll::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 18px;
+  height: 18px;
 }
 
 .custom-scroll::-webkit-scrollbar-track {
@@ -35,7 +35,7 @@ body{
   background: #e8eef0;
 }
 
-.::-webkit-scrollbar-thumb {
+::-webkit-scrollbar-thumb {
   border: 2px solid #e8eef0;
   border-radius: 9999px;
   background: #3b3b3b;
@@ -49,33 +49,4 @@ body{
   background: linear-gradient(90deg, #0F766E 0%, #0D9488 50%, #14B8A6 100%);
 }
 
-/* Hide scrollbar globally for the entire application while preserving scrolling */
-html,
-body,
-* {
-  scrollbar-width: none !important; /* Firefox */
-  -ms-overflow-style: none !important; /* IE and Edge */
-}
-
-html::-webkit-scrollbar,
-body::-webkit-scrollbar,
-*::-webkit-scrollbar {
-  display: none !important;
-  width: 0 !important;
-  height: 0 !important;
-  background: transparent !important;
-}
-
-/* Utility classes for selective use */
-.no-scrollbar::-webkit-scrollbar,
-.scrollbar-none::-webkit-scrollbar {
-  display: none !important;
-  width: 0px !important;
-  background: transparent !important;
-}
-.no-scrollbar,
-.scrollbar-none {
-  -ms-overflow-style: none !important; /* IE and Edge */
-  scrollbar-width: none !important; /* Firefox */
-}
 

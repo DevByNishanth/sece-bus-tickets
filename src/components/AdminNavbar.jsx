@@ -2,11 +2,13 @@ import { useState, useRef, useEffect } from "react";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import {
   Bell,
+  BuildingComplex,
   BusFront,
   Calendar,
   CheckCircle,
   ChevronDown,
   Clock,
+  IndianRupee,
   LayoutDashboard,
   LogOut,
   Mail,
@@ -202,14 +204,35 @@ export default function AdminNavbar() {
             <span>Coupons</span>
           </NavLink>
 
+          <NavLink
+            to="/admin-bookings"
+            className={({ isActive }) =>
+              `flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[11px] font-semibold transition ${
+                isActive
+                  ? "bg-[#0e8290] text-white shadow-sm"
+                  : "text-slate-600 hover:bg-white hover:text-teal-700"
+              }`
+            }
+          >
+            <Ticket size={13} className="shrink-0" />
+            <span>Booking</span>
+          </NavLink>
+
+          
           <button
             type="button"
             className="flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[11px] font-medium text-slate-500 transition hover:bg-white hover:text-teal-700"
           >
-            <Ticket size={13} className="shrink-0 opacity-70" />
-            <span>Booking</span>
+            <IndianRupee size={13} className="shrink-0 opacity-70" />
+            <span>Finance</span>
           </button>
-
+           <button
+            type="button"
+            className="flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[11px] font-medium text-slate-500 transition hover:bg-white hover:text-teal-700"
+          >
+            <BuildingComplex size={13} className="shrink-0 opacity-70" />
+            <span>Agency profile</span>
+          </button>
           <button
             type="button"
             className="flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[11px] font-medium text-slate-500 transition hover:bg-white hover:text-teal-700"
@@ -450,13 +473,20 @@ export default function AdminNavbar() {
             <Tag size={14} className="shrink-0" />
             Coupons
           </NavLink>
-          <button
-            type="button"
-            className="flex items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-medium text-slate-600 hover:bg-slate-50"
+          <NavLink
+            to="/admin-bookings"
+            onClick={() => setMobileMenuOpen(false)}
+            className={({ isActive }) =>
+              `flex items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-medium ${
+                isActive
+                  ? "bg-teal-50 font-semibold text-teal-700"
+                  : "text-slate-600 hover:bg-slate-50"
+              }`
+            }
           >
-            <Ticket size={14} className="shrink-0 opacity-70" />
+            <Ticket size={14} className="shrink-0" />
             Booking
-          </button>
+          </NavLink>
           <button
             type="button"
             className="flex items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-medium text-slate-600 hover:bg-slate-50"

@@ -9,6 +9,7 @@ import AdminDashboard from "./pages/AdminDashboard.jsx";
 import AdminBookingOverview from "./pages/AdminBookingOverview.jsx";
 import TravelsList from "./pages/TravelsList.jsx";
 import AdminCouponsPage from "./pages/AdminCouponsPage.jsx";
+import AdminBookingsPage from "./pages/AdminBookingsPage.jsx";
 
 import { Routes, Route, useLocation } from "react-router-dom";
 
@@ -83,6 +84,10 @@ function App() {
           <Route
             path="/admin-coupons"
             element={<AdminCouponsPage />}
+          />
+          <Route
+            path="/admin-bookings"
+            element={<AdminBookingsPage />}
           />
 
           {/* Travel agent routes */}

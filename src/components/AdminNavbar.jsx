@@ -6,6 +6,7 @@ import {
   Calendar,
   CheckCircle,
   ChevronDown,
+  Clock,
   LayoutDashboard,
   LogOut,
   Mail,
@@ -187,13 +188,19 @@ export default function AdminNavbar() {
           </div>
 
           {/* Remaining Tabs */}
-          <button
-            type="button"
-            className="flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[11px] font-medium text-slate-500 transition hover:bg-white hover:text-teal-700"
+          <NavLink
+            to="/admin-coupons"
+            className={({ isActive }) =>
+              `flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[11px] font-semibold transition ${
+                isActive
+                  ? "bg-[#0e8290] text-white shadow-sm"
+                  : "text-slate-600 hover:bg-white hover:text-teal-700"
+              }`
+            }
           >
-            <Tag size={13} className="shrink-0 opacity-70" />
+            <Tag size={13} className="shrink-0" />
             <span>Coupons</span>
-          </button>
+          </NavLink>
 
           <button
             type="button"
@@ -214,13 +221,7 @@ export default function AdminNavbar() {
 
         {/* Action icons & Profile */}
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            aria-label="Add new"
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-[#0e8290] text-white shadow-sm transition hover:bg-[#096e79]"
-          >
-            <Plus size={18} />
-          </button>
+          
           <button
             type="button"
             aria-label="Search"
@@ -306,7 +307,7 @@ export default function AdminNavbar() {
                     </span>
                   </div>
 
-                  <div className="flex items-center justify-between text-slate-500">
+                  {/* <div className="flex items-center justify-between text-slate-500">
                     <span className="text-[10px] font-medium text-slate-400">User ID</span>
                     <span
                       className="font-mono text-[9.5px] text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded truncate max-w-[140px]"
@@ -314,7 +315,7 @@ export default function AdminNavbar() {
                     >
                       {userId}
                     </span>
-                  </div>
+                  </div> */}
 
                   {user?.phone && (
                     <div className="flex items-center justify-between text-slate-500">
@@ -327,8 +328,13 @@ export default function AdminNavbar() {
 
                   {user?.exp && (
                     <div className="flex items-center justify-between text-slate-500">
-                      <span className="text-[10px] font-medium text-slate-400">Session</span>
-                      <span className="text-[10px] text-emerald-600 font-medium">Active</span>
+                      <span className="flex items-center gap-1 text-[10px] font-medium text-slate-400">
+                        <Clock size={11} /> Session
+                      </span>
+                      <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600 font-semibold">
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        Active
+                      </span>
                     </div>
                   )}
                 </div>
@@ -430,13 +436,20 @@ export default function AdminNavbar() {
             )}
           </div>
 
-          <button
-            type="button"
-            className="flex items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-medium text-slate-600 hover:bg-slate-50"
+          <NavLink
+            to="/admin-coupons"
+            onClick={() => setMobileMenuOpen(false)}
+            className={({ isActive }) =>
+              `flex items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-medium ${
+                isActive
+                  ? "bg-teal-50 font-semibold text-teal-700"
+                  : "text-slate-600 hover:bg-slate-50"
+              }`
+            }
           >
-            <Tag size={14} className="shrink-0 opacity-70" />
+            <Tag size={14} className="shrink-0" />
             Coupons
-          </button>
+          </NavLink>
           <button
             type="button"
             className="flex items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-medium text-slate-600 hover:bg-slate-50"

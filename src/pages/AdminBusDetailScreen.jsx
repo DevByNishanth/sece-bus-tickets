@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   Clock,
   Clock3,
+  Edit2,
   FileCheck2,
   FileText,
   Image as ImageIcon,
@@ -135,6 +136,10 @@ export default function AdminBusDetailScreen({
 
   // Form states
   const [commission, setCommission] = useState(10);
+  const [editCommissionModalOpen, setEditCommissionModalOpen] = useState(false);
+  const [newCommissionValue, setNewCommissionValue] = useState(10);
+  const [commissionRemarks, setCommissionRemarks] = useState("");
+  const [updatingCommission, setUpdatingCommission] = useState(false);
   const [remarks, setRemarks] = useState(
     "Registration certificate, insurance, fitness, and permit verified successfully."
   );
@@ -224,6 +229,50 @@ export default function AdminBusDetailScreen({
       toast.error(err.message || "Network error while submitting review");
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  const handleUpdateCommission = async () => {
+    if (newCommissionValue === "" || isNaN(Number(newCommissionValue))) {
+      toast.error("Please enter a valid commission percentage.");
+      return;
+    }
+    const val = Number(newCommissionValue);
+    if (val < 0 || val > 100) {
+      toast.error("Commission must be between 0% and 100%.");
+      return;
+    }
+
+    setUpdatingCommission(true);
+    const token = localStorage.getItem(tokenKeyName);
+
+    try {
+      const res = await fetch(`${BASE_URL}/admin/buses/${busId}/commission`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          commission: val,
+          remarks: commissionRemarks.trim() || undefined,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok) {
+        toast.success(data.message || `Commission updated to ${val}% successfully!`);
+        setCommission(val);
+        setBus((prev) => (prev ? { ...prev, commission: val } : prev));
+        setEditCommissionModalOpen(false);
+      } else {
+        toast.error(data.message || "Failed to update commission");
+      }
+    } catch (err) {
+      toast.error(err.message || "Network error while updating commission");
+    } finally {
+      setUpdatingCommission(false);
     }
   };
 
@@ -361,6 +410,32 @@ export default function AdminBusDetailScreen({
                 <span className="mt-0.5 text-[11px] text-amber-600 font-semibold">
                   ★ {bus.rating} ({bus.totalRatings || 0} reviews)
                 </span>
+              )}
+
+              {/* Commission directly below Submitted on & Rating with edit pen icon - Only for Approved buses */}
+              {currentStatus === "approved" && (
+                <div className="mt-1.5 flex items-center gap-1.5 sm:justify-end">
+                  <span className="text-[11px] font-medium text-slate-500">Commission:</span>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-teal-50 px-2 py-0.5 text-[11px] font-bold text-[#078A97] border border-teal-100">
+                    {bus.commission !== null && bus.commission !== undefined
+                      ? `${bus.commission}%`
+                      : "10%"}<span className="font-medium text-slate-400">per seat</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewCommissionValue(
+                        bus.commission !== null && bus.commission !== undefined ? bus.commission : 10
+                      );
+                      setCommissionRemarks(bus.adminRemarks || "");
+                      setEditCommissionModalOpen(true);
+                    }}
+                    title="Change Commission"
+                    className="flex h-6 w-6 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:border-[#078A97] hover:bg-teal-50 hover:text-[#078A97]"
+                  >
+                    <Edit2 size={11} />
+                  </button>
+                </div>
               )}
             </div>
           </div>
@@ -959,7 +1034,7 @@ export default function AdminBusDetailScreen({
                       Admin Commission
                     </span>
                     <span className="font-bold text-emerald-700">
-                      {bus.commission}%
+                      {bus.commission}% <span className="font-medium text-slate-400">per seat</span>
                     </span>
                   </div>
                 )}
@@ -1225,6 +1300,86 @@ export default function AdminBusDetailScreen({
               >
                 {actionLoading && <RefreshCw size={12} className="animate-spin" />}
                 Reject Bus
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Commission Modal */}
+      {editCommissionModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <div className="flex items-start justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Change Commission</h3>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Update platform commission percentage for this bus.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditCommissionModalOpen(false)}
+                className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="mt-4">
+              <label className="block text-xs font-semibold text-slate-700">
+                Commission Percentage (%) *
+              </label>
+              <div className="relative mt-1.5">
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.5"
+                  value={newCommissionValue}
+                  onChange={(e) => setNewCommissionValue(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 p-2.5 pl-3 pr-8 text-xs font-semibold text-slate-800 outline-none focus:border-[#078A97] focus:ring-1 focus:ring-[#078A97]"
+                  placeholder="e.g. 10"
+                />
+                <Percent
+                  size={14}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+                />
+              </div>
+              <p className="mt-1 text-[11px] text-slate-400">
+                Current: <strong className="text-slate-700">{bus?.commission ?? 10}%</strong>
+              </p>
+            </div>
+
+            <div className="mt-3">
+              <label className="block text-xs font-semibold text-slate-700">
+                Remarks / Reason (Optional)
+              </label>
+              <textarea
+                rows={2}
+                value={commissionRemarks}
+                onChange={(e) => setCommissionRemarks(e.target.value)}
+                className="mt-1.5 w-full rounded-xl border border-slate-300 p-2.5 text-xs text-slate-800 outline-none focus:border-[#078A97] focus:ring-1 focus:ring-[#078A97]"
+                placeholder="e.g. Rate revision agreed with operator..."
+              />
+            </div>
+
+            <div className="mt-5 flex items-center justify-end gap-2 border-t border-slate-100 pt-3">
+              <button
+                type="button"
+                onClick={() => setEditCommissionModalOpen(false)}
+                className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={updatingCommission || newCommissionValue === ""}
+                onClick={handleUpdateCommission}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-[#078A97] px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-[#06747f] cursor-pointer disabled:opacity-60"
+              >
+                {updatingCommission && <RefreshCw size={12} className="animate-spin" />}
+                Save Commission
               </button>
             </div>
           </div>

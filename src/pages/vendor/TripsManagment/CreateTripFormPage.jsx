@@ -6,10 +6,12 @@ import SelectRoute from "./SelectRoute"
 import { useState } from "react"
 import ReviewTrip from "./ReviewTrip"
 import SeatLayoutStep from "./SeatLayoutStep"
+import PriceFixingStep from "./PriceFixingStep"
+import AssignCrew from "./AssignCrew"
 
 const CreateTripFormPage = () => {
     // states 
-    const [step, setStep] = useState(3)
+    const [step, setStep] = useState(1)
     return (
         <>
             <div className="form-page-container bg-[#f7f9fa] min-h-screen">
@@ -48,6 +50,12 @@ const CreateTripFormPage = () => {
                         {/* step 3 */}
                         {step == 3 && <SeatLayoutStep />}
 
+                        {/* step 4 */}
+                        {step == 4 && <PriceFixingStep />}
+
+                        {/* step 5 */}
+                        {step == 5 && <AssignCrew />}
+
                         {/* step 6 */}
                         {step == 6 && <ReviewTrip />}
 
@@ -69,24 +77,35 @@ const CreateTripFormPage = () => {
                         <button className="text-xs font-medium text-[#64748B] hover:text-[#0F172A]">
                             Cancel
                         </button>
+                        {step > 1 && (
+                            <button
+                                onClick={() => setStep((currentStep) => Math.max(currentStep - 1, 1))}
+                                className="text-xs font-medium text-[#64748B] hover:text-[#0F172A]"
+                            >
+                                Previous step
+                            </button>
+                        )}
 
                     </div>
 
                     {/* step progress */}
                     <div className="flex flex-col items-center gap-1">
                         <p className="text-[10px] text-[#64748B]">
-                            Step 1 of 4
+                            Step {step} of 6
                         </p>
 
                         <div className="h-[3px] w-[76px] rounded-full bg-[#E2E8F0]">
-                            <div className="h-full w-1/4 rounded-full bg-[#0E7A88]" />
+                            <div className="h-full rounded-full bg-[#0E7A88]" style={{ width: `${(step / 6) * 100}%` }} />
                         </div>
                     </div>
 
                     {/* continue button */}
-                    <button className="flex items-center gap-2 rounded-lg bg-[#11665F] px-4 py-2.5 text-xs font-medium text-white transition-colors hover:bg-[#0D554F]">
-                        Continue to Routes & Stops
-                        <icon name="arrow-right" size={14} />
+                    <button
+                        onClick={() => setStep((currentStep) => Math.min(currentStep + 1, 6))}
+                        className="flex items-center gap-2 rounded-lg bg-[#11665F] px-4 py-2.5 text-xs font-medium text-white transition-colors hover:bg-[#0D554F]"
+                    >
+                        {step === 5 ? "Continue to Review" : step === 6 ? "Create Trip" : "Continue"}
+                        <ChevronRight size={14} />
                     </button>
 
                 </div>

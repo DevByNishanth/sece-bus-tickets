@@ -40,6 +40,7 @@ import PayUCheckout from './pages/User/PayUCheckout.jsx';
 import PaymentResult from './pages/User/PaymentResult.jsx';
 import MyBookings from './pages/User/MyBookings.jsx';
 import CreateTripFormPage from "./pages/vendor/TripsManagment/CreateTripFormPage.jsx";
+import VendorCalendar from "./pages/vendor/Calendar/VendorCalendar.jsx";
 
 function App() {
   const location = useLocation();
@@ -158,7 +159,8 @@ function App() {
           <Route path="/vendor/crew-management" element={<DriverManagementDashboard />} />
           <Route path="/vendor/-staff-management" element={<StaffManagementDashboard />} />
           <Route path="/vendor/finance" element={<FinanceDashboard />} />
-          <Route path="/vendor/calendar" element={<CalendarDashboard />} />
+          {/* <Route path="/vendor/calendar" element={<CalendarDashboard />} /> */}
+          <Route path="/vendor/calendar" element={<VendorCalendar />} />
           <Route path="/vendor/bookings" element={<BookingsDashboard />} />
 
           <Route path="/" element={<BusListing />} />

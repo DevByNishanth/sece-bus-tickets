@@ -190,6 +190,7 @@ export default function AdminBookingOverview({
         Navbar={AdminNavbar}
       />
     );
+    console.log("hai")
   }
 
   return (

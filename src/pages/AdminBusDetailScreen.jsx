@@ -2,10 +2,12 @@ import { useMemo, useState } from "react";
 import {
   ArrowDownToLine,
   ArrowLeft,
+  AlertTriangle,
   Banknote,
   Building2,
   BusFront,
   CalendarDays,
+  Check,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
@@ -21,7 +23,7 @@ import {
   ShieldCheck,
   X,
 } from "lucide-react";
-import VendorNavbar from "./vendor/VendorNavbar.jsx";
+import AdminNavbar from "../components/AdminNavbar.jsx";
 
 const tripStats = [
   ["Total trips", "138", BusFront],
@@ -170,15 +172,21 @@ function TripDetails({ onSelectTrip }) {
   );
 }
 
-export default function AdminBusDetailScreen({ booking, onBack }) {
+export default function AdminBusDetailScreen({ booking, onBack, onStatusChange, Navbar = AdminNavbar }) {
   const [activeTab, setActiveTab] = useState("Bus Overview");
   const [selectedDocument, setSelectedDocument] = useState(null);
   const [selectedTrip, setSelectedTrip] = useState(null);
-  const busNumber = booking.busNumber || "TN 38 AB 4521";
+  const [status, setStatus] = useState(booking.status);
+  const busNumber = booking.busNumber || booking.pnr || "TN 38 AB 4521";
+
+  function updateStatus(nextStatus) {
+    setStatus(nextStatus);
+    onStatusChange?.(nextStatus);
+  }
 
   return (
     <div className="min-h-screen bg-[#f5f8f9] text-sm text-[#172526]">
-      <VendorNavbar />
+      <Navbar />
       <main className="mx-auto w-full max-w-[1600px] px-4 pb-8 pt-4 sm:px-6 lg:px-8">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-xs text-[#688080]"><button type="button" onClick={onBack} className="hover:text-[#078a97]">My Buses</button><ChevronRight size={14} aria-hidden="true" /><span className="font-medium text-[#078a97]">{busNumber} / ABT Travels</span></nav>
@@ -187,7 +195,20 @@ export default function AdminBusDetailScreen({ booking, onBack }) {
 
         <section className="mb-3 flex flex-col gap-3 rounded-xl border border-[#e4ecef] bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:px-5">
           <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#e6f7f5] text-[#078a97]"><BusFront size={24} aria-hidden="true" /></span>
-          <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h1 className="text-xl font-semibold text-[#172526]">{busNumber}</h1><span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700"><CheckCircle2 size={12} aria-hidden="true" /> Active</span></div><p className="mt-1 text-xs text-[#688080]">Emerald Express <span className="px-1">·</span> AC Sleeper <span className="px-1">·</span> Double deck <span className="px-1">·</span> 36 seats</p></div>
+          <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h1 className="text-xl font-semibold text-[#172526]">{busNumber}</h1><span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium ${status === "Pending" ? "bg-amber-50 text-amber-700" : status === "Rejected" ? "bg-rose-50 text-rose-700" : status === "Correction Requested" ? "bg-orange-50 text-orange-700" : "bg-emerald-50 text-emerald-700"}`}>{status === "Pending" && <Clock3 size={12} aria-hidden="true" />}{status}</span></div><p className="mt-1 text-xs text-[#688080]">Emerald Express <span className="px-1">·</span> AC Sleeper <span className="px-1">·</span> Double deck <span className="px-1">·</span> 36 seats</p></div>
+          {status === "Pending" && (
+            <div className="flex flex-wrap items-center gap-1.5 sm:justify-end">
+              <button type="button" onClick={() => updateStatus("Approved")} className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#078A97] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#067580]">
+                <Check size={16} aria-hidden="true" /> Approve Bus
+              </button>
+              <button type="button" onClick={() => updateStatus("Correction Requested")} className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#b8d5d7] bg-white px-4 py-2 text-sm font-semibold text-[#176d73] transition hover:bg-[#f4fbfa]">
+                <AlertTriangle size={16} aria-hidden="true" /> Request Corrections
+              </button>
+              <button type="button" onClick={() => updateStatus("Rejected")} className="inline-flex items-center justify-center gap-2 rounded-lg border border-rose-400 bg-white px-4 py-2 text-sm font-semibold text-rose-500 transition hover:bg-rose-50">
+                <X size={16} aria-hidden="true" /> Reject Bus
+              </button>
+            </div>
+          )}
         </section>
 
         <section aria-label="Trip summary" className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">

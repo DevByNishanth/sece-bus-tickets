@@ -1,23 +1,19 @@
 import { useMemo, useState } from "react";
+import TravelProfileDetailView from "./TravelProfileDetailView.jsx";
+import AdminNavbar from "../components/AdminNavbar.jsx";
 import {
   ArrowDownToLine,
   ArrowRight,
-  Bell,
   BusFront,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   CircleHelp,
   Eye,
   Filter,
-  LayoutDashboard,
-  Menu,
-  Plus,
   Search,
   SlidersHorizontal,
   Users,
   Wallet,
-  X,
 } from "lucide-react";
 
 const bookings = [
@@ -89,10 +85,16 @@ const allBookings = Array.from({ length: 120 }, (_, index) => ({
 }));
 
 const statusClass = {
-  Confirmed: "bg-teal-50 text-teal-700",
+  Approved: "bg-teal-50 text-teal-700",
   Pending: "bg-amber-50 text-amber-700",
-  Cancelled: "bg-rose-50 text-rose-700",
+  Rejected: "bg-rose-50 text-rose-700",
 };
+
+function getApplicationStatus(status) {
+  if (status === "Confirmed") return "Approved";
+  if (status === "Cancelled") return "Rejected";
+  return status;
+}
 
 function exportBookings(rows) {
   const headers = [
@@ -113,7 +115,7 @@ function exportBookings(rows) {
     row.seat,
     row.fare,
     row.payment,
-    row.status,
+    getApplicationStatus(row.status),
   ]);
   const csv = [headers, ...csvRows]
     .map((row) =>
@@ -212,7 +214,7 @@ function TravelStatusChart() {
   const segments = [
     { label: "Approved", count: "9,820", percent: "76.4%", value: 76.4, color: "#0d8792" },
     { label: "Cancelled", count: "1,324", percent: "10.3%", value: 10.3, color: "#ff7858" },
-    { label: "Pending", count: "1,146", percent: "8.9%", value: 8.9, color: "#f4a43a" },
+    { label: "Pending", count: "1,324", percent: "8.9%", value: 8.9, color: "#f4a43a" },
   ];
   let offset = 0;
 
@@ -266,26 +268,27 @@ function TravelStatusChart() {
 }
 
 export default function AdminDashboard() {
+  const [bookingRows, setBookingRows] = useState(allBookings);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All statuses");
   const [page, setPage] = useState(1);
   const [selectedBooking, setSelectedBooking] = useState(null);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const pageSize = 5;
 
   const filteredBookings = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return allBookings.filter((booking) => {
+    return bookingRows.filter((booking) => {
       const matchesSearch = [
         booking.pnr,
         booking.passenger,
         booking.route,
       ].some((value) => value.toLowerCase().includes(query));
       const matchesStatus =
-        statusFilter === "All statuses" || booking.status === statusFilter;
+        statusFilter === "All statuses" ||
+        getApplicationStatus(booking.status) === statusFilter;
       return matchesSearch && matchesStatus;
     });
-  }, [search, statusFilter]);
+  }, [bookingRows, search, statusFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filteredBookings.length / pageSize));
   const currentPage = Math.min(page, totalPages);
@@ -304,75 +307,33 @@ export default function AdminDashboard() {
     setPage(1);
   }
 
+  if (selectedBooking) {
+    return (
+      <TravelProfileDetailView
+        Navbar={AdminNavbar}
+        status={getApplicationStatus(selectedBooking.status)}
+        onStatusChange={(status) => {
+          setBookingRows((rows) =>
+            rows.map((booking) =>
+              booking.pnr === selectedBooking.pnr
+                ? { ...booking, status }
+                : booking,
+            ),
+          );
+          setSelectedBooking((booking) => ({ ...booking, status }));
+        }}
+        onBack={() => setSelectedBooking(null)}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#f4f7f8] text-slate-800">
-      <header className="sticky top-0 z-30 px-3 pt-3 sm:px-5">
-        <div className="mx-auto flex max-w-[1500px] items-center justify-between gap-3 rounded-full border border-white bg-white/95 px-4 py-2.5 shadow-[0_6px_20px_rgba(27,54,54,0.07)] sm:px-5">
-          <a href="/admin" className="flex min-w-fit items-center gap-2.5" aria-label="BusGo Admin home">
-            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#0e8290] text-white">
-              <BusFront size={18} />
-            </span>
-            <span className="hidden leading-tight sm:block">
-              <span className="block text-xs font-bold text-slate-800">BusGo</span>
-              <span className="block text-[9px] font-medium uppercase tracking-wide text-slate-400">Partner Hub</span>
-            </span>
-          </a>
-
-          <nav aria-label="Main navigation" className="hidden items-center gap-1 rounded-full bg-[#f1f6f6] p-1 lg:flex">
-            <a href="/admin" aria-current="page" className="flex items-center gap-1.5 rounded-full bg-[#0e8290] px-4 py-2 text-[11px] font-semibold text-white shadow-sm">
-              <LayoutDashboard size={13} /> Dashboard
-            </a>
-            {["Fleet", "Routes", "Trips", "Bookings", "Finance", "Calendar"].map((item) => (
-              <button key={item} type="button" className="flex items-center gap-1 rounded-full px-3 py-2 text-[11px] font-medium text-slate-500 transition hover:bg-white hover:text-teal-700">
-                {item}
-                {["Fleet", "Routes", "Trips"].includes(item) && <ChevronDown size={11} />}
-              </button>
-            ))}
-          </nav>
-
-          <div className="flex items-center gap-2">
-            <button type="button" aria-label="Add new" className="flex h-9 w-9 items-center justify-center rounded-full bg-[#0e8290] text-white transition hover:bg-[#096e79]">
-              <Plus size={19} />
-            </button>
-            <button type="button" aria-label="Search" className="hidden h-9 w-9 items-center justify-center rounded-full bg-slate-50 text-slate-500 sm:flex">
-              <Search size={16} />
-            </button>
-            <button type="button" aria-label="Notifications" className="relative hidden h-9 w-9 items-center justify-center rounded-full bg-slate-50 text-slate-500 sm:flex">
-              <Bell size={16} />
-              <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-white" />
-            </button>
-            <button type="button" className="hidden items-center gap-2 rounded-full bg-[#f2f6f5] py-1 pl-1 pr-2.5 sm:flex">
-              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#0e8290] text-[10px] font-semibold text-white">V</span>
-              <span className="text-left leading-tight">
-                <span className="block text-[10px] font-semibold text-slate-700">Venkateshwaran</span>
-                <span className="block text-[9px] text-slate-400">Fleet Owner</span>
-              </span>
-              <ChevronDown size={12} className="text-slate-500" />
-            </button>
-            <button
-              type="button"
-              aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
-              onClick={() => setMobileMenuOpen((open) => !open)}
-              className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-50 text-slate-600 lg:hidden"
-            >
-              {mobileMenuOpen ? <X size={17} /> : <Menu size={17} />}
-            </button>
-          </div>
-        </div>
-        {mobileMenuOpen && (
-          <nav aria-label="Mobile navigation" className="mx-auto mt-2 grid max-w-[1500px] grid-cols-2 gap-1 rounded-2xl border border-slate-100 bg-white p-3 shadow-lg sm:grid-cols-3">
-            {["Dashboard", "Fleet", "Routes", "Trips", "Bookings", "Finance", "Calendar"].map((item) => (
-              <a key={item} href={item === "Dashboard" ? "/admin" : "#"} className={`rounded-lg px-3 py-2 text-sm ${item === "Dashboard" ? "bg-teal-50 font-semibold text-teal-700" : "text-slate-600 hover:bg-slate-50"}`}>
-                {item}
-              </a>
-            ))}
-          </nav>
-        )}
-      </header>
+      <AdminNavbar />
 
       <main className="mx-auto w-full max-w-[1500px] px-3 pb-8 pt-5 sm:px-5 lg:px-6">
         <div className="mb-4">
-          <h1 className="text-xl font-semibold tracking-tight text-[#233235] sm:text-2xl">Dashboard Overview</h1>
+          <h1 className="text-xl font-semibold tracking-tight text-[#233235] sm:text-2xl">Admin Dashboard Overview</h1>
           <p className="mt-1 text-xs text-[#718586] sm:text-sm">Live bus tracking, intercity routes, and passenger booking engine</p>
         </div>
 
@@ -428,7 +389,7 @@ export default function AdminDashboard() {
         <section className="overflow-hidden rounded-xl border border-[#e7edef] bg-white shadow-[0_3px_12px_rgba(27,54,54,0.05)]">
           <div className="flex flex-col gap-3 px-4 pb-3 pt-4 sm:px-5 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <h2 className="text-sm font-semibold text-slate-800">Recent Bookings</h2>
+              <h2 className="text-sm font-semibold text-slate-800">Recent Travel Approval</h2>
               <p className="mt-0.5 text-[10px] text-slate-500 sm:text-[11px]">Live passenger ticket reservations &amp; payment receipts across all routes</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -450,7 +411,7 @@ export default function AdminDashboard() {
                   aria-label="Filter bookings by status"
                   className="h-8 appearance-none rounded-lg border border-slate-200 bg-white pl-7 pr-7 text-[10px] font-medium text-slate-600 outline-none focus:border-teal-500"
                 >
-                  {["All statuses", "Confirmed", "Pending", "Cancelled"].map((status) => (
+                  {["All statuses", "Approved", "Pending", "Rejected"].map((status) => (
                     <option key={status} value={status}>{status === "All statuses" ? "Filter" : status}</option>
                   ))}
                 </select>
@@ -496,7 +457,7 @@ export default function AdminDashboard() {
                       <span className={`rounded-full px-2 py-1 text-[9px] font-medium ${booking.payment === "Pending" ? "bg-amber-50 text-amber-700" : booking.payment === "Refunded" ? "bg-rose-50 text-rose-600" : "bg-slate-100 text-slate-600"}`}>{booking.payment}</span>
                     </td>
                     <td className="whitespace-nowrap px-3 py-3">
-                      <span className={`rounded-full px-2.5 py-1 text-[9px] font-semibold ${statusClass[booking.status]}`}>{booking.status}</span>
+                      <span className={`rounded-full px-2.5 py-1 text-[9px] font-semibold ${statusClass[getApplicationStatus(booking.status)]}`}>{getApplicationStatus(booking.status)}</span>
                     </td>
                     <td className="whitespace-nowrap px-3 py-3 pr-5">
                       <button type="button" onClick={() => setSelectedBooking(booking)} aria-label={`View booking ${booking.pnr}`} className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-teal-50 hover:text-teal-700">
@@ -532,57 +493,6 @@ export default function AdminDashboard() {
         </section>
       </main>
 
-      {selectedBooking && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4"
-          role="presentation"
-          onClick={() => setSelectedBooking(null)}
-        >
-          <section
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="booking-detail-title"
-            className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="mb-5 flex items-start justify-between">
-              <div>
-                <h2 id="booking-detail-title" className="text-lg font-semibold text-slate-800">
-                  Booking Details
-                </h2>
-                <p className="mt-1 text-sm font-medium text-teal-700">{selectedBooking.pnr}</p>
-              </div>
-              <button
-                type="button"
-                aria-label="Close booking details"
-                onClick={() => setSelectedBooking(null)}
-                className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <div className="space-y-3">
-              {[
-                ["Passenger", selectedBooking.passenger],
-                ["Route", selectedBooking.route],
-                ["Travel date", selectedBooking.date],
-                ["Seat / berth", selectedBooking.seat],
-                ["Fare", selectedBooking.fare],
-                ["Payment", selectedBooking.payment],
-                ["Status", selectedBooking.status],
-              ].map(([label, value]) => (
-                <div
-                  key={label}
-                  className="flex justify-between gap-4 border-b border-slate-100 pb-3 text-sm last:border-0"
-                >
-                  <span className="text-slate-500">{label}</span>
-                  <span className="text-right font-medium text-slate-800">{value}</span>
-                </div>
-              ))}
-            </div>
-          </section>
-        </div>
-      )}
     </div>
   );
 }

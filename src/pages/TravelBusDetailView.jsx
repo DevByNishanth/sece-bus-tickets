@@ -172,7 +172,7 @@ function BusTripDetails({ bus }) {
   );
 }
 
-export default function TravelBusDetailView({ bus, onBack }) {
+export default function TravelBusDetailView({ bus, onBack, Navbar = VendorNavbar }) {
   const [activeTab, setActiveTab] = useState("Bus Overview");
   const details = [
     ["BUS REGISTRATION", bus.registration, BusFront],
@@ -187,7 +187,7 @@ export default function TravelBusDetailView({ bus, onBack }) {
 
   return (
     <div className="min-h-screen bg-[#f5f8f9] text-sm text-[#172526]">
-      <VendorNavbar />
+      <Navbar />
       <main className="mx-auto w-full max-w-[1600px] px-4 pb-8 pt-4 sm:px-6 lg:px-8">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-xs text-[#688080]">

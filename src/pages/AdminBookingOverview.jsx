@@ -12,7 +12,7 @@ import {
   TicketCheck,
   WalletCards,
 } from "lucide-react";
-import VendorNavbar from "./vendor/VendorNavbar.jsx";
+import AdminNavbar from "../components/AdminNavbar.jsx";
 import AdminBusDetailView from "./AdminBusDetailScreen.jsx";
 
 const sampleBookings = [
@@ -90,6 +90,9 @@ const statusStyles = {
   Confirmed: "border-teal-100 bg-teal-50 text-teal-700",
   Pending: "border-orange-100 bg-orange-50 text-orange-700",
   Cancelled: "border-rose-100 bg-rose-50 text-rose-700",
+  Approved: "border-teal-100 bg-teal-50 text-teal-700",
+  "Correction Requested": "border-orange-100 bg-orange-50 text-orange-700",
+  Rejected: "border-rose-100 bg-rose-50 text-rose-700",
 };
 
 function downloadBookings(rows) {
@@ -107,6 +110,7 @@ function downloadBookings(rows) {
 }
 
 export default function AdminBookingOverview({ listType = "buses", detailView: DetailView }) {
+  const [bookings, setBookings] = useState(bookingRows);
   const [search, setSearch] = useState("");
   const [filterOpen, setFilterOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState("All statuses");
@@ -117,12 +121,12 @@ export default function AdminBookingOverview({ listType = "buses", detailView: D
 
   const filteredBookings = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return bookingRows.filter((booking) => {
+    return bookings.filter((booking) => {
       const matchesSearch = [booking.pnr, booking.passenger, booking.route]
         .some((value) => value.toLowerCase().includes(query));
       return matchesSearch && (statusFilter === "All statuses" || booking.status === statusFilter);
     });
-  }, [search, statusFilter]);
+  }, [bookings, search, statusFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filteredBookings.length / pageSize));
   const visibleBookings = filteredBookings.slice((page - 1) * pageSize, page * pageSize);
@@ -141,12 +145,25 @@ export default function AdminBookingOverview({ listType = "buses", detailView: D
 
   if (selectedBooking) {
     const BookingDetail = DetailView || AdminBusDetailView;
-    return <BookingDetail booking={selectedBooking} onBack={() => setSelectedBooking(null)} />;
+    return (
+      <BookingDetail
+        booking={selectedBooking}
+        onStatusChange={(status) => {
+          setBookings((rows) =>
+            rows.map((row) =>
+              row.pnr === selectedBooking.pnr ? { ...row, status } : row,
+            ),
+          );
+          setSelectedBooking((row) => ({ ...row, status }));
+        }}
+        onBack={() => setSelectedBooking(null)}
+      />
+    );
   }
 
   return (
     <div className="min-h-screen text-3xl bg-[#f5f8f9] text-[#172526]">
-      <VendorNavbar />
+      <AdminNavbar />
       <main className="mx-auto w-full max-w-[1600px] px-4 pb-8 pt-5 sm:px-6 lg:px-8">
         <header className="mb-4">
           <h1 className="text-2xl font-semibold tracking-normal text-[#172526]">{isTravelList ? "Travels List Overview" : "Bus List Overview"}</h1>
@@ -205,6 +222,9 @@ export default function AdminBookingOverview({ listType = "buses", detailView: D
                     <option>Confirmed</option>
                     <option>Pending</option>
                     <option>Cancelled</option>
+                    <option>Approved</option>
+                    <option>Correction Requested</option>
+                    <option>Rejected</option>
                   </select>
                 )}
               </div>

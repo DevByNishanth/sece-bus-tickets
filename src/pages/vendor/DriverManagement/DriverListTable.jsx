@@ -3,140 +3,28 @@ import {
     SlidersHorizontal,
     Download,
     ArrowRight,
-    X, AlertTriangle, CircleSlash2,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import DriverDeleteModal from "./DriverDeleteModal";
-const data = [
-    {
-        "id": 1,
-        "initials": "AK",
-        "name": "Arun Kumar",
-        "route": "Coimbatore → Chennai",
-        "from": "Coimbatore",
-        "to": "Chennai",
-        "date": "16 Oct 2026",
-        "seat": "U2",
-        "status": "Active"
-    },
-    {
-        "id": 2,
-        "initials": "PS",
-        "name": "Priya S",
-        "route": "Chennai → Coimbatore",
-        "from": "Chennai",
-        "to": "Coimbatore",
-        "date": "16 Oct 2026",
-        "seat": "L4",
-        "status": "In-Active"
-    },
-    {
-        "id": 3,
-        "initials": "KR",
-        "name": "Karthik R",
-        "route": "Coimbatore → Bengaluru",
-        "from": "Coimbatore",
-        "to": "Bengaluru",
-        "date": "17 Oct 2026",
-        "seat": "U6",
-        "status": "Pending"
-    },
-    {
-        "id": 4,
-        "initials": "DM",
-        "name": "Divya M",
-        "route": "Madurai → Chennai",
-        "from": "Madurai",
-        "to": "Chennai",
-        "date": "17 Oct 2026",
-        "seat": "L2",
-        "status": "Available"
-    },
-    {
-        "id": 5,
-        "initials": "SN",
-        "name": "Suresh N",
-        "route": "Coimbatore → Chennai",
-        "from": "Coimbatore",
-        "to": "Chennai",
-        "date": "18 Oct 2026",
-        "seat": "U8",
-        "status": "Rejected"
-    },
-    {
-        "id": 6,
-        "initials": "LK",
-        "name": "Lokesh K",
-        "route": "Chennai → Madurai",
-        "from": "Chennai",
-        "to": "Madurai",
-        "date": "18 Oct 2026",
-        "seat": "L1",
-        "status": "Active"
-    },
-    {
-        "id": 7,
-        "initials": "AN",
-        "name": "Ananya N",
-        "route": "Bengaluru → Coimbatore",
-        "from": "Bengaluru",
-        "to": "Coimbatore",
-        "date": "19 Oct 2026",
-        "seat": "U5",
-        "status": "Active"
-    },
-    {
-        "id": 8,
-        "initials": "VP",
-        "name": "Vijay P",
-        "route": "Coimbatore → Chennai",
-        "from": "Coimbatore",
-        "to": "Chennai",
-        "date": "19 Oct 2026",
-        "seat": "L7",
-        "status": "In-Active"
-    },
-    {
-        "id": 9,
-        "initials": "RG",
-        "name": "Ramesh G",
-        "route": "Chennai → Bengaluru",
-        "from": "Chennai",
-        "to": "Bengaluru",
-        "date": "20 Oct 2026",
-        "seat": "U3",
-        "status": "Pending"
-    },
-    {
-        "id": 10,
-        "initials": "SV",
-        "name": "Sneha V",
-        "route": "Madurai → Coimbatore",
-        "from": "Madurai",
-        "to": "Coimbatore",
-        "date": "20 Oct 2026",
-        "seat": "L9",
-        "status": "Available"
-    }
-]
+import DriverDetailsModal from "./DriverDetailsModal";
+import AddDriverForm from "./AddDriverForm";
+import axios from "axios";
+import { toast } from "react-toastify";
+
 
 // Set badge colors based on driver status
 const getStatusStyle = (status) => {
     switch (status) {
-        case "Active":
+        case "available":
             return "bg-teal-100 text-teal-700";
 
-        case "In-Active":
-            return "bg-red-100 text-red-600";
+        case "not-available":
+            return "bg-pink-100 text-pink-700";
+        case "assigned":
+            return "bg-green-100 text-green-700";
 
-        case "Pending":
-            return "bg-orange-100 text-orange-700";
-
-        case "Available":
-            return "bg-cyan-100 text-cyan-700";
-
-        case "Rejected":
-            return "bg-red-100 text-red-600";
+        case "leave":
+            return "bg-amber-100 text-amber-600";
 
         default:
             return "bg-gray-100 text-gray-600";
@@ -156,130 +44,65 @@ const getInitialsStyle = (index) => {
     return colors[index % colors.length];
 };
 
-const rejectionReasons = [
-    {
-        title: "Expired or Invalid Commercial Driving License",
-        description: "Heavy transport endorsement expired or details do not match state RTO registry.",
-    },
-    {
-        title: "Failed Background / Criminal Record Verification",
-        description: "Adverse finding recorded during external police database verification.",
-    },
-    {
-        title: "Insufficient Commercial Heavy Vehicle Experience (<3 years)",
-        description: "Applicant does not meet mandatory intercity sleeper fleet prerequisite.",
-    },
-    {
-        title: "Incomplete or Illegible Documents Submitted",
-        description: "Medical fitness certificate, Aadhaar photocopy, or badge scanned copies are unreadable.",
-    },
-    {
-        title: "Other / Discretionary Reason",
-        description: "Fleet owner management discretion or depot capacity restriction.",
-    },
-];
+const DriverListTable = ({ refreshKey = 0, onDriversChanged }) => {
 
-const RejectDriverModal = ({ driver, onClose, onConfirm }) => {
-    const [selectedReason, setSelectedReason] = useState(0);
-    const [feedback, setFeedback] = useState("");
-    const [notifyDriver, setNotifyDriver] = useState(true);
+    // Auth
+    const token = localStorage.getItem("exte_key");
+
+    const [deleteDriver, setDeleteDriver] = useState(null);
+    const [editDriver, setEditDriver] = useState(null);
+    const [viewDriver, setViewDriver] = useState(null);
+    const [drivers, setDrivers] = useState([]);
+    const [search, setSearch] = useState("");
+    const [status, setStatus] = useState("");
+    const [isFilterOpen, setIsFilterOpen] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
+    const [loadError, setLoadError] = useState("");
+
+    // functions
 
     useEffect(() => {
-        const handleEscape = (event) => {
-            if (event.key === "Escape") onClose();
+        const controller = new AbortController();
+        const timer = window.setTimeout(async () => {
+            setIsLoading(true);
+            setLoadError("");
+            try {
+                const baseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "");
+                if (!baseUrl) throw new Error("API URL is not configured.");
+                const res = await axios.get(`${baseUrl}/agent/drivers`, {
+                    params: { page: 1, limit: 10, status, search: search.trim() },
+                    headers: token ? { Authorization: `Bearer ${token}` } : {},
+                    signal: controller.signal,
+                });
+                const result = res.data?.drivers ?? res.data?.data?.drivers ?? res.data?.data;
+                setDrivers(Array.isArray(result) ? result : []);
+            } catch (err) {
+                if (err.code === "ERR_CANCELED") return;
+                setDrivers([]);
+                setLoadError(err.response?.data?.message || err.message || "Could not load drivers.");
+            } finally {
+                if (!controller.signal.aborted) setIsLoading(false);
+            }
+        }, search.trim() ? 350 : 0);
+
+        return () => {
+            window.clearTimeout(timer);
+            controller.abort();
         };
-        window.addEventListener("keydown", handleEscape);
-        return () => window.removeEventListener("keydown", handleEscape);
-    }, [onClose]);
+    }, [token, search, status, refreshKey]);
 
-    return (
-        <div className="fixed inset-0 z-50  bg-slate-950/40 p-3 backdrop-blur-[2px] sm:p-5" onMouseDown={(event) => {
-            if (event.target === event.currentTarget) onClose();
-        }}>
-            <section
-               
-                className="flex h-[100vh] w-full max-w-md absolute top-0 right-0 flex-col overflow-hidden border border-slate-200 bg-white shadow-2xl"
-            >
-                <header className="flex items-start justify-between border-b border-slate-100 px-5 py-4 sm:px-6">
-                    <div className="flex items-start gap-3">
-                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-rose-600">
-                            <AlertTriangle size={18} />
-                        </span>
-                        <div>
-                            <h2 id="reject-driver-title" className="text-sm font-semibold text-slate-900 sm:text-base">Reject Driver Application</h2>
-                            <p className="mt-1 text-xs leading-4 text-slate-500">
-                                Specify the primary grounds for rejecting applicant <span className="font-semibold text-slate-800">{driver.name} (DRV-P{String(driver.id).padStart(4, "0")}).</span>
-                            </p>
-                        </div>
-                    </div>
-                    <button type="button" onClick={onClose} aria-label="Close" className="ml-3 rounded-full bg-slate-100 p-2 text-slate-500 transition hover:bg-slate-200">
-                        <X size={14} />
-                    </button>
-                </header>
-
-                <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4 sm:px-6">
-                    <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-teal-600 text-[8px] font-bold text-white">{driver.initials}</span>
-                        <span className="text-xs font-medium text-slate-800">{driver.name}</span>
-                    </div>
-
-                    <fieldset>
-                        <legend className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Reason for rejection <span className="text-rose-600">*</span></legend>
-                        <div className="space-y-1.5">
-                            {rejectionReasons.map((reason, index) => {
-                                const isSelected = selectedReason === index;
-                                return (
-                                    <label key={reason.title} className={`flex cursor-pointer gap-2 rounded-xl border px-3 py-2.5 transition-colors ${isSelected ? "border-rose-300 bg-rose-50/40" : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"}`}>
-                                        <input type="radio" name="rejection-reason" value={index} checked={isSelected} onChange={() => setSelectedReason(index)} className="mt-0.5 h-3.5 w-3.5 accent-rose-600" />
-                                        <span className="min-w-0">
-                                            <span className="block text-[11px] font-semibold leading-4 text-slate-900">{reason.title}</span>
-                                            <span className="mt-0.5 block text-[10px] leading-3.5 text-slate-500">{reason.description}</span>
-                                        </span>
-                                    </label>
-                                );
-                            })}
-                        </div>
-                    </fieldset>
-
-                    <div>
-                        <div className="mb-2 flex items-center justify-between gap-2">
-                            <label htmlFor="rejection-feedback" className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Additional feedback for applicant <span className="font-normal">(optional)</span></label>
-                            <span className="shrink-0 text-[9px] text-slate-400">{feedback.length}/500 characters</span>
-                        </div>
-                        <textarea id="rejection-feedback" value={feedback} onChange={(event) => setFeedback(event.target.value.slice(0, 500))} rows={3} placeholder="Add a message to help explain this decision..." className="w-full resize-none rounded-xl border border-slate-200 px-3 py-2 text-xs leading-4 text-slate-700 outline-none placeholder:text-slate-400 focus:border-teal-500 focus:ring-2 focus:ring-teal-100" />
-                    </div>
-                </div>
-
-                <div className="border-t border-slate-100">
-                    <label className="flex cursor-pointer items-center gap-2 px-5 py-3 text-[11px] text-slate-700 sm:px-6">
-                        <input type="checkbox" checked={notifyDriver} onChange={(event) => setNotifyDriver(event.target.checked)} className="h-3.5 w-3.5 accent-teal-700" />
-                        <span>Notify applicant via <strong>SMS and WhatsApp</strong> with rejection reason</span>
-                    </label>
-                    <footer className="flex flex-col-reverse gap-2 border-t border-slate-100 bg-slate-50/70 px-5 py-3 sm:flex-row sm:justify-end sm:px-6">
-                        <button type="button" onClick={onClose} className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-100">Cancel</button>
-                        <button type="button" onClick={() => onConfirm(driver, { reason: rejectionReasons[selectedReason], feedback, notifyDriver })} className="inline-flex items-center justify-center gap-2 rounded-lg bg-rose-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-rose-700">
-                            <CircleSlash2 size={13} /> Confirm &amp; Reject Application
-                        </button>
-                    </footer>
-                </div>
-            </section>
-        </div>
-    );
-};
-
-const DriverListTable = () => {
-
-    const [deletePopup, setDeletePopup] = useState(false)
-    const [rejectDriver, setRejectDriver] = useState(null);
-    const [drivers, setDrivers] = useState(data);
-
-    const handleReject = (driver) => {
-        setDrivers((currentDrivers) => currentDrivers.map((item) =>
-            item.id === driver.id ? { ...item, status: "Rejected" } : item,
-        ));
-        setRejectDriver(null);
+    const confirmDelete = async (driver) => {
+        const baseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "");
+        const driverId = driver._id || driver.id;
+        if (!baseUrl || !driverId) throw new Error("Driver ID or API URL is missing.");
+        const response = await axios.delete(`${baseUrl}/agent/drivers/${driverId}`, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        toast.success(response.data?.message || "Driver deleted successfully.");
+        setDrivers((current) => current.filter((item) => (item._id || item.id) !== driverId));
+        setDeleteDriver(null);
+        onDriversChanged?.();
     };
-
 
     return (
         <>
@@ -311,19 +134,35 @@ const DriverListTable = () => {
 
                             <input
                                 type="text"
-                                placeholder="Search PNR, passenger..."
+                                value={search}
+                                onChange={(event) => setSearch(event.target.value)}
+                                placeholder="Search name, mobile, license..."
+                                aria-label="Search drivers"
                                 className="w-full rounded-full border border-slate-200 bg-slate-100/80 py-1.5 pl-7 pr-3 text-[14px] text-slate-700 outline-none placeholder:text-slate-400 "
                             />
                         </div>
 
                         {/* Filter */}
-                        <button
-                            type="button"
-                            className="inline-flex items-center gap-1.5 border border-slate-200 rounded-full bg-slate-100/80 px-3 py-1.5 text-[14px] text-black "
-                        >
-                            <SlidersHorizontal size={13} />
-                            <span>Filter</span>
-                        </button>
+                        <div className="relative">
+                            <button
+                                type="button"
+                                aria-expanded={isFilterOpen}
+                                onClick={() => setIsFilterOpen((open) => !open)}
+                                className="inline-flex items-center gap-1.5 border border-slate-200 rounded-full bg-slate-100/80 px-3 py-1.5 text-[14px] text-black"
+                            >
+                                <SlidersHorizontal size={13} />
+                                <span>{status ? status.replace("-", " ") : "Filter"}</span>
+                            </button>
+                            {isFilterOpen && (
+                                <div className="absolute right-0 top-full z-20 mt-2 min-w-40 rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg">
+                                    {[["", "All drivers"], ["available", "Available"], ["assigned", "Assigned"], ["leave", "On leave"]].map(([value, label]) => (
+                                        <button key={value || "all"} type="button" onClick={() => { setStatus(value); setIsFilterOpen(false); }} className={`block w-full rounded-lg px-3 py-2 text-left text-xs capitalize hover:bg-slate-50 ${status === value ? "font-semibold text-teal-700" : "text-slate-700"}`}>
+                                            {label}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
 
                         {/* Export CSV */}
                         <button
@@ -357,19 +196,19 @@ const DriverListTable = () => {
                         <thead className="bg-[#E5EBEF] sticky top-0">
                             <tr className="text-[10px] text-left font-medium uppercase text-slate-700">
                                 <th className="px-5 py-3 font-medium">
-                                    Route
-                                </th>
-
-                                <th className="px-4 py-3 font-medium">
                                     Driver Name
                                 </th>
 
                                 <th className="px-4 py-3 font-medium">
-                                    Travel Date
+                                    Mobile
                                 </th>
 
                                 <th className="px-4 py-3 font-medium">
-                                    Seat Berth
+                                    License No
+                                </th>
+
+                                <th className="px-4 py-3 font-medium">
+                                    Employee code
                                 </th>
 
                                 <th className="px-4 py-3 font-medium">
@@ -384,44 +223,51 @@ const DriverListTable = () => {
 
                         {/* Table Body */}
                         <tbody>
-                            {drivers.map((driver, index) => (
+                            {isLoading ? Array.from({ length: 5 }, (_, index) => (
+                                <tr key={`skeleton-${index}`} className="animate-pulse border-t border-slate-100">
+                                    {Array.from({ length: 6 }, (_, cell) => <td key={cell} className="px-4 py-4"><div className="h-3 rounded bg-slate-100" /></td>)}
+                                </tr>
+                            )) : loadError ? (
+                                <tr><td colSpan={6} className="px-4 py-10 text-center text-sm text-rose-700">{loadError}</td></tr>
+                            ) : drivers.length === 0 ? (
+                                <tr><td colSpan={6} className="px-4 py-10 text-center text-sm text-slate-500">No drivers found. Try a different search or status filter.</td></tr>
+                            ) : drivers.map((driver, index) => (
                                 <tr
-                                    key={driver.id}
+                                    key={driver._id || driver.id}
                                     className="border-t border-slate-100 transition-colors hover:bg-slate-50"
                                 >
-
                                     {/* Route */}
-                                    <td className="px-5 py-3 text-">
-                                        <span className="whitespace-nowrap text-xs text-slate-700">
-                                            {driver.route}
-                                        </span>
-                                    </td>
+
 
                                     {/* Driver Name */}
                                     <td className="px-4 py-3">
                                         <div className="flex items-center gap-2 whitespace-nowrap">
 
                                             <div
-                                                className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold ${getInitialsStyle(index)}`}
+                                                className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[14px] font-semibold ${getInitialsStyle(index)}`}
                                             >
-                                                {driver.initials}
+                                                {driver?.profilePhoto?.url ? <img className="w-10 h-10 rounded-full object-cover" src={driver?.profilePhoto?.url} /> : <p>{driver?.fullName?.slice(0, 1)}</p>}
+
                                             </div>
 
                                             <span className="text-xs font-medium text-slate-800">
-                                                {driver.name}
+                                                {driver.fullName}
                                             </span>
 
                                         </div>
                                     </td>
 
-                                    {/* Travel Date */}
+                                    {/* mobile  */}
                                     <td className="whitespace-nowrap px-4 py-3 text-xs text-slate-500">
-                                        {driver.date}
+                                        {driver.mobile}
                                     </td>
 
                                     {/* Seat Berth */}
                                     <td className="px-4 py-3 text-xs font-semibold text-slate-800">
-                                        {driver.seat}
+                                        {driver.drivingLicenseNumber}
+                                    </td>
+                                    <td className="px-4 py-3 text-xs font-semibold text-slate-800">
+                                        {driver.employeeCode}
                                     </td>
 
                                     {/* Status */}
@@ -429,7 +275,7 @@ const DriverListTable = () => {
                                         <span
                                             className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-medium ${getStatusStyle(driver.status)}`}
                                         >
-                                            {driver.status}
+                                            {driver?.status?.toUpperCase()}
                                         </span>
                                     </td>
 
@@ -441,7 +287,7 @@ const DriverListTable = () => {
                                             <button
                                                 type="button"
                                                 title="View driver"
-                                                onClick={() => console.log("View driver:", driver.id)}
+                                                onClick={() => setViewDriver(driver)}
                                                 className="flex h-8 w-8 items-center justify-center rounded-full  text-slate-600 transition-colors hover:bg-slate-200"
                                             >
                                                 <Eye size={14} />
@@ -451,7 +297,7 @@ const DriverListTable = () => {
                                             <button
                                                 type="button"
                                                 title="Edit driver"
-                                                onClick={() => console.log("Edit driver:", driver.id)}
+                                                onClick={() => setEditDriver(driver)}
                                                 className="flex h-8 w-8 items-center justify-center rounded-full  text-emerald-700 transition-colors hover:bg-emerald-200"
                                             >
                                                 <Pencil size={14} />
@@ -461,13 +307,13 @@ const DriverListTable = () => {
                                             <button
                                                 type="button"
                                                 title="Delete driver"
-                                                onClick={() => setRejectDriver(driver)}
+                                                onClick={() => setDeleteDriver(driver)}
                                                 className="flex h-8 w-8 items-center justify-center rounded-full  text-rose-600 transition-colors hover:bg-rose-200"
                                             >
                                                 <Trash2 size={14} />
                                             </button>
 
-                                           
+
                                         </div>
                                     </td>
 
@@ -479,8 +325,9 @@ const DriverListTable = () => {
                 </div>
             </div>
 
-            {deletePopup && <DriverDeleteModal onClose={() => { setDeletePopup(false) }} />}
-            {rejectDriver && <RejectDriverModal driver={rejectDriver} onClose={() => setRejectDriver(null)} onConfirm={handleReject} />}
+            {deleteDriver && <DriverDeleteModal driver={deleteDriver} onClose={() => setDeleteDriver(null)} onConfirm={confirmDelete} />}
+            {editDriver && <AddDriverForm key={editDriver._id || editDriver.id} driver={editDriver} onClose={() => setEditDriver(null)} onSuccess={onDriversChanged} />}
+            {viewDriver && <DriverDetailsModal driver={viewDriver} onClose={() => setViewDriver(null)} />}
         </>
     )
 }

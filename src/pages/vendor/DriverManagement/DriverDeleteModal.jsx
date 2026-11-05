@@ -1,12 +1,11 @@
 import { useState } from "react";
 import { X, Trash2, AlertTriangle, UserRound } from "lucide-react";
 
-const DriverDeleteModal = ({ onClose }) => {
-    const onConfirm = ""
-    const driver = ""
+const DriverDeleteModal = ({ driver, onClose, onConfirm }) => {
 
     // states 
     const [isDeleting, setIsDeleting] = useState(false);
+    const [error, setError] = useState("");
 
     const handleDelete = async () => {
         if (onConfirm) {
@@ -16,7 +15,7 @@ const DriverDeleteModal = ({ onClose }) => {
                 await onConfirm(driver);
                 onClose();
             } catch (error) {
-                console.error("Failed to delete driver:", error);
+                setError(error.message || "Failed to delete driver. Please try again.");
             } finally {
                 setIsDeleting(false);
             }
@@ -28,7 +27,7 @@ const DriverDeleteModal = ({ onClose }) => {
             {/* Background overlay */}
             <div
                 className="fixed inset-0 z-40 bg-black/50 backdrop-blur-[3px]"
-                onClick={onClose}
+                onClick={() => !isDeleting && onClose()}
             />
 
             {/* Delete confirmation modal */}
@@ -54,7 +53,7 @@ const DriverDeleteModal = ({ onClose }) => {
 
                     <button
                         type="button"
-                        onClick={onClose}
+                        onClick={() => !isDeleting && onClose()}
                         disabled={isDeleting}
                         className="rounded-full bg-slate-100 p-2 text-slate-500 transition hover:bg-slate-200"
                         aria-label="Close modal"
@@ -88,18 +87,18 @@ const DriverDeleteModal = ({ onClose }) => {
                     {driver && (
                         <div className="mt-4 flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
                             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-teal-50 text-sm font-semibold text-teal-700">
-                                {driver.initials || (
+                                {driver.fullName?.slice(0, 1) || driver.initials || (
                                     <UserRound size={18} />
                                 )}
                             </div>
 
                             <div>
                                 <h3 className="text-sm font-semibold text-slate-800">
-                                    {driver.name || "Driver"}
+                                    {driver.fullName || driver.name || "Driver"}
                                 </h3>
 
                                 <p className="mt-0.5 text-xs text-slate-500">
-                                    {driver.id ? `Driver ID: ${driver.id}` : "Driver details"}
+                                    {driver.employeeCode || driver._id || driver.id || "Driver details"}
                                 </p>
                             </div>
                         </div>
@@ -109,6 +108,8 @@ const DriverDeleteModal = ({ onClose }) => {
                         This action cannot be undone.
                     </p>
                 </div>
+
+                {error && <p role="alert" className="px-5 pb-3 text-xs text-red-600">{error}</p>}
 
                 {/* Footer */}
                 <div className="flex justify-end gap-3 border-t border-slate-100 bg-slate-50/70 px-5 py-4">

@@ -418,23 +418,26 @@ export default function TicketBooking() {
 
       // Sync passengers array with selected seats:
       // Preserves any details already entered by the user
+      // Passenger name, age & gender start empty for the user to fill (not auto-filled from profile)
+      // Gender is pre-locked only if the seat carries a restricted gender (e.g. female-only)
       setPassengersState((prevPassengers) => {
-        const profile = getUserProfile();
         return updated.map((id, idx) => {
           const existing = prevPassengers.find((p) => p.seatId === id) || prevPassengers[idx];
+          const seatRestriction = requiredGender || existing?.restrictedGender || null;
           if (existing) {
             return {
               ...existing,
               seatId: id,
-              restrictedGender: requiredGender || existing.restrictedGender || null
+              restrictedGender: seatRestriction,
+              gender: seatRestriction ? seatRestriction : existing.gender
             };
           }
           return {
             seatId: id,
-            name: idx === 0 ? (profile?.name || '') : '',
-            age: idx === 0 ? (profile?.age || '') : '',
-            gender: requiredGender || (idx === 0 ? (profile?.gender || 'male') : 'male'),
-            restrictedGender: requiredGender || null
+            name: '',
+            age: '',
+            gender: seatRestriction || '',
+            restrictedGender: seatRestriction
           };
         });
       });
@@ -502,6 +505,14 @@ export default function TicketBooking() {
         }
         if (!p.gender || !p.gender.trim()) {
           showToast(`Please select gender for Passenger ${i + 1} (${berthLabel}).`);
+          return;
+        }
+        if (p.restrictedGender === 'female' && p.gender !== 'female') {
+          showToast(`Passenger ${i + 1} (${berthLabel}) must be female as this seat is reserved for females.`);
+          return;
+        }
+        if (p.restrictedGender === 'male' && p.gender !== 'male') {
+          showToast(`Passenger ${i + 1} (${berthLabel}) must be male as this seat is reserved for males.`);
           return;
         }
       }

@@ -429,6 +429,19 @@ export default function SeatSelection({
     const restrictions = {};
 
     const evaluateRow = (row) => {
+      // 1. Check individual seat gender quotas / definitions
+      (row.seats || row.berths || []).forEach((b) => {
+        const id = b.seatNumber || b.seatId || b.berthId || b.id;
+        const g = b.gender || b.bookedGender || (b.status === 'female' || b.status === 'male' ? b.status : null) || '';
+        const gLower = String(g).toLowerCase();
+        if (gLower === 'female' || (b.type && String(b.type).toLowerCase().includes('female'))) {
+          restrictions[id] = 'female';
+        } else if (gLower === 'male' || (b.type && String(b.type).toLowerCase().includes('male'))) {
+          restrictions[id] = 'male';
+        }
+      });
+
+      // 2. Check adjacent pairs (e.g., 2-seater adjacent seats or double sleeper berths)
       const { left, right } = partitionRow(row);
 
       const checkPair = (pair) => {
@@ -449,11 +462,13 @@ export default function SeatSelection({
         const g1 = getBerthGender(b1, id1);
         const g2 = getBerthGender(b2, id2);
 
-        if (g1 && !g2 && !selectedSeats.includes(id2)) {
+        if (g1 && !g2) {
           restrictions[id2] = g1;
-        }
-        if (g2 && !g1 && !selectedSeats.includes(id1)) {
+        } else if (g2 && !g1) {
           restrictions[id1] = g2;
+        } else if (g1 && g2 && g1 === g2) {
+          restrictions[id1] = g1;
+          restrictions[id2] = g2;
         }
       };
 
@@ -465,7 +480,7 @@ export default function SeatSelection({
     upperRows.forEach(evaluateRow);
 
     return restrictions;
-  }, [lowerRows, upperRows, passengersState, selectedSeats]);
+  }, [lowerRows, upperRows, passengersState]);
 
   // Active held seats list
   const activeHeldList = Object.values(heldSeats || {}).filter(

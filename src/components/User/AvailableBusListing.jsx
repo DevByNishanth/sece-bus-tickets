@@ -8,6 +8,8 @@ export default function BusListingCards({
   sortBy = 'recommended',
   onSortChange,
   onViewSeats,
+  onOpenBoardingPoints,
+  onOpenCancellation,
   onResetFilters,
   loading = false,
   isLive = false,
@@ -110,6 +112,8 @@ export default function BusListingCards({
               key={bus.id}
               bus={bus}
               onViewSeats={onViewSeats}
+              onOpenBoardingPoints={onOpenBoardingPoints}
+              onOpenCancellation={onOpenCancellation}
             />
           ))}
         </div>

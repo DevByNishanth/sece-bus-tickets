@@ -24,12 +24,64 @@ export default function PassengerDetails({
   const [gstNumber, setGstNumber] = useState('');
   const [companyName, setCompanyName] = useState('');
 
+  const findAdjacentSeatInLayout = (seatId) => {
+    if (!seatId || !bus?.seatLayout) return null;
+    const rows = [
+      ...(bus.seatLayout?.lowerDeck?.rows || []),
+      ...(bus.seatLayout?.upperDeck?.rows || [])
+    ];
+    for (const row of rows) {
+      const items = row.seats || row.berths || [];
+      if (items.length === 4) {
+        const left = [items[0], items[1]];
+        const right = [items[2], items[3]];
+        const id0 = left[0]?.seatNumber || left[0]?.seatId || left[0]?.berthId || left[0]?.id;
+        const id1 = left[1]?.seatNumber || left[1]?.seatId || left[1]?.berthId || left[1]?.id;
+        if (id0 === seatId) return id1;
+        if (id1 === seatId) return id0;
+        const id2 = right[0]?.seatNumber || right[0]?.seatId || right[0]?.berthId || right[0]?.id;
+        const id3 = right[1]?.seatNumber || right[1]?.seatId || right[1]?.berthId || right[1]?.id;
+        if (id2 === seatId) return id3;
+        if (id3 === seatId) return id2;
+      } else if (items.length === 3) {
+        const pair = items.slice(0, 2);
+        const id0 = pair[0]?.seatNumber || pair[0]?.seatId || pair[0]?.berthId || pair[0]?.id;
+        const id1 = pair[1]?.seatNumber || pair[1]?.seatId || pair[1]?.berthId || pair[1]?.id;
+        if (id0 === seatId) return id1;
+        if (id1 === seatId) return id0;
+      } else if (items.length === 2) {
+        const id0 = items[0]?.seatNumber || items[0]?.seatId || items[0]?.berthId || items[0]?.id;
+        const id1 = items[1]?.seatNumber || items[1]?.seatId || items[1]?.berthId || items[1]?.id;
+        if (id0 === seatId) return id1;
+        if (id1 === seatId) return id0;
+      }
+    }
+    return null;
+  };
+
   const handlePassengerChange = (index, field, value) => {
     setPassengersState((prev) => {
       const updated = [...prev];
-      if (updated[index]) {
-        updated[index] = { ...updated[index], [field]: value };
+      if (!updated[index]) return updated;
+
+      updated[index] = { ...updated[index], [field]: value };
+
+      // If gender was updated, sync restriction to any adjacent seat within the booking
+      if (field === 'gender' && value) {
+        const currentSeatId = updated[index].seatId;
+        const adjacentSeatId = findAdjacentSeatInLayout(currentSeatId);
+        if (adjacentSeatId) {
+          const adjIdx = updated.findIndex((p) => p.seatId === adjacentSeatId);
+          if (adjIdx !== -1) {
+            updated[adjIdx] = {
+              ...updated[adjIdx],
+              restrictedGender: value,
+              gender: value
+            };
+          }
+        }
       }
+
       return updated;
     });
   };
@@ -218,12 +270,12 @@ export default function PassengerDetails({
                   <div className="flex items-center gap-2">
                     {isFemaleRestricted && (
                       <span className="text-[10px] font-bold text-[#FF7FCB] bg-rose-50 border border-[#FF7FCB] px-2 py-0.5 rounded-full">
-                        Female Only (Adjacent Seat)
+                        Female Only (Seat Restricted)
                       </span>
                     )}
                     {isMaleRestricted && (
                       <span className="text-[10px] font-bold text-[#6366F1] bg-indigo-50 border border-[#6366F1] px-2 py-0.5 rounded-full">
-                        Male Only (Adjacent Seat)
+                        Male Only (Seat Restricted)
                       </span>
                     )}
                     <span className="text-[11px] font-bold text-[#0F766E] bg-teal-50 border border-teal-200/70 px-2.5 py-0.5 rounded-full">
@@ -277,7 +329,7 @@ export default function PassengerDetails({
                         type="button"
                         onClick={() => {
                           if (isFemaleRestricted) {
-                            if (onShowToast) onShowToast('Adjacent berth is chosen by a female. This seat is reserved for females only.');
+                            if (onShowToast) onShowToast('This seat is reserved for females only. Male passengers cannot be selected.');
                             return;
                           }
                           handlePassengerChange(idx, 'gender', 'male');
@@ -299,7 +351,7 @@ export default function PassengerDetails({
                         type="button"
                         onClick={() => {
                           if (isMaleRestricted) {
-                            if (onShowToast) onShowToast('Adjacent berth is chosen by a male. This seat is reserved for males only.');
+                            if (onShowToast) onShowToast('This seat is reserved for males only. Female passengers cannot be selected.');
                             return;
                           }
                           handlePassengerChange(idx, 'gender', 'female');

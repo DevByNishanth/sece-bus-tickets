@@ -45,15 +45,15 @@ export default function ReviewBookingModal({
       return;
     }
 
-    // Static coupon application: gives flat â‚¹500 off as requested
+    // Static coupon application: gives flat ₹500 off as requested
     const discountAmount = 500;
     setAppliedCoupon({
       code: cleanCode,
       discount: discountAmount,
-      description: `Flat â‚¹${discountAmount} off on ticket fare`
+      description: `Flat ₹${discountAmount} off on ticket fare`
     });
     setCouponError('');
-    setCouponSuccess(`Coupon ${cleanCode} applied! â‚¹${discountAmount} discount deducted from ticket fare.`);
+    setCouponSuccess(`Coupon ${cleanCode} applied! ₹${discountAmount} discount deducted from ticket fare.`);
     setCouponInput('');
   };
 

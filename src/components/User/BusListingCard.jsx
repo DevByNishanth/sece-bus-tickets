@@ -136,8 +136,8 @@ export default function BusListingCard({
           <span className="text-[10px] font-bold text-slate-400 tracking-wider uppercase">
             STARTING FROM
           </span>
-          <div className="text-1xl sm:text-2xl font-bold text-slate-900">
-            ₹{bus.price}{bus.maxPrice && bus.maxPrice > bus.price ? ` - ₹${bus.maxPrice}` : ''}
+          <div className="text-2xl font-bold text-slate-900">
+            ₹{bus.price}
           </div>
           <span className="text-[11px] font-medium text-slate-400">
             per seat

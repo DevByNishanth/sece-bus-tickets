@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import FromToSearch from './FromToSearch';
 import BusFilters from '../../components/User/BusFilters';
 import BusListingCards from '../../components/User/AvailableBusListing';
+import BusInfoDrawer from '../../components/User/BusInfoDrawer';
 import { fetchBusesSearch } from '../../services/busService';
 import { initialBuses } from '../../data/mockBuses';
 import { SlidersHorizontal, X, Search, ArrowRight, ArrowLeft } from 'lucide-react';
@@ -25,6 +26,11 @@ export default function BusListing() {
   const [sortBy, setSortBy] = useState('recommended');
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
+  const [drawerState, setDrawerState] = useState({
+    isOpen: false,
+    type: 'boarding',
+    bus: null
+  });
 
   const [searchParams, setSearchParams] = useState({
     from: 'Chennai',
@@ -264,6 +270,26 @@ export default function BusListing() {
     navigate('/ticket-booking', { state: { bus, searchParams } });
   };
 
+  const handleOpenBoardingPoints = (bus) => {
+    setDrawerState({
+      isOpen: true,
+      type: 'boarding',
+      bus
+    });
+  };
+
+  const handleOpenCancellation = (bus) => {
+    setDrawerState({
+      isOpen: true,
+      type: 'cancellation',
+      bus
+    });
+  };
+
+  const handleCloseDrawer = () => {
+    setDrawerState((prev) => ({ ...prev, isOpen: false }));
+  };
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex flex-col font-sans">
       {/* Main Container */}
@@ -374,6 +400,8 @@ export default function BusListing() {
               sortBy={sortBy}
               onSortChange={setSortBy}
               onViewSeats={handleViewSeats}
+              onOpenBoardingPoints={handleOpenBoardingPoints}
+              onOpenCancellation={handleOpenCancellation}
               onResetFilters={handleResetFilters}
               loading={loading}
               isLive={isLiveBackend}
@@ -475,6 +503,14 @@ export default function BusListing() {
           </div>
         </div>
       )}
+
+      {/* Off-Canvas Drawer for Boarding/Dropping Points & Cancellation Policy */}
+      <BusInfoDrawer
+        isOpen={drawerState.isOpen}
+        type={drawerState.type}
+        bus={drawerState.bus}
+        onClose={handleCloseDrawer}
+      />
     </div>
   );
 }

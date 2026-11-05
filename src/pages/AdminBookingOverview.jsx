@@ -159,6 +159,7 @@ export default function AdminBookingOverview({ listType = "buses", detailView: D
         onBack={() => setSelectedBooking(null)}
       />
     );
+    console.log("hai")
   }
 
   return (

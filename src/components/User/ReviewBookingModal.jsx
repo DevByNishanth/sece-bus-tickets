@@ -45,15 +45,15 @@ export default function ReviewBookingModal({
       return;
     }
 
-    // Static coupon application: gives flat ₹500 off as requested
+    // Static coupon application: gives flat â‚¹500 off as requested
     const discountAmount = 500;
     setAppliedCoupon({
       code: cleanCode,
       discount: discountAmount,
-      description: `Flat ₹${discountAmount} off on ticket fare`
+      description: `Flat â‚¹${discountAmount} off on ticket fare`
     });
     setCouponError('');
-    setCouponSuccess(`Coupon ${cleanCode} applied! ₹${discountAmount} discount deducted from ticket fare.`);
+    setCouponSuccess(`Coupon ${cleanCode} applied! â‚¹${discountAmount} discount deducted from ticket fare.`);
     setCouponInput('');
   };
 
@@ -66,17 +66,17 @@ export default function ReviewBookingModal({
   if (!isOpen) return null;
 
   const allBerths = [
-    ...(bus?.seatLayout?.lowerDeck?.rows?.flatMap((r) => r.berths) || []),
-    ...(bus?.seatLayout?.upperDeck?.rows?.flatMap((r) => r.berths) || [])
+    ...(bus?.seatLayout?.lowerDeck?.rows?.flatMap((r) => r.seats || r.berths || []) || []),
+    ...(bus?.seatLayout?.upperDeck?.rows?.flatMap((r) => r.seats || r.berths || []) || [])
   ];
 
   const seatFareSum = selectedSeats.reduce((acc, seatId) => {
-    const found = allBerths.find((b) => b.seatNumber === seatId || b.berthId === seatId);
-    return acc + (found?.fare || bus?.price || 1100);
+    const found = allBerths.find((b) => b.seatNumber === seatId || b.seatId === seatId || b.berthId === seatId);
+    return acc + (found?.fare || bus?.price || 650);
   }, 0);
 
   const seatsCount = selectedSeats.length || 1;
-  const baseTicketFare = createdBooking?.fareBreakdown?.baseFare || (seatFareSum > 0 ? seatFareSum : (bus?.price || 1100) * seatsCount);
+  const baseTicketFare = createdBooking?.fareBreakdown?.baseFare || (seatFareSum > 0 ? seatFareSum : (bus?.price || 650) * seatsCount);
 
   // Coupon discount deducted from Base Ticket Fare
   const couponDiscount = appliedCoupon ? Math.min(appliedCoupon.discount, baseTicketFare) : 0.00;
@@ -140,7 +140,7 @@ export default function ReviewBookingModal({
     Number((effectiveBaseFare + totalAgentServiceCharge + gstAmount + insurance - discount).toFixed(2));
 
   const operatorName = bus?.operatorName || 'Sri Kumaran Travels';
-  const busType = bus?.busType || 'Double Deck Sleeper (2+1) • Luxury Multi-Axle';
+  const busType = bus?.busType || 'Double Deck Sleeper (2+1) â€¢ Luxury Multi-Axle';
   const rating = bus?.rating || 4.8;
   const reviewsCount = bus?.reviewsCount || 1248;
 
@@ -293,7 +293,7 @@ export default function ReviewBookingModal({
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <div className="flex items-center gap-2">
                 <span className="text-[11px] font-bold text-amber-800 bg-amber-50 border border-amber-200/80 px-2 py-0.5 rounded-full">
-                  ★ PRIMO
+                  â˜… PRIMO
                 </span>
                 <span className="text-[11px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 rounded-full">
                   Top Rated
@@ -379,7 +379,7 @@ export default function ReviewBookingModal({
                         {displayName}
                       </span>
                       <span className="text-[11px] text-slate-500">
-                        {p.age ? `Age ${p.age}` : 'Age not specified'} • {genderText}
+                        {p.age ? `Age ${p.age}` : 'Age not specified'} â€¢ {genderText}
                       </span>
                     </div>
                   </div>
@@ -398,7 +398,7 @@ export default function ReviewBookingModal({
               <div className="absolute -left-[19px] top-1 w-2.5 h-2.5 rounded-full bg-[#0F766E] ring-4 ring-teal-100" />
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs font-bold text-slate-900">
-                  {boardingTime} • {boardingCity} (Origin Terminal)
+                  {boardingTime} â€¢ {boardingCity} (Origin Terminal)
                 </span>
                 <span className="text-[9px] font-bold text-[#0F766E] bg-teal-50 border border-teal-200 px-2 py-0.5 rounded-full">
                   BOARDING
@@ -419,7 +419,7 @@ export default function ReviewBookingModal({
               <div className="absolute -left-[19px] top-1 w-2.5 h-2.5 rounded-full bg-emerald-600 ring-4 ring-emerald-100" />
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs font-bold text-slate-900">
-                  {droppingTime} • {droppingCity} (Final Destination)
+                  {droppingTime} â€¢ {droppingCity} (Final Destination)
                 </span>
                 <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
                   DROPPING
@@ -453,7 +453,7 @@ export default function ReviewBookingModal({
                   }}
                   className="text-[11px] text-[#0F766E] font-bold hover:underline cursor-pointer"
                 >
-                  Apply SECE500 (-₹500)
+                  Apply SECE500 (-â‚¹500)
                 </button>
               )}
             </div>
@@ -474,7 +474,7 @@ export default function ReviewBookingModal({
                       </span>
                     </div>
                     <span className="text-[11px] text-emerald-700 font-medium">
-                      ₹{appliedCoupon.discount} discount deducted from ticket fare
+                      â‚¹{appliedCoupon.discount} discount deducted from ticket fare
                     </span>
                   </div>
                 </div>
@@ -542,7 +542,7 @@ export default function ReviewBookingModal({
             <div className="space-y-2 text-xs">
               <div className="flex justify-between text-slate-600">
                 <span>Base Ticket Fare ({seatsCount} Seat{seatsCount > 1 ? 's' : ''})</span>
-                <span className="font-semibold text-slate-900">₹{baseTicketFare.toFixed(2)}</span>
+                <span className="font-semibold text-slate-900">â‚¹{baseTicketFare.toFixed(2)}</span>
               </div>
 
               {/* Coupon Discount deduction */}
@@ -552,20 +552,20 @@ export default function ReviewBookingModal({
                     <Tag className="w-3.5 h-3.5 text-emerald-600" />
                     <span>Coupon Discount ({appliedCoupon.code})</span>
                   </div>
-                  <span className="font-bold">- ₹{couponDiscount.toFixed(2)}</span>
+                  <span className="font-bold">- â‚¹{couponDiscount.toFixed(2)}</span>
                 </div>
               )}
 
               {/* BusGo Shield Travel Insurance - always 0 as requested */}
               <div className="flex justify-between text-slate-600">
                 <span>BusGo Shield Travel Insurance</span>
-                <span className="font-semibold text-slate-900">₹{insurance.toFixed(2)}</span>
+                <span className="font-semibold text-slate-900">â‚¹{insurance.toFixed(2)}</span>
               </div>
 
               {/* Operator GST - from backend if available, else 0 */}
               <div className="flex justify-between text-slate-600">
                 <span>Operator GST {gstRate > 0 ? `(${gstRate}%)` : '(0%)'}</span>
-                <span className="font-semibold text-slate-900">₹{gstAmount.toFixed(2)}</span>
+                <span className="font-semibold text-slate-900">â‚¹{gstAmount.toFixed(2)}</span>
               </div>
 
               {/* Agent Service Charge - backend commission % and per-seat calculation */}
@@ -573,16 +573,16 @@ export default function ReviewBookingModal({
                 <div className="flex flex-col">
                   <span>Agent Service Charge ({commissionRate}%)</span>
                   <span className="text-[10px] text-slate-400">
-                    ₹{agentServiceChargePerSeat.toFixed(2)} per seat × {seatsCount} seat{seatsCount > 1 ? 's' : ''}
+                    â‚¹{agentServiceChargePerSeat.toFixed(2)} per seat Ã— {seatsCount} seat{seatsCount > 1 ? 's' : ''}
                   </span>
                 </div>
-                <span className="font-semibold text-slate-900">₹{totalAgentServiceCharge.toFixed(2)}</span>
+                <span className="font-semibold text-slate-900">â‚¹{totalAgentServiceCharge.toFixed(2)}</span>
               </div>
 
               {discount > 0 && (
                 <div className="flex justify-between text-[#0F766E] font-semibold">
                   <span>Special Promotional Discount</span>
-                  <span>- ₹{discount.toFixed(2)}</span>
+                  <span>- â‚¹{discount.toFixed(2)}</span>
                 </div>
               )}
 
@@ -596,7 +596,7 @@ export default function ReviewBookingModal({
                   </span>
                 </div>
                 <span className="text-2xl font-black text-slate-900">
-                  ₹{totalAmount.toFixed(2)}
+                  â‚¹{totalAmount.toFixed(2)}
                 </span>
               </div>
             </div>

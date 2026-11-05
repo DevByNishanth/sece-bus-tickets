@@ -13,7 +13,7 @@ export default function BusDetails({ bus }) {
   const [previewImage, setPreviewImage] = useState(null);
 
   const operatorName = bus?.operatorName || 'Sri Kumaran Travels';
-  const busType = bus?.busType || 'A/C Sleeper (2+1) • Multi-Axle Luxury Bharat Benz';
+  const busType = bus?.busType || 'A/C Sleeper (2+1) â€¢ Multi-Axle Luxury Bharat Benz';
   const rating = bus?.rating || 4.6;
   const reviewsCount = bus?.reviewsCount || 456;
   const departureTime = bus?.departureTime || '15:00';
@@ -34,7 +34,7 @@ export default function BusDetails({ bus }) {
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2">
           <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200/80 px-2.5 py-0.5 rounded-full">
-            ★ Primo
+            â˜… Primo
           </span>
           <span className="inline-flex items-center text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2.5 py-0.5 rounded-full">
             Top Rated
@@ -64,14 +64,14 @@ export default function BusDetails({ bus }) {
         {/* Deck & Berth Statistics from API */}
         {/* <div className="flex items-center gap-2 mt-2 flex-wrap text-xs">
           <span className="inline-flex items-center gap-1 font-semibold text-sky-800 bg-sky-50 border border-sky-200/80 px-2.5 py-1 rounded-lg">
-            🛏️ Lower Deck: {bus?.lowerDeckSeatsCount?.available ?? 18}/18 available
+            ðŸ›ï¸ Lower Deck: {bus?.lowerDeckSeatsCount?.available ?? 18}/18 available
           </span>
           <span className="inline-flex items-center gap-1 font-semibold text-indigo-800 bg-indigo-50 border border-indigo-200/80 px-2.5 py-1 rounded-lg">
-            🛏️ Upper Deck: {bus?.upperDeckSeatsCount?.available ?? 18}/18 available
+            ðŸ›ï¸ Upper Deck: {bus?.upperDeckSeatsCount?.available ?? 18}/18 available
           </span>
           {bus?.stops?.length > 0 && (
             <span className="inline-flex items-center gap-1 font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200/80 px-2.5 py-1 rounded-lg">
-              📍 {bus.stops.length} Route Stops
+              ðŸ“ {bus.stops.length} Route Stops
             </span>
           )}
         </div> */}
@@ -132,7 +132,7 @@ export default function BusDetails({ bus }) {
               onClick={() => setPreviewImage(null)}
               className="absolute top-3 right-3 bg-white/90 text-slate-800 rounded-full w-8 h-8 flex items-center justify-center font-bold hover:bg-white cursor-pointer"
             >
-              ✕
+              âœ•
             </button>
           </div>
         </div>
@@ -175,7 +175,7 @@ export default function BusDetails({ bus }) {
 
         {/* Tab Contents */}
         <div className="pt-4">
-          {activeTab === 'highlights' && <Highlights />}
+          {activeTab === 'highlights' && <Highlights bus={bus} amenities={bus?.amenities} />}
 
           {activeTab === 'cancellation' && (
             <div className="space-y-3 text-xs">
@@ -213,7 +213,7 @@ export default function BusDetails({ bus }) {
             BusGo SafeGuard Verified Assurance
           </h4>
           <p className="text-[11px] sm:text-xs text-emerald-800/90 font-medium leading-relaxed mt-1">
-            Regularly sanitized cabin, 100% breathalyzer-tested professional crew, and inclusive transit accidental coverage up to ₹5,00,000 per passenger.
+            Regularly sanitized cabin, 100% breathalyzer-tested professional crew, and inclusive transit accidental coverage up to â‚¹5,00,000 per passenger.
           </p>
         </div>
       </div>

@@ -191,17 +191,25 @@ export default function BusListing() {
 
         // Amenities filter
         if (filters.amenities && filters.amenities.length > 0) {
-          const hasAll = filters.amenities.every((amenity) => {
-            if (amenity === 'Live GPS Tracking') {
-              return bus.amenities.includes('Live tracking');
+          const busAmenityNorms = (bus.amenities || [])
+            .concat(bus.rawAmenities || [])
+            .map((a) => String(a).toLowerCase().replace(/[^a-z0-9]/g, ''));
+
+          const hasAll = filters.amenities.every((filterAmenity) => {
+            const fNorm = String(filterAmenity).toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (fNorm.includes('gps') || fNorm.includes('live')) {
+              return busAmenityNorms.some((b) => b.includes('gps') || b.includes('live'));
             }
-            if (amenity === 'Charging Socket') {
-              return bus.amenities.includes('Charging port');
+            if (fNorm.includes('charg')) {
+              return busAmenityNorms.some((b) => b.includes('charg'));
             }
-            if (amenity === 'Blanket & Pillow') {
-              return bus.amenities.includes('Blanket');
+            if (fNorm.includes('blanket') || fNorm.includes('pillow')) {
+              return busAmenityNorms.some((b) => b.includes('blanket') || b.includes('pillow'));
             }
-            return bus.amenities.includes(amenity);
+            if (fNorm.includes('wifi')) {
+              return busAmenityNorms.some((b) => b.includes('wifi'));
+            }
+            return busAmenityNorms.includes(fNorm);
           });
           if (!hasAll) return false;
         }
@@ -270,7 +278,7 @@ export default function BusListing() {
             </div>
             <div className="flex items-center gap-2 text-[11px] text-slate-500 font-medium mt-0.5">
               <span>{formatJourneyDate(searchParams.date)}</span>
-              <span className="text-slate-300">•</span>
+              <span className="text-slate-300">â€¢</span>
               <span className="text-[#0F766E] font-semibold">{filteredBuses.length} Buses</span>
             </div>
           </div>

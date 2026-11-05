@@ -35,7 +35,6 @@ export const SleeperBerth = ({
   seatNumber,
   status = 'available', // 'available' | 'female' | 'male' | 'selected' | 'booked'
   isSelected = false,
-  label,
   price = 1250,
   type = 'Single Lower Sleeper',
   deck = 'Lower Deck',
@@ -43,7 +42,6 @@ export const SleeperBerth = ({
   onClick
 }) => {
   const isHeld = Boolean(holdInfo && holdInfo.remainingSeconds > 0);
-  // Any booked or held seat CANNOT be selected and is rendered in booked color
   const isBooked = status === 'booked' || isHeld;
   const currentStatus = isBooked ? 'booked' : (isSelected ? 'selected' : status);
 
@@ -72,7 +70,6 @@ export const SleeperBerth = ({
       badgeClass = 'bg-indigo-100 text-indigo-700';
       break;
     case 'booked':
-      // Booked color (#CBD5E1) - applied to booked and temporarily held berths
       borderBgClass = 'border border-slate-300/90 bg-[#CBD5E1] cursor-not-allowed opacity-90';
       pillowClass = 'border border-slate-300 bg-slate-400/20';
       textClass = 'text-slate-400 font-semibold';
@@ -145,11 +142,192 @@ export const SleeperBerth = ({
   );
 };
 
+// Seater Seat Component
+export const SeaterSeat = ({
+  id,
+  seatNumber,
+  status = 'available', // 'available' | 'female' | 'male' | 'selected' | 'booked'
+  isSelected = false,
+  price = 650,
+  type = 'Aisle Seater',
+  deck = 'Main Deck',
+  holdInfo = null,
+  onClick
+}) => {
+  const isHeld = Boolean(holdInfo && holdInfo.remainingSeconds > 0);
+  const isBooked = status === 'booked' || isHeld;
+  const currentStatus = isBooked ? 'booked' : (isSelected ? 'selected' : status);
+
+  let borderBgClass = '';
+  let headrestClass = '';
+  let textClass = '';
+  let badgeClass = '';
+
+  switch (currentStatus) {
+    case 'selected':
+      borderBgClass = 'border-2 border-[#0F766E] bg-[#0F766E] shadow-sm';
+      headrestClass = 'bg-teal-900/60 border-teal-300/80';
+      textClass = 'text-white font-bold';
+      badgeClass = 'bg-teal-950/50 text-white';
+      break;
+    case 'female':
+      borderBgClass = 'border-2 border-[#FF7FCB] bg-rose-50/40 hover:bg-rose-50/70 hover:shadow-xs';
+      headrestClass = 'bg-rose-100 border-[#FF7FCB]';
+      textClass = 'text-[#FF7FCB] font-semibold';
+      badgeClass = 'bg-rose-100 text-rose-700';
+      break;
+    case 'male':
+      borderBgClass = 'border-2 border-[#6366F1] bg-indigo-50/40 hover:bg-indigo-50/70 hover:shadow-xs';
+      headrestClass = 'bg-indigo-100 border-[#6366F1]';
+      textClass = 'text-[#6366F1] font-semibold';
+      badgeClass = 'bg-indigo-100 text-indigo-700';
+      break;
+    case 'booked':
+      borderBgClass = 'border border-slate-300/90 bg-[#CBD5E1] cursor-not-allowed opacity-90';
+      headrestClass = 'bg-slate-400/40 border-slate-300';
+      textClass = 'text-slate-400 font-semibold';
+      badgeClass = 'bg-slate-300 text-slate-600';
+      break;
+    case 'available':
+    default:
+      borderBgClass = 'border-2 border-slate-200/90 hover:border-teal-500 bg-white hover:bg-teal-50/20 hover:shadow-xs';
+      headrestClass = 'bg-slate-100 border-slate-200';
+      textClass = 'text-slate-600 hover:text-teal-700 font-semibold';
+      badgeClass = 'bg-slate-100 text-slate-700';
+      break;
+  }
+
+  const displayName = seatNumber || id;
+
+  return (
+    <button
+      type="button"
+      onClick={() => !isBooked && onClick && onClick(id)}
+      disabled={isBooked}
+      title={
+        isHeld
+          ? `${displayName} • Held by another passenger (${formatRemainingTime(holdInfo.remainingSeconds)} remaining) • Booked color`
+          : `${displayName} • ${type} • ${deck} • ₹${price} (${currentStatus.toUpperCase()})`
+      }
+      className={`relative group w-11 sm:w-12 h-14 sm:h-15 rounded-xl flex flex-col items-center justify-between p-1 transition-all duration-200 select-none cursor-pointer ${borderBgClass} ${
+        isBooked ? 'cursor-not-allowed' : ''
+      }`}
+    >
+      {/* Top Headrest Cushion */}
+      <div className={`w-7 sm:w-8 h-2 rounded-t-sm border transition-colors ${headrestClass}`} />
+
+      {/* Seat Number Tag */}
+      <span className={`text-[10px] font-extrabold px-1 py-0.2 rounded ${badgeClass}`}>
+        {displayName}
+      </span>
+
+      {/* Seat Price or Hold Countdown */}
+      {isHeld ? (
+        <span
+          className="text-[8px] font-bold text-slate-700 flex items-center gap-0.5 pb-0.5 tracking-tighter"
+          title={`Hold expires in ${formatRemainingTime(holdInfo.remainingSeconds)}`}
+        >
+          <Clock className="w-2.5 h-2.5 text-slate-600 inline shrink-0" />
+          {formatRemainingTime(holdInfo.remainingSeconds)}
+        </span>
+      ) : (
+        <span className={`text-[9px] sm:text-[10px] font-bold tracking-tight pb-0.5 ${textClass}`}>
+          ₹{price}
+        </span>
+      )}
+
+      {/* Floating Hover Tooltip */}
+      {isHeld ? (
+        <div className="absolute -top-10 left-1/2 -translate-x-1/2 hidden group-hover:flex items-center gap-1.5 px-2.5 py-1 bg-slate-900 text-amber-300 text-[10px] font-semibold rounded-lg shadow-lg pointer-events-none whitespace-nowrap z-30 border border-slate-700">
+          <Clock className="w-3 h-3 text-amber-400 shrink-0" />
+          <span>{displayName} • Held ({formatRemainingTime(holdInfo.remainingSeconds)} left)</span>
+        </div>
+      ) : !isBooked ? (
+        <div className="absolute -top-9 left-1/2 -translate-x-1/2 hidden group-hover:flex items-center px-2 py-0.5 bg-slate-900 text-white text-[10px] font-semibold rounded shadow-md pointer-events-none whitespace-nowrap z-20">
+          {displayName} • {type} • ₹{price}
+        </div>
+      ) : (
+        <div className="absolute -top-9 left-1/2 -translate-x-1/2 hidden group-hover:flex items-center px-2 py-0.5 bg-slate-700 text-slate-200 text-[10px] font-semibold rounded shadow-md pointer-events-none whitespace-nowrap z-20">
+          {displayName} • Booked
+        </div>
+      )}
+    </button>
+  );
+};
+
+// Helper: Partition row seats/berths into left, center, right groups
+const partitionRow = (row) => {
+  const items = row.seats || row.berths || [];
+  if (items.length === 0) return { left: [], center: [], right: [] };
+
+  // 1. Check if items have explicit side property from backend
+  const hasExplicitSide = items.some((item) => item.side);
+  if (hasExplicitSide) {
+    const left = items.filter((item) => item.side === 'opposite' || item.side === 'left');
+    const right = items.filter((item) => item.side === 'driver' || item.side === 'right');
+    const center = items.filter((item) => item.side === 'center');
+    return { left, center, right };
+  }
+
+  // 2. Sleeper layout check: Double Sleepers (2) on left, Single Sleeper (1) on right
+  const doubleSleepers = items.filter((b) => (b.type || '').toLowerCase().includes('double'));
+  const singleSleepers = items.filter((b) => (b.type || '').toLowerCase().includes('single'));
+  if (doubleSleepers.length > 0 && singleSleepers.length > 0) {
+    return { left: doubleSleepers, center: [], right: singleSleepers };
+  }
+
+  // 3. 4-Seat Layout (Standard 2+2 Seater)
+  if (items.length === 4) {
+    let leftGroup = [items[0], items[1]];
+    let rightGroup = [items[2], items[3]];
+
+    // Put Window seat on the window wall edge, Aisle seat near walkway
+    if (
+      (leftGroup[0]?.type || '').toLowerCase().includes('aisle') &&
+      (leftGroup[1]?.type || '').toLowerCase().includes('window')
+    ) {
+      leftGroup = [leftGroup[1], leftGroup[0]];
+    }
+
+    if (
+      (rightGroup[0]?.type || '').toLowerCase().includes('window') &&
+      (rightGroup[1]?.type || '').toLowerCase().includes('aisle')
+    ) {
+      rightGroup = [rightGroup[1], rightGroup[0]];
+    }
+
+    return { left: leftGroup, center: [], right: rightGroup };
+  }
+
+  // 4. 3-Seat Layout (2+1 Seater / Sleeper)
+  if (items.length === 3) {
+    return { left: items.slice(0, 2), center: [], right: items.slice(2) };
+  }
+
+  // 5. 2-Seat Layout (1+1)
+  if (items.length === 2) {
+    return { left: [items[0]], center: [], right: [items[1]] };
+  }
+
+  // 6. 5-Seat Bench Row (e.g. Back Row)
+  if (items.length === 5) {
+    return { left: items.slice(0, 2), center: [items[2]], right: items.slice(3) };
+  }
+
+  // Fallback: split evenly
+  const mid = Math.ceil(items.length / 2);
+  return {
+    left: items.slice(0, mid),
+    center: [],
+    right: items.slice(mid)
+  };
+};
+
 export default function SeatSelection({
   selectedSeats = [],
   passengersState = [],
   onToggleSeat,
-  busFare = 1100,
+  busFare = 650,
   bus,
   heldSeats = {},
   confirmedBookedSeats = [],
@@ -162,14 +340,42 @@ export default function SeatSelection({
   onFastForwardHold = null,
   isRefreshingSeats = false
 }) {
-  // Extract API layout or use high-fidelity default structure
   const seatLayout = bus?.seatLayout;
 
   const lowerDeckData = seatLayout?.lowerDeck;
   const upperDeckData = seatLayout?.upperDeck;
 
+  const isSingleDeck =
+    seatLayout?.deckType === 'single' ||
+    (!upperDeckData?.rows?.length && !upperDeckData?.passengerCapacity);
+
+  const isSeaterBus =
+    (seatLayout?.layoutType || bus?.layoutType || '').toLowerCase().includes('seat');
+
+  // Default fallback rows for lower deck if not supplied by API
   const defaultLowerRows = React.useMemo(() => {
     const rows = [];
+    if (isSeaterBus) {
+      let seatIdx = 1;
+      for (let r = 1; r <= 10; r++) {
+        const s1 = `S${seatIdx++}`;
+        const s2 = `S${seatIdx++}`;
+        const s3 = `S${seatIdx++}`;
+        const s4 = `S${seatIdx++}`;
+        rows.push({
+          rowNumber: r,
+          rowLabel: `Row ${r}`,
+          seats: [
+            { seatNumber: s1, seatId: `seat-${s1}`, type: 'Window Seater', fare: busFare || 650, available: true },
+            { seatNumber: s2, seatId: `seat-${s2}`, type: 'Aisle Seater', fare: busFare || 650, available: true },
+            { seatNumber: s3, seatId: `seat-${s3}`, type: 'Aisle Seater', fare: busFare || 650, available: true },
+            { seatNumber: s4, seatId: `seat-${s4}`, type: 'Window Seater', fare: busFare || 650, available: true }
+          ]
+        });
+      }
+      return rows;
+    }
+
     let seatIdx = 1;
     for (let r = 1; r <= 6; r++) {
       const s1 = `L${seatIdx++}`;
@@ -186,9 +392,11 @@ export default function SeatSelection({
       });
     }
     return rows;
-  }, [busFare]);
+  }, [busFare, isSeaterBus]);
 
+  // Default fallback rows for upper deck (double decker sleeper)
   const defaultUpperRows = React.useMemo(() => {
+    if (isSingleDeck) return [];
     const rows = [];
     let seatIdx = 1;
     for (let r = 1; r <= 6; r++) {
@@ -206,30 +414,28 @@ export default function SeatSelection({
       });
     }
     return rows;
-  }, [busFare]);
+  }, [busFare, isSingleDeck]);
 
   const lowerRows = (lowerDeckData?.rows && lowerDeckData.rows.length > 0)
     ? lowerDeckData.rows
     : defaultLowerRows;
 
-  const upperRows = (upperDeckData?.rows && upperDeckData.rows.length > 0)
+  const upperRows = (!isSingleDeck && upperDeckData?.rows && upperDeckData.rows.length > 0)
     ? upperDeckData.rows
-    : defaultUpperRows;
+    : (!isSingleDeck ? defaultUpperRows : []);
 
-  // Calculate gender for berths based on adjacent double berth
-  // If one seat in a double berth is chosen/booked by girl, adjacent seat becomes 'female' (pink)
-  // If one seat is chosen/booked by boy, adjacent seat becomes 'male' (indigo/blue)
+  // Compute gender restrictions dynamically across both Sleeper double berths & Seater adjacent pairs
   const adjacentGenderRestrictions = React.useMemo(() => {
     const restrictions = {};
 
     const evaluateRow = (row) => {
-      const doubleBerths = (row.berths || []).filter(
-        (b) => b.type && b.type.toLowerCase().includes('double')
-      );
-      if (doubleBerths.length === 2) {
-        const [b1, b2] = doubleBerths;
-        const id1 = b1.seatNumber || b1.berthId;
-        const id2 = b2.seatNumber || b2.berthId;
+      const { left, right } = partitionRow(row);
+
+      const checkPair = (pair) => {
+        if (!pair || pair.length !== 2) return;
+        const [b1, b2] = pair;
+        const id1 = b1.seatNumber || b1.seatId || b1.berthId || b1.id;
+        const id2 = b2.seatNumber || b2.seatId || b2.berthId || b2.id;
 
         const getBerthGender = (berth, seatId) => {
           const pass = (passengersState || []).find((p) => p.seatId === seatId);
@@ -243,15 +449,16 @@ export default function SeatSelection({
         const g1 = getBerthGender(b1, id1);
         const g2 = getBerthGender(b2, id2);
 
-        // If b1 has gender and b2 is not yet chosen/booked, b2 gets restricted to g1
-        if (g1 && !g2) {
+        if (g1 && !g2 && !selectedSeats.includes(id2)) {
           restrictions[id2] = g1;
         }
-        // If b2 has gender and b1 is not yet chosen/booked, b1 gets restricted to g2
-        if (g2 && !g1) {
+        if (g2 && !g1 && !selectedSeats.includes(id1)) {
           restrictions[id1] = g2;
         }
-      }
+      };
+
+      checkPair(left);
+      checkPair(right);
     };
 
     lowerRows.forEach(evaluateRow);
@@ -272,32 +479,18 @@ export default function SeatSelection({
       : null;
   };
 
-  // Helper to determine whether a berth is available
-  const isBerthAvailable = (b) => {
-    const seatId = b.seatNumber || b.berthId;
+  // Helper to determine whether a seat/berth is available
+  const isSeatAvailable = (b) => {
+    const seatId = b.seatNumber || b.seatId || b.berthId || b.id;
     if (confirmedBookedSeats.includes(seatId)) return false;
     if (getHoldInfo(seatId)) return false;
     if (conflictedSeats.includes(seatId)) return false;
     return b.available !== false;
   };
 
-  // Compute lower deck statistics
-  const lowerBerthsList = lowerRows.flatMap((r) => r.berths || []);
-  const lowerCapacity = lowerDeckData?.passengerCapacity || 18;
-  const lowerAvailableCount = lowerBerthsList.length > 0
-    ? lowerBerthsList.filter(isBerthAvailable).length
-    : 18;
-
-  // Compute upper deck statistics
-  const upperBerthsList = upperRows.flatMap((r) => r.berths || []);
-  const upperCapacity = upperDeckData?.passengerCapacity || 18;
-  const upperAvailableCount = upperBerthsList.length > 0
-    ? upperBerthsList.filter(isBerthAvailable).length
-    : 18;
-
-  // Helper to get status for styling
+  // Helper to get styling status for a seat/berth
   const getStatus = (berth) => {
-    const seatId = berth.seatNumber || berth.berthId;
+    const seatId = berth.seatNumber || berth.seatId || berth.berthId || berth.id;
     if (confirmedBookedSeats.includes(seatId)) return 'booked';
     if (getHoldInfo(seatId)) return 'booked';
     if (conflictedSeats.includes(seatId)) return 'booked';
@@ -309,9 +502,178 @@ export default function SeatSelection({
     return 'available';
   };
 
+  // Lower deck seats & statistics
+  const lowerAllSeats = lowerRows.flatMap((r) => r.seats || r.berths || []);
+  const lowerCapacity = lowerDeckData?.passengerCapacity || lowerAllSeats.length || 40;
+  const lowerAvailableCount = lowerAllSeats.length > 0
+    ? lowerAllSeats.filter(isSeatAvailable).length
+    : lowerCapacity;
+
+  const lowerFares = lowerAllSeats
+    .map((s) => s.fare)
+    .filter((f) => typeof f === 'number' && !isNaN(f));
+  const minLowerFare = lowerFares.length ? Math.min(...lowerFares) : (busFare || 650);
+  const maxLowerFare = lowerFares.length ? Math.max(...lowerFares) : minLowerFare;
+  const lowerFareText = minLowerFare === maxLowerFare
+    ? `Fare: ₹${minLowerFare.toLocaleString('en-IN')}`
+    : `Fares: ₹${minLowerFare.toLocaleString('en-IN')} - ₹${maxLowerFare.toLocaleString('en-IN')}`;
+
+  // Upper deck seats & statistics
+  const upperAllSeats = upperRows.flatMap((r) => r.seats || r.berths || []);
+  const upperCapacity = upperDeckData?.passengerCapacity || upperAllSeats.length || 18;
+  const upperAvailableCount = upperAllSeats.length > 0
+    ? upperAllSeats.filter(isSeatAvailable).length
+    : upperCapacity;
+
+  const upperFares = upperAllSeats
+    .map((s) => s.fare)
+    .filter((f) => typeof f === 'number' && !isNaN(f));
+  const minUpperFare = upperFares.length ? Math.min(...upperFares) : (busFare || 1100);
+  const maxUpperFare = upperFares.length ? Math.max(...upperFares) : minUpperFare;
+  const upperFareText = minUpperFare === maxUpperFare
+    ? `Fare: ₹${minUpperFare.toLocaleString('en-IN')}`
+    : `Fares: ₹${minUpperFare.toLocaleString('en-IN')} - ₹${maxUpperFare.toLocaleString('en-IN')}`;
+
+  // Render individual seat or sleeper component
+  const renderSeatOrBerth = (item, deckName) => {
+    const seatId = item.seatNumber || item.seatId || item.berthId || item.id;
+    const isSleeper =
+      (item.type || '').toLowerCase().includes('sleeper') ||
+      (item.type || '').toLowerCase().includes('berth') ||
+      (!isSeaterBus && !((item.type || '').toLowerCase().includes('seat')) && ((seatLayout?.layoutType || '').toLowerCase().includes('sleeper') || String(item.seatNumber || '').startsWith('L') || String(item.seatNumber || '').startsWith('U')));
+
+    if (isSleeper) {
+      return (
+        <SleeperBerth
+          key={seatId}
+          id={seatId}
+          seatNumber={item.seatNumber}
+          status={getStatus(item)}
+          isSelected={selectedSeats.includes(seatId)}
+          label={`Berth ${item.seatNumber}`}
+          type={item.type || 'Sleeper'}
+          deck={deckName}
+          price={item.fare || busFare || 1100}
+          holdInfo={getHoldInfo(seatId)}
+          onClick={(id) => onToggleSeat && onToggleSeat(id, adjacentGenderRestrictions[id])}
+        />
+      );
+    }
+
+    return (
+      <SeaterSeat
+        key={seatId}
+        id={seatId}
+        seatNumber={item.seatNumber}
+        status={getStatus(item)}
+        isSelected={selectedSeats.includes(seatId)}
+        type={item.type || 'Seater'}
+        deck={deckName}
+        price={item.fare || busFare || 650}
+        holdInfo={getHoldInfo(seatId)}
+        onClick={(id) => onToggleSeat && onToggleSeat(id, adjacentGenderRestrictions[id])}
+      />
+    );
+  };
+
+  // Reusable Deck Card Component
+  const renderDeckCard = ({
+    deckBadgeText,
+    deckBadgeClass,
+    deckName,
+    availableCount,
+    capacity,
+    fareText,
+    showDriver = false,
+    headerRightBadge = null,
+    rows = [],
+    footerNote
+  }) => (
+    <div className="bg-white rounded-3xl border border-slate-200/90 p-5 shadow-xs flex flex-col justify-between w-full">
+      {/* Header */}
+      <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className={`text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider border ${deckBadgeClass}`}>
+              {deckBadgeText}
+            </span>
+            <span className="text-xs text-slate-500 font-medium">
+              {availableCount} of {capacity} available
+            </span>
+          </div>
+          <div className="text-[11px] text-slate-400 font-medium mt-1">
+            {fareText}
+          </div>
+        </div>
+
+        {showDriver ? (
+          <div className="flex flex-col items-center">
+            <div className="w-8 h-8 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center">
+              <SteeringWheelIcon />
+            </div>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">
+              DRIVER
+            </span>
+          </div>
+        ) : (
+          headerRightBadge && (
+            <div className="text-right">
+              <span className="text-[11px] font-bold text-[#0F766E] bg-teal-50 px-2.5 py-1 rounded-lg border border-teal-200/70">
+                {headerRightBadge}
+              </span>
+            </div>
+          )
+        )}
+      </div>
+
+      {/* Rows Container */}
+      <div className="pt-5 space-y-3">
+        {rows.map((row) => {
+          const { left, center, right } = partitionRow(row);
+          return (
+            <div
+              key={`row-${deckName}-${row.rowNumber || row.rowLabel}`}
+              className="flex items-center justify-between gap-2 sm:gap-3"
+            >
+              {/* Left Side Seats / Berths */}
+              <div className="flex items-center gap-2">
+                {left.map((item) => renderSeatOrBerth(item, deckName))}
+              </div>
+
+              {/* Aisle Walkway & Row Indicator */}
+              <div className="flex-1 flex items-center justify-center border-t border-dashed border-slate-200 mx-1">
+                <span className="text-[9px] font-bold tracking-widest text-slate-300 uppercase select-none px-1">
+                  {row.rowLabel || `R${row.rowNumber}`}
+                </span>
+              </div>
+
+              {/* Optional Center Seat (e.g. 5-seat back row) */}
+              {center && center.length > 0 && (
+                <div className="flex items-center gap-2 mr-2">
+                  {center.map((item) => renderSeatOrBerth(item, deckName))}
+                </div>
+              )}
+
+              {/* Right Side Seats / Berths */}
+              <div className="flex items-center gap-2">
+                {right.map((item) => renderSeatOrBerth(item, deckName))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Deck Card Footer Note */}
+      <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
+        <span>{footerNote.left}</span>
+        <span>{footerNote.right}</span>
+      </div>
+    </div>
+  );
+
   return (
     <div className="w-full space-y-4">
-      {/* 1. Status Notification Toast (Revoked back to available OR Confirmed booked) */}
+      {/* 1. Status Notification Toast */}
       {statusNotification && (
         <div
           className={`p-4 rounded-2xl flex items-start justify-between gap-3 shadow-xs animate-in fade-in duration-200 ${
@@ -360,7 +722,7 @@ export default function SeatSelection({
                 Seat(s) Currently Held by Another Passenger (10m Hold)
               </div>
               <div className="text-xs text-amber-800 mt-0.5">
-                Berth(s) <span className="font-bold font-mono text-amber-950">{activeHeldList.map((s) => s.seatNumber).join(', ')}</span> are shown in booked color. If not booked within 10 minutes (600s), the hold will automatically revoke and re-enable for booking.
+                Seat(s) <span className="font-bold font-mono text-amber-950">{activeHeldList.map((s) => s.seatNumber).join(', ')}</span> are shown in booked color. If not booked within 10 minutes (600s), the hold will automatically revoke and re-enable for booking.
               </div>
             </div>
           </div>
@@ -428,241 +790,60 @@ export default function SeatSelection({
         </div>
       )}
 
-      {/* Top Deck Overview & Counters Banner */}
-      {/* <div className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h3 className="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2">
-            <span>Select Berths</span>
-            <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-teal-50 text-[#0F766E] border border-teal-200/80">
-              Double Deck Sleeper (2+1)
-            </span>
-          </h3>
-          <p className="text-xs text-slate-500 font-medium mt-0.5">
-            Click on an available berth to select your seat. Window and Aisle berths are available.
-          </p>
+      {/* 4. Deck Layout View */}
+      {isSingleDeck ? (
+        // Single Deck Bus: Render single card centered nicely
+        <div className="w-full max-w-xl mx-auto">
+          {renderDeckCard({
+            deckBadgeText: lowerDeckData?.deckName || (isSeaterBus ? 'SEATER DECK' : 'MAIN DECK'),
+            deckBadgeClass: 'text-sky-700 bg-sky-50 border-sky-200/80',
+            deckName: lowerDeckData?.deckName || 'Main Deck',
+            availableCount: lowerAvailableCount,
+            capacity: lowerCapacity,
+            fareText: lowerFareText,
+            showDriver: true,
+            rows: lowerRows,
+            footerNote: isSeaterBus
+              ? { left: 'Left: Window & Aisle Seats', right: 'Right: Aisle & Window Seats' }
+              : { left: 'Left: Double Berth (Window & Aisle)', right: 'Right: Single Berth (Window)' }
+          })}
         </div>
+      ) : (
+        // Double Deck Bus: Render 2-Column Grid (Lower Deck & Upper Deck)
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-5 w-full">
+          {/* Lower Deck Card */}
+          {renderDeckCard({
+            deckBadgeText: lowerDeckData?.deckName || 'LOWER DECK',
+            deckBadgeClass: 'text-sky-700 bg-sky-50 border-sky-200/80',
+            deckName: lowerDeckData?.deckName || 'Lower Deck',
+            availableCount: lowerAvailableCount,
+            capacity: lowerCapacity,
+            fareText: lowerFareText,
+            showDriver: true,
+            rows: lowerRows,
+            footerNote: isSeaterBus
+              ? { left: 'Left: Window & Aisle Seats', right: 'Right: Aisle & Window Seats' }
+              : { left: 'Left: Double Berth (Window & Aisle)', right: 'Right: Single Berth (Window)' }
+          })}
 
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="bg-sky-50 border border-sky-200/80 rounded-xl px-3 py-1.5 text-xs">
-            <span className="text-slate-500 font-medium">Lower Deck: </span>
-            <span className="font-bold text-sky-950">{lowerAvailableCount}/{lowerCapacity} Left</span>
-          </div>
-          <div className="bg-indigo-50 border border-indigo-200/80 rounded-xl px-3 py-1.5 text-xs">
-            <span className="text-slate-500 font-medium">Upper Deck: </span>
-            <span className="font-bold text-indigo-950">{upperAvailableCount}/{upperCapacity} Left</span>
-          </div>
+          {/* Upper Deck Card */}
+          {renderDeckCard({
+            deckBadgeText: upperDeckData?.deckName || 'UPPER DECK',
+            deckBadgeClass: 'text-indigo-700 bg-indigo-50 border-indigo-200/80',
+            deckName: upperDeckData?.deckName || 'Upper Deck',
+            availableCount: upperAvailableCount,
+            capacity: upperCapacity,
+            fareText: upperFareText,
+            showDriver: false,
+            headerRightBadge: 'Popular Sleeper',
+            rows: upperRows,
+            footerNote: {
+              left: 'Left: Double Berth (Window & Aisle)',
+              right: 'Right: Single Berth (Window)'
+            }
+          })}
         </div>
-      </div> */}
-
-      {/* Main 2-Column Responsive Deck Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-5 w-full">
-        {/* LOWER DECK CARD */}
-        <div className="bg-white rounded-3xl border border-slate-200/90 p-5 shadow-xs flex flex-col justify-between">
-          {/* Header */}
-          <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-sky-700 bg-sky-50 border border-sky-200/80 px-3 py-1 rounded-full uppercase tracking-wider">
-                  LOWER DECK
-                </span>
-                <span className="text-xs text-slate-500 font-medium">
-                  {lowerAvailableCount} of {lowerCapacity} available
-                </span>
-              </div>
-              <div className="text-[11px] text-slate-400 font-medium mt-1">
-                Fares: ₹1,250 (Double) • ₹1,350 (Single)
-              </div>
-            </div>
-
-            <div className="flex flex-col items-center">
-              <div className="w-8 h-8 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center">
-                <SteeringWheelIcon />
-              </div>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">
-                DRIVER
-              </span>
-            </div>
-          </div>
-
-          {/* Deck Layout (Rows 1 to 6) */}
-          <div className="pt-5 space-y-3">
-            {lowerRows.map((row) => {
-              const doubleBerths = (row.berths || []).filter(
-                (b) => b.type && b.type.toLowerCase().includes('double')
-              );
-              const singleBerths = (row.berths || []).filter(
-                (b) => b.type && b.type.toLowerCase().includes('single')
-              );
-
-              return (
-                <div
-                  key={`lower-row-${row.rowNumber || row.rowLabel}`}
-                  className="flex items-center justify-between gap-2 sm:gap-3"
-                >
-                  {/* Left: 2 Double Sleepers */}
-                  <div className="flex items-center gap-2">
-                    {doubleBerths.map((berth) => {
-                      const seatId = berth.seatNumber || berth.berthId;
-                      return (
-                        <SleeperBerth
-                          key={seatId}
-                          id={seatId}
-                          seatNumber={berth.seatNumber}
-                          status={getStatus(berth)}
-                          isSelected={selectedSeats.includes(seatId)}
-                          label={`Berth ${berth.seatNumber}`}
-                          type={berth.type}
-                          deck="Lower Deck"
-                          price={berth.fare || 1250}
-                          holdInfo={getHoldInfo(seatId)}
-                          onClick={(id) => onToggleSeat && onToggleSeat(id, adjacentGenderRestrictions[id])}
-                        />
-                      );
-                    })}
-                  </div>
-
-                  {/* Aisle Indicator */}
-                  <div className="flex-1 flex items-center justify-center border-t border-dashed border-slate-200 mx-1">
-                    <span className="text-[9px] font-bold tracking-widest text-slate-300 uppercase select-none px-1">
-                      {row.rowLabel || `R${row.rowNumber}`}
-                    </span>
-                  </div>
-
-                  {/* Right: 1 Single Sleeper */}
-                  <div className="flex items-center">
-                    {singleBerths.map((berth) => {
-                      const seatId = berth.seatNumber || berth.berthId;
-                      return (
-                        <SleeperBerth
-                          key={seatId}
-                          id={seatId}
-                          seatNumber={berth.seatNumber}
-                          status={getStatus(berth)}
-                          isSelected={selectedSeats.includes(seatId)}
-                          label={`Berth ${berth.seatNumber}`}
-                          type={berth.type}
-                          deck="Lower Deck"
-                          price={berth.fare || 1350}
-                          holdInfo={getHoldInfo(seatId)}
-                          onClick={(id) => onToggleSeat && onToggleSeat(id, adjacentGenderRestrictions[id])}
-                        />
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Lower Deck Footer Note */}
-          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-            <span>Left: Double Berth (Window & Aisle)</span>
-            <span>Right: Single Berth (Window)</span>
-          </div>
-        </div>
-
-        {/* UPPER DECK CARD */}
-        <div className="bg-white rounded-3xl border border-slate-200/90 p-5 shadow-xs flex flex-col justify-between">
-          {/* Header */}
-          <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-200/80 px-3 py-1 rounded-full uppercase tracking-wider">
-                  UPPER DECK
-                </span>
-                <span className="text-xs text-slate-500 font-medium">
-                  {upperAvailableCount} of {upperCapacity} available
-                </span>
-              </div>
-              <div className="text-[11px] text-slate-400 font-medium mt-1">
-                Fares: ₹1,100 (Double) • ₹1,200 (Single)
-              </div>
-            </div>
-
-            <div className="text-right">
-              <span className="text-[11px] font-bold text-[#0F766E] bg-teal-50 px-2.5 py-1 rounded-lg border border-teal-200/70">
-                Popular Sleeper
-              </span>
-            </div>
-          </div>
-
-          {/* Deck Layout (Rows 1 to 6) */}
-          <div className="pt-5 space-y-3">
-            {upperRows.map((row) => {
-              const doubleBerths = (row.berths || []).filter(
-                (b) => b.type && b.type.toLowerCase().includes('double')
-              );
-              const singleBerths = (row.berths || []).filter(
-                (b) => b.type && b.type.toLowerCase().includes('single')
-              );
-
-              return (
-                <div
-                  key={`upper-row-${row.rowNumber || row.rowLabel}`}
-                  className="flex items-center justify-between gap-2 sm:gap-3"
-                >
-                  {/* Left: 2 Double Sleepers */}
-                  <div className="flex items-center gap-2">
-                    {doubleBerths.map((berth) => {
-                      const seatId = berth.seatNumber || berth.berthId;
-                      return (
-                        <SleeperBerth
-                          key={seatId}
-                          id={seatId}
-                          seatNumber={berth.seatNumber}
-                          status={getStatus(berth)}
-                          isSelected={selectedSeats.includes(seatId)}
-                          label={`Berth ${berth.seatNumber}`}
-                          type={berth.type}
-                          deck="Upper Deck"
-                          price={berth.fare || 1100}
-                          holdInfo={getHoldInfo(seatId)}
-                          onClick={(id) => onToggleSeat && onToggleSeat(id, adjacentGenderRestrictions[id])}
-                        />
-                      );
-                    })}
-                  </div>
-
-                  {/* Aisle Indicator */}
-                  <div className="flex-1 flex items-center justify-center border-t border-dashed border-slate-200 mx-1">
-                    <span className="text-[9px] font-bold tracking-widest text-slate-300 uppercase select-none px-1">
-                      {row.rowLabel || `R${row.rowNumber}`}
-                    </span>
-                  </div>
-
-                  {/* Right: 1 Single Sleeper */}
-                  <div className="flex items-center">
-                    {singleBerths.map((berth) => {
-                      const seatId = berth.seatNumber || berth.berthId;
-                      return (
-                        <SleeperBerth
-                          key={seatId}
-                          id={seatId}
-                          seatNumber={berth.seatNumber}
-                          status={getStatus(berth)}
-                          isSelected={selectedSeats.includes(seatId)}
-                          label={`Berth ${berth.seatNumber}`}
-                          type={berth.type}
-                          deck="Upper Deck"
-                          price={berth.fare || 1200}
-                          holdInfo={getHoldInfo(seatId)}
-                          onClick={(id) => onToggleSeat && onToggleSeat(id, adjacentGenderRestrictions[id])}
-                        />
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Upper Deck Footer Note */}
-          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-            <span>Left: Double Berth (Window & Aisle)</span>
-            <span>Right: Single Berth (Window)</span>
-          </div>
-        </div>
-      </div>
+      )}
     </div>
   );
 }

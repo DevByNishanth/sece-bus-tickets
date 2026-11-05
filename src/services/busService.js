@@ -1,3 +1,5 @@
+import { normalizeAmenitiesList } from '../Utils/amenityConfig';
+
 /**
  * Bus Service
  * 
@@ -278,30 +280,31 @@ export function mapApiBusToUiBus(apiBus, index = 0) {
   if (!apiBus) return null;
 
   const seatLayout = apiBus.seatLayout || {};
-  const lowerDeck = seatLayout.lowerDeck || { rows: [], passengerCapacity: 18 };
-  const upperDeck = seatLayout.upperDeck || { rows: [], passengerCapacity: 18 };
+  const isSingleDeck = seatLayout.deckType === 'single' || (!seatLayout.upperDeck && Boolean(seatLayout.lowerDeck));
+  const lowerDeck = seatLayout.lowerDeck || { rows: [], passengerCapacity: seatLayout.totalPassengerCapacity || 40 };
+  const upperDeck = isSingleDeck ? null : (seatLayout.upperDeck || { rows: [], passengerCapacity: 18 });
 
-  // Collect all berths from both decks
-  const lowerBerths = (lowerDeck.rows || []).flatMap((r) => r.berths || []);
-  const upperBerths = (upperDeck.rows || []).flatMap((r) => r.berths || []);
+  // Collect all berths and seats from both decks
+  const lowerBerths = (lowerDeck.rows || []).flatMap((r) => r.seats || r.berths || []);
+  const upperBerths = (upperDeck?.rows || []).flatMap((r) => r.seats || r.berths || []);
   const allBerths = [...lowerBerths, ...upperBerths];
 
   // Live seat counts and statistics
-  const lowerCapacity = lowerDeck.passengerCapacity || (lowerBerths.length > 0 ? lowerBerths.length : 18);
-  const upperCapacity = upperDeck.passengerCapacity || (upperBerths.length > 0 ? upperBerths.length : 18);
+  const lowerCapacity = lowerDeck.passengerCapacity || (lowerBerths.length > 0 ? lowerBerths.length : 40);
+  const upperCapacity = isSingleDeck ? 0 : (upperDeck?.passengerCapacity || (upperBerths.length > 0 ? upperBerths.length : 18));
 
-  const lowerAvailableCount = lowerBerths.filter((b) => b.available).length;
-  const upperAvailableCount = upperBerths.filter((b) => b.available).length;
-  const totalAvailableSeats = allBerths.filter((b) => b.available).length;
+  const lowerAvailableCount = lowerBerths.filter((b) => b.available !== false).length;
+  const upperAvailableCount = isSingleDeck ? 0 : upperBerths.filter((b) => b.available !== false).length;
+  const totalAvailableSeats = allBerths.filter((b) => b.available !== false).length;
 
   const singleSeatsAvailable = allBerths.filter(
-    (b) => b.available && b.type && b.type.toLowerCase().includes('single')
+    (b) => b.available !== false && b.type && b.type.toLowerCase().includes('single')
   ).length;
 
-  // Fares calculation from actual berths
+  // Fares calculation from actual berths / seats
   const fares = allBerths.map((b) => b.fare).filter((f) => typeof f === 'number' && !isNaN(f));
-  const minFare = fares.length > 0 ? Math.min(...fares) : 1100;
-  const maxFare = fares.length > 0 ? Math.max(...fares) : 1350;
+  const minFare = fares.length > 0 ? Math.min(...fares) : (apiBus.price || 650);
+  const maxFare = fares.length > 0 ? Math.max(...fares) : minFare;
 
   // Route & Stops from live API
   const route = apiBus.route || {};
@@ -339,11 +342,21 @@ export function mapApiBusToUiBus(apiBus, index = 0) {
   const rawRouteName = apiBus.busName;
   const operatorName =
     apiBus.agencyName ||
-    rawRouteName.replace(/ Ultra Deluxe Express.*$/i, '').trim() ||
+    (rawRouteName ? rawRouteName.replace(/ Ultra Deluxe Express.*$/i, '').trim() : '') ||
     'BusGo Express';
 
-  const deckTypeLabel =
-    seatLayout.deckType === 'double' ? 'Double Deck Sleeper (2+1)' : 'AC Sleeper';
+  const isSleeper = (seatLayout.layoutType || '').toLowerCase().includes('sleeper') ||
+    allBerths.some((b) => (b.type || '').toLowerCase().includes('sleeper'));
+  const isSeater = (seatLayout.layoutType || '').toLowerCase().includes('seater') ||
+    allBerths.some((b) => (b.type || '').toLowerCase().includes('seater'));
+
+  let layoutTypeStr = 'Seater';
+  if (isSleeper && isSeater) layoutTypeStr = 'Seater / Sleeper';
+  else if (isSleeper) layoutTypeStr = 'Sleeper';
+  else if (isSeater) layoutTypeStr = 'Seater';
+  else if (seatLayout.layoutType) layoutTypeStr = seatLayout.layoutType;
+
+  const deckTypeLabel = isSingleDeck ? layoutTypeStr : `Double Deck ${layoutTypeStr}`;
 
   return {
     id: apiBus._id || apiBus.busId || `bus-${index}`,
@@ -354,10 +367,10 @@ export function mapApiBusToUiBus(apiBus, index = 0) {
     operatorInitial: operatorName.charAt(0).toUpperCase() || 'B',
     avatarBg: 'bg-[#E8EEF5]',
     avatarColor: 'text-[#2563EB]',
-    busType: `${deckTypeLabel} • Luxury Multi-Axle`,
-    category: 'AC Sleeper',
-    deckType: seatLayout.deckType || 'double',
-    layoutType: seatLayout.layoutType || 'Sleeper',
+    busType: apiBus.busType || `${deckTypeLabel} • Luxury Multi-Axle`,
+    category: layoutTypeStr,
+    deckType: isSingleDeck ? 'single' : 'double',
+    layoutType: layoutTypeStr,
     totalPassengerCapacity: seatLayout.totalPassengerCapacity || (lowerCapacity + upperCapacity),
     tags: [
       { text: 'Fastest Route', type: 'fastest' },
@@ -382,47 +395,54 @@ export function mapApiBusToUiBus(apiBus, index = 0) {
     seatsLeft: totalAvailableSeats,
     singleSeatsLeft: singleSeatsAvailable,
     cancellationNote: 'Free Cancellation up to 12 hrs before',
-    amenities: [
-      'Live tracking',
-      'Wi-Fi',
-      'Blanket',
-      'Charging port',
-      'Water Bottle',
-      'Pillow',
-      'Reading Light',
-      'Emergency Exit'
-    ],
+    amenities: Array.isArray(apiBus.amenities) && apiBus.amenities.length > 0
+      ? normalizeAmenitiesList(apiBus.amenities)
+      : [
+          'Live tracking',
+          'Wi-Fi',
+          'Blanket',
+          'Charging port',
+          'Water Bottle',
+          'Pillow',
+          'Reading Light',
+          'Emergency Exit'
+        ],
+    rawAmenities: Array.isArray(apiBus.amenities) ? apiBus.amenities : [],
     boardingPoints: boardingStops.map((s) => s.name),
     droppingPoints: droppingStops.map((s) => s.name),
     seatLayout: {
-      deckType: seatLayout.deckType || 'double',
-      layoutType: seatLayout.layoutType || 'Sleeper',
-      totalPassengerCapacity: seatLayout.totalPassengerCapacity || 36,
+      deckType: isSingleDeck ? 'single' : 'double',
+      layoutType: layoutTypeStr,
+      totalPassengerCapacity: seatLayout.totalPassengerCapacity || (lowerCapacity + upperCapacity),
       lowerDeck: {
-        deckName: lowerDeck.deckName || 'Lower Deck',
+        deckName: lowerDeck.deckName || (isSingleDeck ? 'Main Deck' : 'Lower Deck'),
         passengerCapacity: lowerCapacity,
         availableCount: lowerAvailableCount,
         bookedCount: lowerCapacity - lowerAvailableCount,
         rows: lowerDeck.rows || []
       },
-      upperDeck: {
-        deckName: upperDeck.deckName || 'Upper Deck',
-        passengerCapacity: upperCapacity,
-        availableCount: upperAvailableCount,
-        bookedCount: upperCapacity - upperAvailableCount,
-        rows: upperDeck.rows || []
-      }
+      ...(isSingleDeck ? {} : {
+        upperDeck: {
+          deckName: upperDeck?.deckName || 'Upper Deck',
+          passengerCapacity: upperCapacity,
+          availableCount: upperAvailableCount,
+          bookedCount: upperCapacity - upperAvailableCount,
+          rows: upperDeck?.rows || []
+        }
+      })
     },
     lowerDeckSeatsCount: {
       total: lowerCapacity,
       available: lowerAvailableCount,
       booked: lowerCapacity - lowerAvailableCount
     },
-    upperDeckSeatsCount: {
-      total: upperCapacity,
-      available: upperAvailableCount,
-      booked: upperCapacity - upperAvailableCount
-    },
+    ...(isSingleDeck ? {} : {
+      upperDeckSeatsCount: {
+        total: upperCapacity,
+        available: upperAvailableCount,
+        booked: upperCapacity - upperAvailableCount
+      }
+    }),
     route: {
       routeName: route.routeName || `${departureCity} to ${arrivalCity} Express`,
       originCity: departureCity,

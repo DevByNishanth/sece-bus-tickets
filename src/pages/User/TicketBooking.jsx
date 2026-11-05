@@ -9,7 +9,7 @@ import BusDetails from '../../components/User/BusDetails';
 import BookingContinueProcess from '../../components/User/BookingContinueProcess';
 import PassengerDetails from '../../components/User/PassengerDetails';
 import ReviewBookingModal from '../../components/User/ReviewBookingModal';
-import { holdSeatsBooking, fetchBusSeatLayout, getUserProfile } from '../../services/busService';
+import { holdSeatsBooking, fetchBusSeatLayout, getUserProfile, mapApiBusToUiBus } from '../../services/busService';
 import redirectToPayU, { redirectToPayU as namedRedirectToPayU } from '../../Utils/payu';
 
 const redirectPayU = (data) => {
@@ -34,24 +34,29 @@ export default function TicketBooking() {
   const navigate = useNavigate();
 
   // Selected bus data with fallback matching live backend route
-  const initialBus = location.state?.bus || {
-    id: '6adb0a1474060137dbb0aa97',
-    _id: '6adb0a1474060137dbb0aa97',
-    busId: '6adb0a1474060137dbb0aa97',
-    operatorName: 'Sri Kumaran Travels',
-    busType: 'A/C Sleeper (2+1) • Multi-Axle Luxury Bharat Benz',
-    rating: 4.6,
-    reviewsCount: 456,
-    departureTime: '21:30',
-    departureCity: 'Coimbatore',
-    departurePoint: 'Gandhipuram Omni Bus Stand',
-    arrivalTime: '06:00',
-    arrivalCity: 'Chennai',
-    droppingPoint: 'Koyambedu (CMBT)',
-    duration: '05 hrs 55 mins',
-    price: 650,
-    originalPrice: 999
-  };
+  const initialBus = useMemo(() => {
+    if (location.state?.bus) {
+      return mapApiBusToUiBus(location.state.bus) || location.state.bus;
+    }
+    return {
+      id: '6adb0a1474060137dbb0aa97',
+      _id: '6adb0a1474060137dbb0aa97',
+      busId: '6adb0a1474060137dbb0aa97',
+      operatorName: 'Sri Kumaran Travels',
+      busType: 'A/C Sleeper (2+1) • Multi-Axle Luxury Bharat Benz',
+      rating: 4.6,
+      reviewsCount: 456,
+      departureTime: '21:30',
+      departureCity: 'Coimbatore',
+      departurePoint: 'Gandhipuram Omni Bus Stand',
+      arrivalTime: '06:00',
+      arrivalCity: 'Chennai',
+      droppingPoint: 'Koyambedu (CMBT)',
+      duration: '05 hrs 55 mins',
+      price: 650,
+      originalPrice: 999
+    };
+  }, [location.state?.bus]);
 
   const [bus, setBus] = useState(initialBus);
 
@@ -75,14 +80,16 @@ export default function TicketBooking() {
     return 6;
   }, [searchParams?.passengers, searchParams?.passengersCount]);
 
-  // All berths for fare lookup
+  // All berths / seats for fare lookup
   const allBerths = [
-    ...(bus.seatLayout?.lowerDeck?.rows?.flatMap((r) => r.berths) || []),
-    ...(bus.seatLayout?.upperDeck?.rows?.flatMap((r) => r.berths) || [])
+    ...(bus.seatLayout?.lowerDeck?.rows?.flatMap((r) => r.seats || r.berths || []) || []),
+    ...(bus.seatLayout?.upperDeck?.rows?.flatMap((r) => r.seats || r.berths || []) || [])
   ];
 
   const getBerthFare = (seatId) => {
-    const found = allBerths.find((b) => b.seatNumber === seatId || b.berthId === seatId);
+    const found = allBerths.find(
+      (b) => b.seatNumber === seatId || b.seatId === seatId || b.berthId === seatId
+    );
     return found?.fare || bus.price || 650;
   };
 
@@ -175,6 +182,24 @@ export default function TicketBooking() {
     }
   }, []);
 
+  // Fetch fresh seat layout from backend on mount if bus seatLayout rows are missing
+  useEffect(() => {
+    const busId = bus._id || bus.busId || bus.id;
+    if (busId && (!bus.seatLayout || !bus.seatLayout.lowerDeck?.rows?.length)) {
+      const journeyDate = formatJourneyDateParam(searchParams.rawDate || searchParams.date);
+      fetchBusSeatLayout({
+        busId,
+        journeyDate,
+        source: searchParams.from,
+        destination: searchParams.to
+      }).then((fresh) => {
+        if (fresh && fresh.seatLayout) {
+          setBus(fresh);
+        }
+      }).catch(() => {});
+    }
+  }, [bus._id, bus.busId, bus.id]);
+
   // Persist heldSeats to sessionStorage
   useEffect(() => {
     try {
@@ -257,8 +282,8 @@ export default function TicketBooking() {
 
       if (freshBus && freshBus.seatLayout) {
         const allFreshBerths = [
-          ...(freshBus.seatLayout.lowerDeck?.rows?.flatMap((r) => r.berths) || []),
-          ...(freshBus.seatLayout.upperDeck?.rows?.flatMap((r) => r.berths) || [])
+          ...(freshBus.seatLayout.lowerDeck?.rows?.flatMap((r) => r.seats || r.berths || []) || []),
+          ...(freshBus.seatLayout.upperDeck?.rows?.flatMap((r) => r.seats || r.berths || []) || [])
         ];
 
         const newlyBooked = [];
@@ -266,7 +291,7 @@ export default function TicketBooking() {
 
         seatsArray.forEach((seatNum) => {
           const berth = allFreshBerths.find(
-            (b) => (b.seatNumber || b.berthId) === seatNum
+            (b) => (b.seatNumber || b.seatId || b.berthId) === seatNum
           );
           if (berth && berth.available === false) {
             newlyBooked.push(seatNum);
@@ -420,22 +445,29 @@ export default function TicketBooking() {
 
   // Compute description of selected seats for the footer
   const getSelectedSeatDescription = () => {
+    const isSleeper = (bus.seatLayout?.layoutType || bus.layoutType || '').toLowerCase().includes('sleeper');
+    const itemWord = isSleeper ? 'Berth' : 'Seat';
+
     if (selectedSeats.length === 0) {
       return {
         deck: 'No seat selected',
-        type: 'Select a berth to continue'
+        type: `Select a ${itemWord.toLowerCase()} to continue`
       };
     }
-    const hasLower = selectedSeats.some((id) => id.startsWith('L'));
+    const isSingle = bus.seatLayout?.deckType === 'single';
+    const hasLower = selectedSeats.some((id) => id.startsWith('L') || id.startsWith('S'));
     const hasUpper = selectedSeats.some((id) => id.startsWith('U'));
 
-    let deck = 'Lower Deck';
-    if (hasLower && hasUpper) deck = 'Lower & Upper Deck';
-    else if (hasUpper) deck = 'Upper Deck';
+    let deck = bus.seatLayout?.lowerDeck?.deckName || (isSingle ? 'Main Deck' : 'Lower Deck');
+    if (!isSingle) {
+      if (hasLower && hasUpper) deck = 'Lower & Upper Deck';
+      else if (hasUpper) deck = 'Upper Deck';
+      else deck = 'Lower Deck';
+    }
 
     return {
       deck,
-      type: `${selectedSeats.length} Berth${selectedSeats.length > 1 ? 's' : ''} Selected`
+      type: `${selectedSeats.length} ${itemWord}${selectedSeats.length > 1 ? 's' : ''} Selected`
     };
   };
 
@@ -665,6 +697,7 @@ export default function TicketBooking() {
         onContinue={handleContinue}
         onChangeBus={handleBackToSearch}
         isLoading={isHoldingSeats || isCreatingBooking}
+        layoutType={bus.seatLayout?.layoutType || bus.layoutType || 'Seater'}
       />
 
       {/* 4. Review Your Booking Popup Modal */}

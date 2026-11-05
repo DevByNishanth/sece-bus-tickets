@@ -5,15 +5,16 @@ import { useNavigate } from 'react-router-dom';
 export default function BookingContinueProcess({
   selectedSeats = [],
   seatDetails = {
-    deck: 'Lower Deck',
-    type: 'Single Sleeper Pod (Window)'
+    deck: 'Main Deck',
+    type: '1 Seat Selected'
   },
-  pricePerSeat = 849,
+  pricePerSeat = 650,
   originalPricePerSeat = 999,
   currentStep = 1,
   onContinue,
   onChangeBus,
-  isLoading = false
+  isLoading = false,
+  layoutType = 'Seater'
 }) {
   const navigate = useNavigate();
 
@@ -22,6 +23,10 @@ export default function BookingContinueProcess({
   const totalFare = isEnabled ? count * pricePerSeat : 0;
   const totalOriginalFare = isEnabled ? count * originalPricePerSeat : 0;
   const totalSavings = totalOriginalFare - totalFare;
+
+  const isSleeper = (layoutType || '').toLowerCase().includes('sleeper');
+  const itemWord = isSleeper ? 'Berth' : 'Seat';
+  const itemWordUpper = isSleeper ? 'SLEEPER' : 'SEAT';
 
   const handleChangeBus = () => {
     if (onChangeBus) {
@@ -46,7 +51,7 @@ export default function BookingContinueProcess({
         : 'bg-white/90 backdrop-blur-md border-t border-slate-200/60 shadow-[0_-4px_15px_rgba(0,0,0,0.03)]'
     }`}>
       <div className="max-w-[1440px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-3.5 flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
-        {/* Left Side: Selected Sleeper Info */}
+        {/* Left Side: Selected Seat / Sleeper Info */}
         <div className="flex items-center gap-3">
           <div className={`w-10 h-10 rounded-full border flex items-center justify-center shrink-0 transition-all shadow-2xs ${
             isEnabled
@@ -59,20 +64,20 @@ export default function BookingContinueProcess({
           <div>
             <div className="flex items-center gap-2">
               <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                SELECTED SLEEPER
+                SELECTED {itemWordUpper}{count > 1 ? 'S' : ''}
               </span>
               <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-extrabold border transition-all ${
                 isEnabled
                   ? 'bg-teal-100/80 text-[#0F766E] border-teal-200'
                   : 'bg-slate-100 text-slate-400 border-slate-200'
               }`}>
-                {isEnabled ? selectedSeats.map(s => `Berth ${s}`).join(', ') : 'None Selected'}
+                {isEnabled ? selectedSeats.map(s => `${itemWord} ${s}`).join(', ') : 'None Selected'}
               </span>
             </div>
             <p className="text-xs sm:text-sm font-semibold text-slate-800 mt-0.5">
               {isEnabled
                 ? `${seatDetails.deck} • ${seatDetails.type}`
-                : 'Please select your preferred seat from the deck'}
+                : `Please select your preferred ${itemWord.toLowerCase()} from the deck`}
             </p>
           </div>
         </div>

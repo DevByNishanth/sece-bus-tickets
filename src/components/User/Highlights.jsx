@@ -1,17 +1,8 @@
 import React from 'react';
-import {
-  Navigation,
-  Wifi,
-  Zap,
-  BedDouble,
-  Droplet,
-  Lightbulb,
-  Video,
-  AlertCircle,
-  ShieldCheck
-} from 'lucide-react';
+import { ShieldCheck } from 'lucide-react';
+import { getAmenityMeta } from '../../Utils/amenityConfig';
 
-export default function Highlights() {
+export default function Highlights({ bus, amenities: propAmenities }) {
   const reviews = [
     { label: 'Cleanliness', count: 49 },
     { label: 'Rest stop hygiene', count: 34 },
@@ -23,16 +14,32 @@ export default function Highlights() {
     { label: 'Punctuality', count: 75 }
   ];
 
-  const amenities = [
-    { label: 'Live GPS Tracking', icon: Navigation, color: 'text-teal-600' },
-    { label: '5G High-Speed Wi-Fi', icon: Wifi, color: 'text-blue-600' },
-    { label: '230V / USB Charging', icon: Zap, color: 'text-amber-600' },
-    { label: 'Fresh Sanitized Linen', icon: BedDouble, color: 'text-indigo-600' },
-    { label: 'Complimentary Water', icon: Droplet, color: 'text-sky-500' },
-    { label: 'Individual Reading Light', icon: Lightbulb, color: 'text-amber-500' },
-    { label: 'CCTV Surveillance', icon: Video, color: 'text-slate-600' },
-    { label: 'Emergency SOS Button', icon: AlertCircle, color: 'text-rose-600' }
-  ];
+  // Derive dynamic amenities from props or bus object
+  const rawList =
+    propAmenities ||
+    bus?.amenities ||
+    bus?.rawAmenities ||
+    bus?.raw?.amenities ||
+    [];
+
+  const dynamicAmenities = React.useMemo(() => {
+    if (Array.isArray(rawList) && rawList.length > 0) {
+      return rawList
+        .map((item) => getAmenityMeta(item))
+        .filter(Boolean);
+    }
+    // Default fallback if no amenities provided by API
+    return [
+      'Live GPS Tracking',
+      '5G High-Speed Wi-Fi',
+      '230V / USB Charging',
+      'Fresh Sanitized Linen',
+      'Complimentary Water',
+      'Individual Reading Light',
+      'CCTV Surveillance',
+      'Emergency SOS Button'
+    ].map((item) => getAmenityMeta(item)).filter(Boolean);
+  }, [rawList]);
 
   return (
     <div className="space-y-4">
@@ -58,23 +65,23 @@ export default function Highlights() {
         ))}
       </div>
 
-      {/* On-board Amenities */}
+      {/* On-board Amenities (Dynamic) */}
       <div className="pt-2">
         <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">
-          ON-BOARD AMENITIES
+          ON-BOARD AMENITIES ({dynamicAmenities.length})
         </h4>
-        <div className="grid grid-cols-2 gap-2 sm:gap-2.5">
-          {amenities.map((amenity, idx) => {
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-2.5">
+          {dynamicAmenities.map((amenity, idx) => {
             const Icon = amenity.icon;
             return (
               <div
                 key={idx}
                 className="flex items-center gap-2.5 p-2.5 rounded-xl border border-slate-200/70 bg-slate-50/50 hover:bg-white hover:border-teal-300 transition-all text-xs font-medium text-slate-700 shadow-2xs"
               >
-                <div className={`p-1.5 rounded-lg bg-white border border-slate-200/60 ${amenity.color}`}>
+                <div className={`p-1.5 rounded-lg bg-white border border-slate-200/60 ${amenity.color} shrink-0`}>
                   <Icon className="w-3.5 h-3.5" />
                 </div>
-                <span className="truncate">{amenity.label}</span>
+                <span className="truncate">{amenity.fullLabel || amenity.label}</span>
               </div>
             );
           })}

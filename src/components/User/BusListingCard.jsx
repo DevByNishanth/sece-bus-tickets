@@ -2,107 +2,32 @@ import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Star,
-  Wifi,
-  Zap,
   Bus,
-  ArrowRight,
-  Droplets,
-  Moon,
-  Tv,
-  Utensils,
-  ShieldAlert,
-  Lightbulb,
-  Sparkles
+  ArrowRight
 } from 'lucide-react';
 import AmenitiesModal from './AmenitiesModal';
 import BusTimingContainer from './BusTimingContainer';
+import { getAmenityMeta } from '../../Utils/amenityConfig';
 
 // Helper to render visible amenity badges on the card
 const renderAmenityBadge = (amenity) => {
-  if (amenity === 'Live tracking' || amenity === 'Live GPS Tracking') {
+  const meta = getAmenityMeta(amenity);
+  if (!meta) return null;
+  const Icon = meta.icon;
+
+  if (meta.key === 'livetracking' || meta.key === 'gps') {
     return (
       <span className="text-xs font-medium text-slate-700 flex items-center gap-1.5 bg-slate-50 border border-slate-200/70 px-2.5 py-1 rounded-md">
         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-        Live tracking
+        {meta.label}
       </span>
     );
   }
-  if (amenity === 'Wi-Fi' || amenity === 'High-speed Wi-Fi') {
-    return (
-      <span className="text-xs font-medium text-slate-700 flex items-center gap-1.5 bg-slate-50 border border-slate-200/70 px-2.5 py-1 rounded-md">
-        <Wifi size={13} className="text-slate-500" />
-        Wi-Fi
-      </span>
-    );
-  }
-  if (amenity === 'Blanket' || amenity === 'Blanket & Pillow') {
-    return (
-      <span className="text-xs font-medium text-slate-700 flex items-center gap-1.5 bg-slate-50 border border-slate-200/70 px-2.5 py-1 rounded-md">
-        <span className="text-[12px] leading-none">🛏</span>
-        {amenity}
-      </span>
-    );
-  }
-  if (amenity === 'Charging port' || amenity === 'Charging Socket') {
-    return (
-      <span className="text-xs font-medium text-slate-700 flex items-center gap-1.5 bg-slate-50 border border-slate-200/70 px-2.5 py-1 rounded-md">
-        <Zap size={13} className="text-amber-500" />
-        Charging port
-      </span>
-    );
-  }
-  if (amenity === 'Water Bottle' || amenity === 'Mineral Water') {
-    return (
-      <span className="text-xs font-medium text-slate-700 flex items-center gap-1.5 bg-slate-50 border border-slate-200/70 px-2.5 py-1 rounded-md">
-        <Droplets size={13} className="text-sky-500" />
-        {amenity}
-      </span>
-    );
-  }
-  if (amenity === 'Reading Light') {
-    return (
-      <span className="text-xs font-medium text-slate-700 flex items-center gap-1.5 bg-slate-50 border border-slate-200/70 px-2.5 py-1 rounded-md">
-        <Lightbulb size={13} className="text-amber-500" />
-        Reading Light
-      </span>
-    );
-  }
-  if (amenity === 'Snacks') {
-    return (
-      <span className="text-xs font-medium text-slate-700 flex items-center gap-1.5 bg-slate-50 border border-slate-200/70 px-2.5 py-1 rounded-md">
-        <Utensils size={13} className="text-orange-500" />
-        Snacks
-      </span>
-    );
-  }
-  if (amenity === 'Emergency Exit') {
-    return (
-      <span className="text-xs font-medium text-slate-700 flex items-center gap-1.5 bg-slate-50 border border-slate-200/70 px-2.5 py-1 rounded-md">
-        <ShieldAlert size={13} className="text-rose-500" />
-        Emergency Exit
-      </span>
-    );
-  }
-  if (amenity === 'Pillow') {
-    return (
-      <span className="text-xs font-medium text-slate-700 flex items-center gap-1.5 bg-slate-50 border border-slate-200/70 px-2.5 py-1 rounded-md">
-        <Moon size={13} className="text-purple-500" />
-        Pillow
-      </span>
-    );
-  }
-  if (amenity === 'Movie Screen') {
-    return (
-      <span className="text-xs font-medium text-slate-700 flex items-center gap-1.5 bg-slate-50 border border-slate-200/70 px-2.5 py-1 rounded-md">
-        <Tv size={13} className="text-violet-500" />
-        Movie Screen
-      </span>
-    );
-  }
+
   return (
     <span className="text-xs font-medium text-slate-700 flex items-center gap-1.5 bg-slate-50 border border-slate-200/70 px-2.5 py-1 rounded-md">
-      <Sparkles size={13} className="text-[#0A6A69]" />
-      {amenity}
+      <Icon size={13} className={meta.color || 'text-slate-500'} />
+      {meta.label}
     </span>
   );
 };
@@ -126,24 +51,22 @@ export default function BusListingCard({
     }
   };
 
-  if (!bus) return null;
-
   const allAmenities = bus.amenities || [];
-  const maxVisible = 4;
-  const visibleAmenities = allAmenities.slice(0, maxVisible);
-  const extraAmenities = allAmenities.slice(maxVisible);
+  const visibleAmenities = allAmenities.slice(0, 4);
+  const extraAmenities = allAmenities.slice(4);
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200/80 p-5 sm:p-6 shadow-[0_2px_8px_rgba(0,0,0,0.02)] hover:shadow-md transition-shadow relative">
+    <div className="bg-white rounded-3xl border border-slate-200/90 hover:border-teal-500/80 p-5 sm:p-6 shadow-xs hover:shadow-md transition-all duration-300 relative group">
       {/* Top Row: Operator Info & Rating */}
       <div className="flex items-start justify-between gap-4">
-        {/* Left: Avatar & Name */}
-        <div className="flex items-start gap-3.5">
+        {/* Left: Operator Avatar & Name */}
+        <div className="flex items-center gap-3.5">
           <div
-            className={`w-11 h-11 rounded-xl ${bus.avatarBg || 'bg-[#E8EEF5]'} ${bus.avatarColor || 'text-[#2563EB]'
-              } flex items-center justify-center font-bold text-lg shrink-0`}
+            className={`w-11 h-11 rounded-2xl flex items-center justify-center font-bold text-base shadow-2xs ${
+              bus.avatarBg || 'bg-[#E8EEF5]'
+            } ${bus.avatarColor || 'text-[#2563EB]'}`}
           >
-            {bus.operatorInitial || bus.operatorName?.charAt(0) || 'B'}
+            {bus.operatorInitial || <Bus size={20} />}
           </div>
 
           <div>
@@ -239,7 +162,7 @@ export default function BusListingCard({
       </div>
 
       {/* Amenities Row */}
-      <div className="mt-5 pt-5 flex items-center border-t border-slate-100 flex-wrap gap-2 mt-4">
+      <div className="mt-5 pt-5 flex items-center border-t border-slate-100 flex-wrap gap-2">
         {visibleAmenities.map((amenity, idx) => (
           <React.Fragment key={idx}>
             {renderAmenityBadge(amenity)}
@@ -289,11 +212,11 @@ export default function BusListingCard({
           {/* Lower & Upper Deck seat counts from API */}
           {bus.lowerDeckSeatsCount && (
             <span className="text-sky-800 font-semibold bg-sky-50 border border-sky-200/80 px-2 py-0.5 rounded-lg text-[11px]">
-              Lower: <strong className="font-bold text-sky-950">{bus.lowerDeckSeatsCount.available}/{bus.lowerDeckSeatsCount.total}</strong>
+              {bus.deckType === 'single' ? 'Seats' : 'Lower'}: <strong className="font-bold text-sky-950">{bus.lowerDeckSeatsCount.available}/{bus.lowerDeckSeatsCount.total}</strong>
             </span>
           )}
 
-          {bus.upperDeckSeatsCount && (
+          {bus.upperDeckSeatsCount && bus.deckType !== 'single' && (
             <span className="text-indigo-800 font-semibold bg-indigo-50 border border-indigo-200/80 px-2 py-0.5 rounded-lg text-[11px]">
               Upper: <strong className="font-bold text-indigo-950">{bus.upperDeckSeatsCount.available}/{bus.upperDeckSeatsCount.total}</strong>
             </span>
@@ -327,10 +250,7 @@ export default function BusListingCard({
             Cancellation policy
           </button>
         </div>
-
-        
       </div>
-
     </div>
   );
 }

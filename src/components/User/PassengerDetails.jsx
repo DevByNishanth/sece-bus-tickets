@@ -143,7 +143,7 @@ export default function PassengerDetails({
           Enter Your Passenger Details
         </h2>
         <p className="text-xs text-slate-500 font-medium mt-0.5">
-          Provide identification details for each selected berth to proceed with booking confirmation.
+          Provide identification details for each selected seat to proceed with booking confirmation.
         </p>
       </div>
 
@@ -178,7 +178,7 @@ export default function PassengerDetails({
               Passenger Information
             </h3>
             <p className="text-xs text-slate-400 font-medium">
-              {passengersState.length} Passenger{passengersState.length > 1 ? 's' : ''} allocated across {selectedSeats.length} berth{selectedSeats.length > 1 ? 's' : ''}
+              {passengersState.length} Passenger{passengersState.length > 1 ? 's' : ''} allocated across {selectedSeats.length} {((bus?.seatLayout?.layoutType || bus?.layoutType || '').toLowerCase().includes('sleeper')) ? 'berth' : 'seat'}{selectedSeats.length > 1 ? 's' : ''}
             </p>
           </div>
           <span className="text-xs font-bold text-teal-800 bg-teal-50 border border-teal-200/80 px-3 py-1 rounded-full">
@@ -186,12 +186,17 @@ export default function PassengerDetails({
           </span>
         </div>
 
-        {/* Dynamic Passenger Fields for Each Selected Berth */}
+        {/* Dynamic Passenger Fields for Each Selected Seat / Berth */}
         <div className="space-y-6">
           {passengersState.map((p, idx) => {
+            const isSleeper = (bus?.seatLayout?.layoutType || bus?.layoutType || '').toLowerCase().includes('sleeper');
+            const isSingle = bus?.seatLayout?.deckType === 'single';
             const isUpper = p.seatId?.startsWith('U');
-            const deckName = isUpper ? 'Upper Deck' : 'Lower Deck';
-            const seatLabel = `Berth ${p.seatId} - ${deckName}`;
+            const deckName = isSingle
+              ? (bus?.seatLayout?.lowerDeck?.deckName || 'Main Deck')
+              : (isUpper ? 'Upper Deck' : 'Lower Deck');
+            const seatPrefix = isSleeper ? 'Berth' : 'Seat';
+            const seatLabel = `${seatPrefix} ${p.seatId} - ${deckName}`;
             const isFemaleRestricted = p.restrictedGender === 'female';
             const isMaleRestricted = p.restrictedGender === 'male';
 

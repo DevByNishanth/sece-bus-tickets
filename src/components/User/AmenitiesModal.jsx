@@ -1,118 +1,6 @@
 import React, { useEffect, useRef } from 'react';
-import {
-  X,
-  Wifi,
-  Zap,
-  Droplets,
-  Moon,
-  Tv,
-  Utensils,
-  ShieldAlert,
-  Lightbulb,
-  Sparkles,
-  Radio
-} from 'lucide-react';
-
-// Compact metadata for amenities
-const AMENITY_DETAILS = {
-  'Live tracking': {
-    icon: Radio,
-    badge: 'Live GPS',
-    bgColor: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-    iconColor: 'text-emerald-600'
-  },
-  'Live GPS Tracking': {
-    icon: Radio,
-    badge: 'Live GPS',
-    bgColor: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-    iconColor: 'text-emerald-600'
-  },
-  'Wi-Fi': {
-    icon: Wifi,
-    badge: 'High Speed',
-    bgColor: 'bg-blue-50 text-blue-700 border-blue-200',
-    iconColor: 'text-blue-600'
-  },
-  'High-speed Wi-Fi': {
-    icon: Wifi,
-    badge: 'High Speed',
-    bgColor: 'bg-blue-50 text-blue-700 border-blue-200',
-    iconColor: 'text-blue-600'
-  },
-  'Blanket': {
-    icon: Moon,
-    badge: 'Sanitized',
-    bgColor: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-    iconColor: 'text-indigo-600'
-  },
-  'Blanket & Pillow': {
-    icon: Moon,
-    badge: 'Sanitized',
-    bgColor: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-    iconColor: 'text-indigo-600'
-  },
-  'Charging port': {
-    icon: Zap,
-    badge: 'Individual',
-    bgColor: 'bg-amber-50 text-amber-700 border-amber-200',
-    iconColor: 'text-amber-600'
-  },
-  'Charging Socket': {
-    icon: Zap,
-    badge: 'Individual',
-    bgColor: 'bg-amber-50 text-amber-700 border-amber-200',
-    iconColor: 'text-amber-600'
-  },
-  'Water Bottle': {
-    icon: Droplets,
-    badge: 'Complimentary',
-    bgColor: 'bg-sky-50 text-sky-700 border-sky-200',
-    iconColor: 'text-sky-600'
-  },
-  'Mineral Water': {
-    icon: Droplets,
-    badge: 'Complimentary',
-    bgColor: 'bg-sky-50 text-sky-700 border-sky-200',
-    iconColor: 'text-sky-600'
-  },
-  'Reading Light': {
-    icon: Lightbulb,
-    badge: 'Personal',
-    bgColor: 'bg-amber-50 text-amber-700 border-amber-200',
-    iconColor: 'text-amber-600'
-  },
-  'Snacks': {
-    icon: Utensils,
-    badge: 'Complimentary',
-    bgColor: 'bg-orange-50 text-orange-700 border-orange-200',
-    iconColor: 'text-orange-600'
-  },
-  'Emergency Exit': {
-    icon: ShieldAlert,
-    badge: 'Safety',
-    bgColor: 'bg-rose-50 text-rose-700 border-rose-200',
-    iconColor: 'text-rose-600'
-  },
-  'Pillow': {
-    icon: Moon,
-    badge: 'Sanitized',
-    bgColor: 'bg-purple-50 text-purple-700 border-purple-200',
-    iconColor: 'text-purple-600'
-  },
-  'Movie Screen': {
-    icon: Tv,
-    badge: 'Entertainment',
-    bgColor: 'bg-violet-50 text-violet-700 border-violet-200',
-    iconColor: 'text-violet-600'
-  }
-};
-
-const DEFAULT_AMENITY = {
-  icon: Sparkles,
-  badge: 'Included',
-  bgColor: 'bg-teal-50 text-teal-700 border-teal-200',
-  iconColor: 'text-teal-600'
-};
+import { X } from 'lucide-react';
+import { getAmenityMeta } from '../../Utils/amenityConfig';
 
 export default function AmenitiesModal({
   isOpen,
@@ -175,7 +63,7 @@ export default function AmenitiesModal({
       aria-modal="false"
       onClick={(e) => e.stopPropagation()}
     >
-      {/* Downward pointer caret towards +2 more button */}
+      {/* Downward pointer caret towards +N more button */}
       <div className="absolute -bottom-1.5 left-6 w-3 h-3 bg-white border-b border-r border-slate-200/90 rotate-45" />
 
       {/* Top row with Cancel icon button only */}
@@ -197,41 +85,33 @@ export default function AmenitiesModal({
       <div className="space-y-1.5 max-h-56 overflow-y-auto">
         {effectiveExtraAmenities.length > 0 ? (
           effectiveExtraAmenities.map((amenity, idx) => {
-            const details = AMENITY_DETAILS[amenity] || DEFAULT_AMENITY;
-            const IconComponent = details.icon;
+            const details = getAmenityMeta(amenity);
+            const Icon = details.icon;
 
             return (
               <div
                 key={idx}
-                className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl bg-slate-50/80 hover:bg-[#EBF7F5]/40 border border-slate-100 transition-colors"
+                className="flex items-center justify-between p-2 rounded-xl bg-slate-50/80 border border-slate-100 text-xs transition-colors hover:bg-slate-50"
               >
-                <div
-                  className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 border ${details.bgColor}`}
-                >
-                  <IconComponent size={14} className={details.iconColor} />
+                <div className="flex items-center gap-2">
+                  <div className={`p-1 rounded-lg bg-white border border-slate-200/80 ${details.color} shrink-0`}>
+                    <Icon size={13} />
+                  </div>
+                  <span className="font-semibold text-slate-800">{details.label}</span>
                 </div>
 
-                <div className="flex-1 min-w-0 flex items-center justify-between gap-1.5">
-                  <span className="text-xs font-semibold text-slate-700 truncate">
-                    {amenity}
-                  </span>
-                  {details.badge && (
-                    <span className="text-[10px] font-medium text-[#0A6A69] bg-[#EBF7F5] px-1.5 py-0.5 rounded border border-[#BCE4DE]/60 shrink-0">
-                      {details.badge}
-                    </span>
-                  )}
-                </div>
+                <span
+                  className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border tracking-wide uppercase ${details.bgColor}`}
+                >
+                  {details.badge}
+                </span>
               </div>
             );
           })
         ) : (
-          <p className="text-xs text-slate-500 text-center py-1">
-            No extra amenities.
-          </p>
+          <p className="text-xs text-slate-400 py-2 text-center">No additional amenities</p>
         )}
       </div>
     </div>
   );
 }
-
-

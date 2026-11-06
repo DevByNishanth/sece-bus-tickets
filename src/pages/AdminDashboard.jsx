@@ -1,131 +1,91 @@
-import { useMemo, useState } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import TravelProfileDetailView from "./TravelProfileDetailView.jsx";
+import AdminNavbar from "../components/AdminNavbar.jsx";
+import { useAuth } from "../context/AuthContext";
 import {
   ArrowDownToLine,
   ArrowRight,
-  Bell,
+  Building2,
   BusFront,
+  CheckCircle2,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   CircleHelp,
   Eye,
   Filter,
-  LayoutDashboard,
-  Menu,
-  Plus,
+  Mail,
+  Phone,
+  RefreshCw,
   Search,
+  ShieldCheck,
   SlidersHorizontal,
   Users,
   Wallet,
-  X,
+  XCircle,
 } from "lucide-react";
 
-const bookings = [
+// Fallback travel agents in case backend is loading / empty
+const fallbackAgents = [
   {
-    pnr: "BG240891",
-    passenger: "Arun Kumar",
-    initials: "AK",
-    avatar: "bg-cyan-100 text-cyan-700",
-    route: "Coimbatore → Chennai",
-    date: "16 Oct 2026",
-    seat: "U2",
-    fare: "₹1,250",
-    payment: "Paid (UPI)",
-    status: "Confirmed",
-  },
-  {
-    pnr: "BG240892",
-    passenger: "Priya S",
-    initials: "PS",
-    avatar: "bg-pink-100 text-pink-700",
-    route: "Chennai → Coimbatore",
-    date: "16 Oct 2026",
-    seat: "L4",
-    fare: "₹1,100",
-    payment: "Paid (Card)",
-    status: "Confirmed",
-  },
-  {
-    pnr: "BG240893",
-    passenger: "Karthik R",
-    initials: "KR",
-    avatar: "bg-amber-100 text-amber-700",
-    route: "Coimbatore → Bengaluru",
-    date: "17 Oct 2026",
-    seat: "U6",
-    fare: "₹1,450",
-    payment: "Pending",
-    status: "Pending",
-  },
-  {
-    pnr: "BG240894",
-    passenger: "Divya M",
-    initials: "DM",
-    avatar: "bg-indigo-100 text-indigo-700",
-    route: "Madurai → Chennai",
-    date: "17 Oct 2026",
-    seat: "L2",
-    fare: "₹1,300",
-    payment: "Paid (UPI)",
-    status: "Confirmed",
-  },
-  {
-    pnr: "BG240895",
-    passenger: "Suresh N",
-    initials: "SN",
-    avatar: "bg-slate-100 text-slate-700",
-    route: "Coimbatore → Chennai",
-    date: "18 Oct 2026",
-    seat: "U8",
-    fare: "₹1,250",
-    payment: "Refunded",
-    status: "Cancelled",
+    _id: "6ae969b3c1c1cf1fb9b98a8d",
+    userId: {
+      _id: "6ae969b3c1c1cf1fb9b98a8c",
+      firstName: "Senthil",
+      lastName: "Nathan",
+      email: "kovaiexpress.agent@gmail.com",
+      phone: "+919842188818",
+      isEmailVerified: true,
+      createdAt: "2026-11-03T04:57:23.386Z",
+    },
+    businessType: "Private Limited",
+    registeredBusinessName: "Kovai Super Express Travels Private Limited",
+    operatorDisplayName: "Kovai Super Express",
+    primaryContactPerson: "Senthil Nathan",
+    businessMobile: "+919842188818",
+    businessEmail: "kovaiexpress.agent@gmail.com",
+    registrationNumber: "CIN-U60221TZ2021PTC028456",
+    status: "approved",
+    createdAt: "2026-11-03T04:57:23.515Z",
   },
 ];
 
-const allBookings = Array.from({ length: 120 }, (_, index) => ({
-  ...bookings[index % bookings.length],
-  pnr: `BG${240891 + index}`,
-}));
-
-const statusClass = {
-  Confirmed: "bg-teal-50 text-teal-700",
-  Pending: "bg-amber-50 text-amber-700",
-  Cancelled: "bg-rose-50 text-rose-700",
+const statusBadgeStyles = {
+  approved: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  pending: "border-amber-200 bg-amber-50 text-amber-700",
+  rejected: "border-rose-200 bg-rose-50 text-rose-700",
+  suspended: "border-slate-200 bg-slate-50 text-slate-700",
 };
 
-function exportBookings(rows) {
+function exportAgentsToCsv(agents) {
   const headers = [
-    "PNR / Ticket",
-    "Passenger",
-    "Route",
-    "Travel Date",
-    "Seat / Berth",
-    "Fare",
-    "Payment",
+    "Registered Business Name",
+    "Registration Number",
+    "Business Email",
+    "Business Mobile",
+    "Business Type",
     "Status",
+    "Registered Date",
   ];
-  const csvRows = rows.map((row) => [
-    row.pnr,
-    row.passenger,
-    row.route,
-    row.date,
-    row.seat,
-    row.fare,
-    row.payment,
-    row.status,
+  const rows = agents.map((agent) => [
+    agent.registeredBusinessName || agent.operatorDisplayName || "N/A",
+    agent.registrationNumber || "N/A",
+    agent.businessEmail || agent.userId?.email || "N/A",
+    agent.businessMobile || agent.userId?.phone || "N/A",
+    agent.businessType || "N/A",
+    (agent.status || "pending").toUpperCase(),
+    agent.createdAt ? new Date(agent.createdAt).toLocaleDateString() : "N/A",
   ]);
-  const csv = [headers, ...csvRows]
-    .map((row) =>
-      row.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(","),
-    )
+
+  const csv = [headers, ...rows]
+    .map((r) => r.map((val) => `"${String(val).replaceAll('"', '""')}"`).join(","))
     .join("\n");
-  const url = URL.createObjectURL(
-    new Blob([csv], { type: "text/csv;charset=utf-8" }),
-  );
+
+  const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
   const link = document.createElement("a");
   link.href = url;
-  link.download = "bus-bookings.csv";
+  link.download = `travel-registrations-${Date.now()}.csv`;
   link.click();
   URL.revokeObjectURL(url);
 }
@@ -207,13 +167,40 @@ function RevenueChart() {
   );
 }
 
-function TravelStatusChart() {
+function TravelStatusChart({ stats }) {
   const circumference = 2 * Math.PI * 43;
+  
+  const total = stats?.total ?? 67;
+  const approved = stats?.approved ?? 52;
+  const pending = stats?.pending ?? 9;
+  const rejected = stats?.rejected ?? 6;
+
+  const totalSum = (approved + pending + rejected) || 1;
+
   const segments = [
-    { label: "Approved", count: "9,820", percent: "76.4%", value: 76.4, color: "#0d8792" },
-    { label: "Cancelled", count: "1,324", percent: "10.3%", value: 10.3, color: "#ff7858" },
-    { label: "Pending", count: "1,146", percent: "8.9%", value: 8.9, color: "#f4a43a" },
+    {
+      label: "Approved",
+      count: approved.toLocaleString(),
+      percent: `${((approved / totalSum) * 100).toFixed(1)}%`,
+      value: (approved / totalSum) * 100,
+      color: "#0d8792",
+    },
+    {
+      label: "Pending",
+      count: pending.toLocaleString(),
+      percent: `${((pending / totalSum) * 100).toFixed(1)}%`,
+      value: (pending / totalSum) * 100,
+      color: "#f4a43a",
+    },
+    {
+      label: "Rejected",
+      count: rejected.toLocaleString(),
+      percent: `${((rejected / totalSum) * 100).toFixed(1)}%`,
+      value: (rejected / totalSum) * 100,
+      color: "#ff7858",
+    },
   ];
+
   let offset = 0;
 
   return (
@@ -241,7 +228,7 @@ function TravelStatusChart() {
           return circle;
         })}
         <text x="60" y="58" textAnchor="middle" className="fill-slate-800 text-[15px] font-bold">
-          679
+          {total}
         </text>
         <text x="60" y="72" textAnchor="middle" className="fill-slate-400 text-[7px]">
           Total Travels
@@ -266,33 +253,102 @@ function TravelStatusChart() {
 }
 
 export default function AdminDashboard() {
+  const navigate = useNavigate();
+  const { BASE_URL, TOKEN_KEY } = useAuth();
+  const tokenKeyName = TOKEN_KEY || "exte_key";
+
+  // Dashboard stats from backend API
+  const [statsData, setStatsData] = useState({
+    totalTravelCompanies: 67,
+    totalBuses: 21,
+    grossCommissionValue: "₹48.6L",
+    travelStatus: {
+      total: 67,
+      approved: 52,
+      pending: 9,
+      rejected: 6,
+    },
+  });
+
+  // Agents list from backend API
+  const [agents, setAgents] = useState(fallbackAgents);
+  const [loadingAgents, setLoadingAgents] = useState(true);
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("All statuses");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [page, setPage] = useState(1);
-  const [selectedBooking, setSelectedBooking] = useState(null);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [selectedAgent, setSelectedAgent] = useState(null);
   const pageSize = 5;
 
-  const filteredBookings = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    return allBookings.filter((booking) => {
-      const matchesSearch = [
-        booking.pnr,
-        booking.passenger,
-        booking.route,
-      ].some((value) => value.toLowerCase().includes(query));
-      const matchesStatus =
-        statusFilter === "All statuses" || booking.status === statusFilter;
+  // 1. Fetch Dashboard Stats from backend API: GET /api/admin/dashboard/stats
+  const fetchDashboardStats = useCallback(async () => {
+    try {
+      const token = localStorage.getItem(tokenKeyName);
+      const res = await fetch(`${BASE_URL}/admin/dashboard/stats`, {
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.stats) {
+          setStatsData(data.stats);
+        }
+      }
+    } catch {
+      // Keep initial/fallback stats
+    }
+  }, [BASE_URL, tokenKeyName]);
+
+  // 2. Fetch Recent Travel Agents from backend API: GET /api/admin/agents
+  const fetchTravelAgents = useCallback(async () => {
+    setLoadingAgents(true);
+    try {
+      const token = localStorage.getItem(tokenKeyName);
+      const res = await fetch(`${BASE_URL}/admin/agents?page=1&limit=50`, {
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.agents)) {
+          setAgents(data.agents);
+        }
+      }
+    } catch {
+      // Keep fallbacks
+    } finally {
+      setLoadingAgents(false);
+    }
+  }, [BASE_URL, tokenKeyName]);
+
+  useEffect(() => {
+    fetchDashboardStats();
+    fetchTravelAgents();
+  }, [fetchDashboardStats, fetchTravelAgents]);
+
+  // Filter travel agents
+  const filteredAgents = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return agents.filter((agent) => {
+      const bName = (agent.registeredBusinessName || agent.operatorDisplayName || "").toLowerCase();
+      const regNo = (agent.registrationNumber || "").toLowerCase();
+      const email = (agent.businessEmail || agent.userId?.email || "").toLowerCase();
+      const phone = (agent.businessMobile || agent.userId?.phone || "").toLowerCase();
+
+      const matchesSearch = !q || bName.includes(q) || regNo.includes(q) || email.includes(q) || phone.includes(q);
+      const status = (agent.status || "pending").toLowerCase();
+      const matchesStatus = statusFilter === "all" || status === statusFilter.toLowerCase();
+
       return matchesSearch && matchesStatus;
     });
-  }, [search, statusFilter]);
+  }, [agents, search, statusFilter]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredBookings.length / pageSize));
+  const totalPages = Math.max(1, Math.ceil(filteredAgents.length / pageSize));
   const currentPage = Math.min(page, totalPages);
-  const visibleBookings = filteredBookings.slice(
-    (currentPage - 1) * pageSize,
-    currentPage * pageSize,
-  );
+  const visibleAgents = filteredAgents.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   function updateSearch(value) {
     setSearch(value);
@@ -304,97 +360,78 @@ export default function AdminDashboard() {
     setPage(1);
   }
 
+  // Handle agent detail view transition
+  if (selectedAgent) {
+    return (
+      <TravelProfileDetailView
+        Navbar={AdminNavbar}
+        agentId={selectedAgent._id}
+        onBack={() => {
+          setSelectedAgent(null);
+          fetchTravelAgents();
+          fetchDashboardStats();
+        }}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#f4f7f8] text-slate-800">
-      <header className="sticky top-0 z-30 px-3 pt-3 sm:px-5">
-        <div className="mx-auto flex max-w-[1500px] items-center justify-between gap-3 rounded-full border border-white bg-white/95 px-4 py-2.5 shadow-[0_6px_20px_rgba(27,54,54,0.07)] sm:px-5">
-          <a href="/admin" className="flex min-w-fit items-center gap-2.5" aria-label="BusGo Admin home">
-            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#0e8290] text-white">
-              <BusFront size={18} />
-            </span>
-            <span className="hidden leading-tight sm:block">
-              <span className="block text-xs font-bold text-slate-800">BusGo</span>
-              <span className="block text-[9px] font-medium uppercase tracking-wide text-slate-400">Partner Hub</span>
-            </span>
-          </a>
-
-          <nav aria-label="Main navigation" className="hidden items-center gap-1 rounded-full bg-[#f1f6f6] p-1 lg:flex">
-            <a href="/admin" aria-current="page" className="flex items-center gap-1.5 rounded-full bg-[#0e8290] px-4 py-2 text-[11px] font-semibold text-white shadow-sm">
-              <LayoutDashboard size={13} /> Dashboard
-            </a>
-            {["Fleet", "Routes", "Trips", "Bookings", "Finance", "Calendar"].map((item) => (
-              <button key={item} type="button" className="flex items-center gap-1 rounded-full px-3 py-2 text-[11px] font-medium text-slate-500 transition hover:bg-white hover:text-teal-700">
-                {item}
-                {["Fleet", "Routes", "Trips"].includes(item) && <ChevronDown size={11} />}
-              </button>
-            ))}
-          </nav>
-
-          <div className="flex items-center gap-2">
-            <button type="button" aria-label="Add new" className="flex h-9 w-9 items-center justify-center rounded-full bg-[#0e8290] text-white transition hover:bg-[#096e79]">
-              <Plus size={19} />
-            </button>
-            <button type="button" aria-label="Search" className="hidden h-9 w-9 items-center justify-center rounded-full bg-slate-50 text-slate-500 sm:flex">
-              <Search size={16} />
-            </button>
-            <button type="button" aria-label="Notifications" className="relative hidden h-9 w-9 items-center justify-center rounded-full bg-slate-50 text-slate-500 sm:flex">
-              <Bell size={16} />
-              <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-white" />
-            </button>
-            <button type="button" className="hidden items-center gap-2 rounded-full bg-[#f2f6f5] py-1 pl-1 pr-2.5 sm:flex">
-              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#0e8290] text-[10px] font-semibold text-white">V</span>
-              <span className="text-left leading-tight">
-                <span className="block text-[10px] font-semibold text-slate-700">Venkateshwaran</span>
-                <span className="block text-[9px] text-slate-400">Fleet Owner</span>
-              </span>
-              <ChevronDown size={12} className="text-slate-500" />
-            </button>
-            <button
-              type="button"
-              aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
-              onClick={() => setMobileMenuOpen((open) => !open)}
-              className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-50 text-slate-600 lg:hidden"
-            >
-              {mobileMenuOpen ? <X size={17} /> : <Menu size={17} />}
-            </button>
-          </div>
-        </div>
-        {mobileMenuOpen && (
-          <nav aria-label="Mobile navigation" className="mx-auto mt-2 grid max-w-[1500px] grid-cols-2 gap-1 rounded-2xl border border-slate-100 bg-white p-3 shadow-lg sm:grid-cols-3">
-            {["Dashboard", "Fleet", "Routes", "Trips", "Bookings", "Finance", "Calendar"].map((item) => (
-              <a key={item} href={item === "Dashboard" ? "/admin" : "#"} className={`rounded-lg px-3 py-2 text-sm ${item === "Dashboard" ? "bg-teal-50 font-semibold text-teal-700" : "text-slate-600 hover:bg-slate-50"}`}>
-                {item}
-              </a>
-            ))}
-          </nav>
-        )}
-      </header>
+      <AdminNavbar />
 
       <main className="mx-auto w-full max-w-[1500px] px-3 pb-8 pt-5 sm:px-5 lg:px-6">
         <div className="mb-4">
-          <h1 className="text-xl font-semibold tracking-tight text-[#233235] sm:text-2xl">Dashboard Overview</h1>
-          <p className="mt-1 text-xs text-[#718586] sm:text-sm">Live bus tracking, intercity routes, and passenger booking engine</p>
+          <h1 className="text-xl font-semibold tracking-tight text-[#233235] sm:text-2xl">
+            Admin Dashboard Overview
+          </h1>
+          <p className="mt-1 text-xs text-[#718586] sm:text-sm">
+            Live bus tracking, intercity routes, and passenger booking engine
+          </p>
         </div>
 
+        {/* 1st 2 cards from API: Total Travel Companies & Total Buses */}
         <section aria-label="Dashboard summary" className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
-          {[
-            { label: "TOTAL TRAVEL COMPANIES", value: "67", detail: "Registered", icon: Users, color: "bg-emerald-500" },
-            { label: "TOTAL BUSES", value: "21", detail: "Registered", icon: BusFront, color: "bg-blue-600" },
-            { label: "GROSS COMMISSION VALUE", value: "₹48.6L", detail: "Today", icon: Wallet, color: "bg-blue-600" },
-          ].map(({ label, value, detail, icon: Icon, color }) => (
-            <article key={label} className="rounded-xl border border-slate-100 bg-white p-4 shadow-[0_3px_12px_rgba(27,54,54,0.06)] sm:min-h-[90px] sm:p-4">
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-[10px] font-semibold tracking-wide text-[#718582]">{label}</p>
-                <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${color} text-white`}>
-                  <Icon size={15} aria-hidden="true" />
-                </span>
-              </div>
-              <p className="mt-1 text-2xl font-semibold leading-none text-[#273537]">{value}</p>
-              <p className="mt-1 text-[10px] text-[#839394]">{detail}</p>
-            </article>
-          ))}
+          <article className="rounded-xl border border-slate-100 bg-white p-4 shadow-[0_3px_12px_rgba(27,54,54,0.06)] sm:min-h-[90px] sm:p-4">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-[10px] font-semibold tracking-wide text-[#718582]">TOTAL TRAVEL COMPANIES</p>
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500 text-white">
+                <Users size={15} aria-hidden="true" />
+              </span>
+            </div>
+            <p className="mt-1 text-2xl font-semibold leading-none text-[#273537]">
+              {statsData.totalTravelCompanies}
+            </p>
+            <p className="mt-1 text-[10px] text-[#839394]">Registered</p>
+          </article>
+
+          <article className="rounded-xl border border-slate-100 bg-white p-4 shadow-[0_3px_12px_rgba(27,54,54,0.06)] sm:min-h-[90px] sm:p-4">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-[10px] font-semibold tracking-wide text-[#718582]">TOTAL BUSES</p>
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white">
+                <BusFront size={15} aria-hidden="true" />
+              </span>
+            </div>
+            <p className="mt-1 text-2xl font-semibold leading-none text-[#273537]">
+              {statsData.totalBuses}
+            </p>
+            <p className="mt-1 text-[10px] text-[#839394]">Registered</p>
+          </article>
+
+          <article className="rounded-xl border border-slate-100 bg-white p-4 shadow-[0_3px_12px_rgba(27,54,54,0.06)] sm:min-h-[90px] sm:p-4">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-[10px] font-semibold tracking-wide text-[#718582]">GROSS COMMISSION VALUE</p>
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white">
+                <Wallet size={15} aria-hidden="true" />
+              </span>
+            </div>
+            <p className="mt-1 text-2xl font-semibold leading-none text-[#273537]">
+              {statsData.grossCommissionValue || "₹48.6L"}
+            </p>
+            <p className="mt-1 text-[10px] text-[#839394]">Today</p>
+          </article>
         </section>
 
+        {/* Analytics Section: Revenue & Travel Status from API */}
         <section aria-label="Travel analytics" className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-[2fr_1fr]">
           <article className="rounded-xl border border-[#e7edef] bg-white p-4 shadow-[0_3px_12px_rgba(27,54,54,0.05)] sm:p-5">
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -414,22 +451,31 @@ export default function AdminDashboard() {
             </div>
           </article>
 
+          {/* Travel Status Chart connected to API counts */}
           <article className="rounded-xl border border-[#e7edef] bg-white p-4 shadow-[0_3px_12px_rgba(27,54,54,0.05)] sm:p-5">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-semibold text-slate-800">Travels Status</h2>
-              <button type="button" aria-label="Travel status options" className="rounded-md p-1 text-slate-400 hover:bg-slate-50">
-                <CircleHelp size={15} />
+              <button
+                type="button"
+                onClick={fetchDashboardStats}
+                title="Refresh stats"
+                className="rounded-md p-1 text-slate-400 hover:bg-slate-50 hover:text-teal-700"
+              >
+                <RefreshCw size={13} />
               </button>
             </div>
-            <TravelStatusChart />
+            <TravelStatusChart stats={statsData.travelStatus} />
           </article>
         </section>
 
+        {/* Recent Travel Approval: Shows Travel Registrations with fields matching Travels List */}
         <section className="overflow-hidden rounded-xl border border-[#e7edef] bg-white shadow-[0_3px_12px_rgba(27,54,54,0.05)]">
           <div className="flex flex-col gap-3 px-4 pb-3 pt-4 sm:px-5 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <h2 className="text-sm font-semibold text-slate-800">Recent Bookings</h2>
-              <p className="mt-0.5 text-[10px] text-slate-500 sm:text-[11px]">Live passenger ticket reservations &amp; payment receipts across all routes</p>
+              <h2 className="text-sm font-semibold text-slate-800">Recent Travel Approval</h2>
+              <p className="mt-0.5 text-[10px] text-slate-500 sm:text-[11px]">
+                Travel agency partner registrations, business verifications &amp; operating status
+              </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <label className="relative min-w-40 flex-1 sm:flex-none">
@@ -438,151 +484,162 @@ export default function AdminDashboard() {
                   type="search"
                   value={search}
                   onChange={(event) => updateSearch(event.target.value)}
-                  placeholder="Search PNR, passenger..."
-                  className="h-8 w-full rounded-lg border border-slate-200 bg-slate-50 pl-8 pr-2 text-[10px] outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-100 sm:w-40"
+                  placeholder="Search name, CIN, email..."
+                  className="h-8 w-full rounded-lg border border-slate-200 bg-slate-50 pl-8 pr-2 text-[10px] outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-100 sm:w-44"
                 />
               </label>
+
               <label className="relative">
                 <Filter size={12} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" aria-hidden="true" />
                 <select
                   value={statusFilter}
                   onChange={(event) => updateStatus(event.target.value)}
-                  aria-label="Filter bookings by status"
-                  className="h-8 appearance-none rounded-lg border border-slate-200 bg-white pl-7 pr-7 text-[10px] font-medium text-slate-600 outline-none focus:border-teal-500"
+                  aria-label="Filter travels by status"
+                  className="h-8 appearance-none rounded-lg border border-slate-200 bg-white pl-7 pr-7 text-[10px] font-medium capitalize text-slate-600 outline-none focus:border-teal-500"
                 >
-                  {["All statuses", "Confirmed", "Pending", "Cancelled"].map((status) => (
-                    <option key={status} value={status}>{status === "All statuses" ? "Filter" : status}</option>
-                  ))}
+                  <option value="all">All Statuses</option>
+                  <option value="pending">Pending</option>
+                  <option value="approved">Approved</option>
+                  <option value="rejected">Rejected</option>
+                  <option value="suspended">Suspended</option>
                 </select>
                 <SlidersHorizontal size={12} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-slate-500" aria-hidden="true" />
               </label>
+
               <button
                 type="button"
-                onClick={() => exportBookings(filteredBookings)}
+                onClick={() => exportAgentsToCsv(filteredAgents)}
                 className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-[#0e8290] px-2.5 text-[10px] font-semibold text-white transition hover:bg-[#096e79]"
               >
                 <ArrowDownToLine size={13} /> Export CSV
               </button>
-              <button type="button" onClick={() => setPage(1)} className="inline-flex h-8 items-center gap-1 text-[10px] font-semibold text-teal-700 hover:text-teal-900">
+
+              <button
+                type="button"
+                onClick={() => navigate("/travel-list")}
+                className="inline-flex h-8 items-center gap-1 text-[10px] font-semibold text-teal-700 hover:text-teal-900"
+              >
                 View All <ArrowRight size={12} />
               </button>
             </div>
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[790px] border-collapse text-left">
-              <thead className="bg-[#f5f8f9] text-[9px] font-semibold uppercase tracking-wide text-[#77898b]">
+            <table className="w-full min-w-[760px] border-collapse text-left">
+              <thead className="bg-[#f5f8f9] text-[9px] font-bold uppercase tracking-wide text-[#77898b]">
                 <tr>
-                  {["PNR / TICKET", "PASSENGER", "ROUTE", "TRAVEL DATE", "SEAT BERTH", "FARE", "PAYMENT", "STATUS", "ACTIONS"].map((heading) => (
-                    <th key={heading} className="whitespace-nowrap px-3 py-3 first:pl-5 last:pr-5">{heading}</th>
-                  ))}
+                  <th className="px-5 py-3">Registered Business Name</th>
+                  <th className="px-4 py-3">Registration Number</th>
+                  <th className="px-4 py-3">Business Email</th>
+                  <th className="px-4 py-3">Status</th>
+                  {/* <th className="px-4 py-3 text-center">Action</th> */}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
-                {visibleBookings.map((booking) => (
-                  <tr key={booking.pnr} className="text-[10px] transition hover:bg-slate-50/70">
-                    <td className="whitespace-nowrap px-3 py-3 pl-5 font-semibold text-[#168296]">{booking.pnr}</td>
-                    <td className="whitespace-nowrap px-3 py-3">
-                      <span className="flex items-center gap-2 font-medium text-slate-700">
-                        <span className={`flex h-7 w-7 items-center justify-center rounded-full text-[9px] font-semibold ${booking.avatar}`}>{booking.initials}</span>
-                        {booking.passenger}
-                      </span>
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-3 font-medium text-slate-700">{booking.route}</td>
-                    <td className="whitespace-nowrap px-3 py-3 text-slate-500">{booking.date}</td>
-                    <td className="whitespace-nowrap px-3 py-3 font-semibold text-slate-700">{booking.seat}</td>
-                    <td className="whitespace-nowrap px-3 py-3 font-semibold text-slate-700">{booking.fare}</td>
-                    <td className="whitespace-nowrap px-3 py-3">
-                      <span className={`rounded-full px-2 py-1 text-[9px] font-medium ${booking.payment === "Pending" ? "bg-amber-50 text-amber-700" : booking.payment === "Refunded" ? "bg-rose-50 text-rose-600" : "bg-slate-100 text-slate-600"}`}>{booking.payment}</span>
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-3">
-                      <span className={`rounded-full px-2.5 py-1 text-[9px] font-semibold ${statusClass[booking.status]}`}>{booking.status}</span>
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-3 pr-5">
-                      <button type="button" onClick={() => setSelectedBooking(booking)} aria-label={`View booking ${booking.pnr}`} className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-teal-50 hover:text-teal-700">
-                        <Eye size={14} />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-                {visibleBookings.length === 0 && (
+              <tbody className="divide-y divide-slate-100 text-xs">
+                {visibleAgents.map((agent) => {
+                  const statusKey = (agent.status || "pending").toLowerCase();
+                  const badgeClass = statusBadgeStyles[statusKey] || statusBadgeStyles.pending;
+                  const email = agent.businessEmail || agent.userId?.email || "—";
+                  const businessName = agent.registeredBusinessName || agent.operatorDisplayName || "Unnamed Agency";
+                  const regNo = agent.registrationNumber || "N/A";
+
+                  return (
+                    <tr key={agent._id} className="transition hover:bg-slate-50/70">
+                      {/* Registered Business Name */}
+                      <td className="px-5 py-3">
+                        <div className="flex items-center gap-2.5">
+                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-teal-100 bg-teal-50 text-[12px] font-bold text-[#078A97]">
+                            {businessName[0]?.toUpperCase() || "T"}
+                          </span>
+                          <div className="min-w-0">
+                            <p className="max-w-[260px] truncate text-xs font-semibold text-slate-800">
+                              {businessName}
+                            </p>
+                            <p className="text-[10px] text-slate-400">
+                              {agent.businessType || "Travel Operator"}
+                            </p>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Registration Number */}
+                      <td className="whitespace-nowrap px-4 py-3 font-mono text-[11px] font-medium text-slate-600">
+                        {regNo}
+                      </td>
+
+                      {/* Business Email */}
+                      <td className="whitespace-nowrap px-4 py-3 text-[11px] text-slate-600">
+                        {email}
+                      </td>
+
+                      {/* Status */}
+                      <td className="whitespace-nowrap px-4 py-3">
+                        <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[10px] font-semibold capitalize ${badgeClass}`}>
+                          {statusKey === "approved" && <CheckCircle2 size={10} />}
+                          {statusKey === "pending" && <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />}
+                          {statusKey === "rejected" && <XCircle size={10} />}
+                          {statusKey}
+                        </span>
+                      </td>
+
+                      {/* Actions */}
+                      {/* <td className="whitespace-nowrap px-4 py-3 text-center">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedAgent(agent)}
+                          aria-label={`View details of ${businessName}`}
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-teal-50 hover:text-teal-700"
+                        >
+                          <Eye size={13} />
+                        </button>
+                      </td> */}
+                    </tr>
+                  );
+                })}
+
+                {visibleAgents.length === 0 && (
                   <tr>
-                    <td colSpan={9} className="px-5 py-10 text-center text-sm text-slate-500">No bookings match your search.</td>
+                    <td colSpan={5} className="px-5 py-10 text-center text-sm text-slate-500">
+                      {loadingAgents ? "Loading travel agency records..." : "No travel registrations match your search."}
+                    </td>
                   </tr>
                 )}
               </tbody>
             </table>
           </div>
 
+          {/* Pagination Footer */}
           <div className="flex flex-col justify-between gap-3 border-t border-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:px-5">
             <p className="text-[10px] text-slate-500">
-              Showing <strong className="text-slate-700">{filteredBookings.length ? (currentPage - 1) * pageSize + 1 : 0}–{Math.min(currentPage * pageSize, filteredBookings.length)}</strong> of {filteredBookings.length} bookings
+              Showing <strong className="text-slate-700">{filteredAgents.length ? (currentPage - 1) * pageSize + 1 : 0}–{Math.min(currentPage * pageSize, filteredAgents.length)}</strong> of {filteredAgents.length} travel registrations
             </p>
             <div className="flex items-center gap-1.5 self-end sm:self-auto">
-              <button type="button" aria-label="Previous page" disabled={currentPage === 1} onClick={() => setPage((value) => Math.max(1, value - 1))} className="flex h-8 items-center gap-1 rounded-lg border border-slate-200 px-2 text-[10px] text-slate-600 disabled:opacity-40">
+              <button
+                type="button"
+                aria-label="Previous page"
+                disabled={currentPage === 1}
+                onClick={() => setPage((value) => Math.max(1, value - 1))}
+                className="flex h-8 items-center gap-1 rounded-lg border border-slate-200 px-2 text-[10px] text-slate-600 disabled:opacity-40"
+              >
                 <ChevronLeft size={13} /> <span className="hidden sm:inline">Previous</span>
               </button>
-              <span className="flex h-8 min-w-8 items-center justify-center rounded-lg bg-[#0e8290] px-2 text-[10px] font-semibold text-white">{currentPage}</span>
+              <span className="flex h-8 min-w-8 items-center justify-center rounded-lg bg-[#0e8290] px-2 text-[10px] font-semibold text-white">
+                {currentPage}
+              </span>
               <span className="px-0.5 text-[10px] text-slate-400">of {totalPages}</span>
-              <button type="button" aria-label="Next page" disabled={currentPage >= totalPages} onClick={() => setPage((value) => Math.min(totalPages, value + 1))} className="flex h-8 items-center gap-1 rounded-lg border border-slate-200 px-2 text-[10px] text-slate-600 disabled:opacity-40">
+              <button
+                type="button"
+                aria-label="Next page"
+                disabled={currentPage >= totalPages}
+                onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
+                className="flex h-8 items-center gap-1 rounded-lg border border-slate-200 px-2 text-[10px] text-slate-600 disabled:opacity-40"
+              >
                 <span className="hidden sm:inline">Next</span> <ChevronRight size={13} />
               </button>
             </div>
           </div>
         </section>
       </main>
-
-      {selectedBooking && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4"
-          role="presentation"
-          onClick={() => setSelectedBooking(null)}
-        >
-          <section
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="booking-detail-title"
-            className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="mb-5 flex items-start justify-between">
-              <div>
-                <h2 id="booking-detail-title" className="text-lg font-semibold text-slate-800">
-                  Booking Details
-                </h2>
-                <p className="mt-1 text-sm font-medium text-teal-700">{selectedBooking.pnr}</p>
-              </div>
-              <button
-                type="button"
-                aria-label="Close booking details"
-                onClick={() => setSelectedBooking(null)}
-                className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <div className="space-y-3">
-              {[
-                ["Passenger", selectedBooking.passenger],
-                ["Route", selectedBooking.route],
-                ["Travel date", selectedBooking.date],
-                ["Seat / berth", selectedBooking.seat],
-                ["Fare", selectedBooking.fare],
-                ["Payment", selectedBooking.payment],
-                ["Status", selectedBooking.status],
-              ].map(([label, value]) => (
-                <div
-                  key={label}
-                  className="flex justify-between gap-4 border-b border-slate-100 pb-3 text-sm last:border-0"
-                >
-                  <span className="text-slate-500">{label}</span>
-                  <span className="text-right font-medium text-slate-800">{value}</span>
-                </div>
-              ))}
-            </div>
-          </section>
-        </div>
-      )}
     </div>
   );
 }

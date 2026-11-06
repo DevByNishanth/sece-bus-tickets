@@ -1,324 +1,503 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import {
   ArrowDownToLine,
   ArrowRight,
   BusFront,
   ChevronDown,
-  ChevronRight,
+  CheckCircle2,
+  Clock,
   Eye,
   Filter,
   IndianRupee,
+  RefreshCw,
   Search,
+  ShieldAlert,
+  ShieldCheck,
   TicketCheck,
   WalletCards,
+  XCircle,
 } from "lucide-react";
 import AdminNavbar from "../components/AdminNavbar.jsx";
-import AdminBusDetailView from "./AdminBusDetailScreen.jsx";
+import AdminBusDetailScreen from "./AdminBusDetailScreen.jsx";
+import { useAuth } from "../context/AuthContext";
 
-const sampleBookings = [
+const fallbackBuses = [
   {
-    passenger: "Arun Kumar",
-    initials: "AK",
-    route: "Coimbatore → Chennai",
-    date: "16 Oct 2026",
-    seat: "U2",
-    fare: "₹1,250",
-    payment: "Paid (UPI)",
-    status: "Confirmed",
-    avatar: "bg-cyan-50 text-cyan-700",
-  },
-  {
-    passenger: "Priya S",
-    initials: "PS",
-    route: "Chennai → Coimbatore",
-    date: "16 Oct 2026",
-    seat: "L4",
-    fare: "₹1,100",
-    payment: "Paid (Card)",
-    status: "Confirmed",
-    avatar: "bg-pink-50 text-pink-700",
-  },
-  {
-    passenger: "Karthik R",
-    initials: "KR",
-    route: "Coimbatore → Bengaluru",
-    date: "17 Oct 2026",
-    seat: "U6",
-    fare: "₹1,450",
-    payment: "Pending",
-    status: "Pending",
-    avatar: "bg-amber-50 text-amber-700",
-  },
-  {
-    passenger: "Divya M",
-    initials: "DM",
-    route: "Madurai → Chennai",
-    date: "17 Oct 2026",
-    seat: "L2",
-    fare: "₹1,300",
-    payment: "Paid (UPI)",
-    status: "Confirmed",
-    avatar: "bg-indigo-50 text-indigo-700",
-  },
-  {
-    passenger: "Suresh N",
-    initials: "SN",
-    route: "Coimbatore → Chennai",
-    date: "18 Oct 2026",
-    seat: "U8",
-    fare: "₹1,250",
-    payment: "Refunded",
-    status: "Cancelled",
-    avatar: "bg-slate-100 text-slate-700",
+    _id: "6ae969b4c1c1cf1fb9b98a9e",
+    agentId: {
+      _id: "6ae969b3c1c1cf1fb9b98a8c",
+      firstName: "Senthil",
+      lastName: "Nathan",
+      email: "kovaiexpress.agent@gmail.com",
+      phone: "+919842188818",
+      isEmailVerified: true,
+      createdAt: "2026-11-03T04:57:23.386Z",
+    },
+    busName: "Kovai Express Royal Hybrid",
+    operatorName: "Kovai Super Express",
+    registrationNumber: "TN66AX4321",
+    internalFleetCode: "KSE-AC-03",
+    manufacturer: "BharatBenz",
+    model: "1624 Sleeper Coach",
+    manufacturingYear: 2025,
+    ownershipType: "owned",
+    busType: "seater_sleeper",
+    category: "AC",
+    deckConfiguration: "double",
+    passengerCapacity: 32,
+    seatCount: 16,
+    berthCount: 16,
+    totalSeats: 32,
+    baseFare: 650,
+    status: "pending",
+    commission: null,
+    adminRemarks: null,
+    rating: 4.5,
+    submittedAt: "2026-11-03T04:57:24.582Z",
+    createdAt: "2026-11-03T04:57:24.583Z",
   },
 ];
-
-const statCards = [
-  { label: "TOTAL BUSES", value: "21", icon: IndianRupee, color: "bg-blue-600" },
-  { label: "APPROVED BUSES", value: "67", icon: BusFront, color: "bg-emerald-500" },
-  { label: "PENDING BUSES", value: "78.4%", icon: TicketCheck, color: "bg-violet-600" },
-  { label: "REQUEST CORRECTION", value: "67", icon: TicketCheck, color: "bg-teal-600" },
-  { label: "REJECTED BUSES", value: "15", icon: WalletCards, color: "bg-orange-500" },
-];
-
-const bookingRows = Array.from({ length: 120 }, (_, index) => ({
-  ...sampleBookings[index % sampleBookings.length],
-  pnr: `BG${240891 + index}`,
-}));
 
 const statusStyles = {
-  Confirmed: "border-teal-100 bg-teal-50 text-teal-700",
-  Pending: "border-orange-100 bg-orange-50 text-orange-700",
-  Cancelled: "border-rose-100 bg-rose-50 text-rose-700",
-  Approved: "border-teal-100 bg-teal-50 text-teal-700",
-  "Correction Requested": "border-orange-100 bg-orange-50 text-orange-700",
-  Rejected: "border-rose-100 bg-rose-50 text-rose-700",
+  approved: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  pending: "border-amber-200 bg-amber-50 text-amber-700",
+  rejected: "border-rose-200 bg-rose-50 text-rose-700",
+  suspended: "border-slate-300 bg-slate-100 text-slate-700",
 };
 
-function downloadBookings(rows) {
-  const columns = ["PNR / Ticket", "Passenger", "Route", "Travel Date", "Seat / Berth", "Fare", "Payment", "Status"];
-  const values = rows.map((row) => [row.pnr, row.passenger, row.route, row.date, row.seat, row.fare, row.payment, row.status]);
-  const csv = [columns, ...values]
-    .map((line) => line.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(","))
-    .join("\n");
-  const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = "bus-bookings.csv";
-  link.click();
-  URL.revokeObjectURL(url);
-}
+export default function AdminBookingOverview({
+  listType = "buses",
+  detailView: DetailView,
+}) {
+  const { BASE_URL, TOKEN_KEY } = useAuth();
+  const tokenKeyName = TOKEN_KEY || "exte_key";
 
-export default function AdminBookingOverview({ listType = "buses", detailView: DetailView }) {
-  const [bookings, setBookings] = useState(bookingRows);
+  const [buses, setBuses] = useState(fallbackBuses);
+  const [totalCount, setTotalCount] = useState(fallbackBuses.length);
+  const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [filterOpen, setFilterOpen] = useState(false);
-  const [statusFilter, setStatusFilter] = useState("All statuses");
   const [page, setPage] = useState(1);
-  const [selectedBooking, setSelectedBooking] = useState(null);
-  const pageSize = 5;
-  const isTravelList = listType === "travels";
+  const [selectedBusId, setSelectedBusId] = useState(null);
 
-  const filteredBookings = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    return bookings.filter((booking) => {
-      const matchesSearch = [booking.pnr, booking.passenger, booking.route]
-        .some((value) => value.toLowerCase().includes(query));
-      return matchesSearch && (statusFilter === "All statuses" || booking.status === statusFilter);
-    });
-  }, [bookings, search, statusFilter]);
+  const fetchBuses = useCallback(async () => {
+    setLoading(true);
+    const token = localStorage.getItem(tokenKeyName);
 
-  const totalPages = Math.max(1, Math.ceil(filteredBookings.length / pageSize));
-  const visibleBookings = filteredBookings.slice((page - 1) * pageSize, page * pageSize);
-  const firstResult = filteredBookings.length ? (page - 1) * pageSize + 1 : 0;
-  const lastResult = Math.min(page * pageSize, filteredBookings.length);
+    try {
+      const queryParams = new URLSearchParams({
+        page: String(page),
+        limit: "20",
+      });
 
-  function updateSearch(value) {
-    setSearch(value);
-    setPage(1);
-  }
+      if (statusFilter && statusFilter !== "all") {
+        queryParams.append("status", statusFilter);
+      }
+      if (search.trim()) {
+        queryParams.append("search", search.trim());
+      }
 
-  function updateFilter(value) {
-    setStatusFilter(value);
-    setPage(1);
-  }
+      const url = `${BASE_URL}/admin/buses?${queryParams.toString()}`;
+      const res = await fetch(url, {
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
 
-  if (selectedBooking) {
-    const BookingDetail = DetailView || AdminBusDetailView;
+      if (res.ok) {
+        const data = await res.json();
+        if (data && Array.isArray(data.buses)) {
+          setBuses(data.buses);
+          setTotalCount(data.total ?? data.buses.length);
+        } else if (Array.isArray(data)) {
+          setBuses(data);
+          setTotalCount(data.length);
+        }
+      } else {
+        console.warn("Failed to fetch /admin/buses, using fallback dataset");
+      }
+    } catch (err) {
+      console.warn("Error fetching /admin/buses:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [BASE_URL, tokenKeyName, page, statusFilter, search]);
+
+  useEffect(() => {
+    fetchBuses();
+  }, [fetchBuses]);
+
+  // Statistics cards calculation
+  const stats = useMemo(() => {
+    const total = buses.length;
+    const approved = buses.filter((b) => b.status?.toLowerCase() === "approved").length;
+    const pending = buses.filter((b) => b.status?.toLowerCase() === "pending").length;
+    const rejected = buses.filter((b) => b.status?.toLowerCase() === "rejected").length;
+    const suspended = buses.filter((b) => b.status?.toLowerCase() === "suspended").length;
+    return { total, approved, pending, rejected, suspended };
+  }, [buses]);
+
+  const handleExportCSV = () => {
+    const columns = [
+      "Bus Name",
+      "Registration Number",
+      "Operator Name",
+      "Bus Type",
+      "Category",
+      "Deck",
+      "Capacity",
+      "Base Fare",
+      "Status",
+    ];
+    const rows = buses.map((b) => [
+      b.busName || "",
+      b.registrationNumber || "",
+      b.operatorName || "",
+      b.busType || "",
+      b.category || "",
+      b.deckConfiguration || "",
+      b.passengerCapacity || b.totalSeats || "",
+      b.baseFare ? `₹${b.baseFare}` : "",
+      b.status || "",
+    ]);
+
+    const csv = [columns, ...rows]
+      .map((line) => line.map((val) => `"${String(val).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `admin-buses-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  if (selectedBusId) {
+    const BusDetail = DetailView || AdminBusDetailScreen;
     return (
-      <BookingDetail
-        booking={selectedBooking}
-        onStatusChange={(status) => {
-          setBookings((rows) =>
-            rows.map((row) =>
-              row.pnr === selectedBooking.pnr ? { ...row, status } : row,
-            ),
-          );
-          setSelectedBooking((row) => ({ ...row, status }));
+      <BusDetail
+        busId={selectedBusId}
+        onBack={() => {
+          setSelectedBusId(null);
+          fetchBuses();
         }}
-        onBack={() => setSelectedBooking(null)}
+        onStatusChange={() => {
+          fetchBuses();
+        }}
+        Navbar={AdminNavbar}
       />
     );
     console.log("hai")
   }
 
   return (
-    <div className="min-h-screen text-3xl bg-[#f5f8f9] text-[#172526]">
+    <div className="min-h-screen bg-[#f5f8f9] text-[#172526]">
       <AdminNavbar />
+
       <main className="mx-auto w-full max-w-[1600px] px-4 pb-8 pt-5 sm:px-6 lg:px-8">
-        <header className="mb-4">
-          <h1 className="text-2xl font-semibold tracking-normal text-[#172526]">{isTravelList ? "Travels List Overview" : "Bus List Overview"}</h1>
-          <p className="mt-1 text-sm text-[#688080]">Live bus tracking, intercity routes, and passenger booking engine</p>
-        </header>
-
-        <section aria-label={isTravelList ? "Travel summary" : "Bus summary"} className="mb-3 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
-          {statCards.map(({ label, value, icon: Icon, color }, index) => (
-            <article key={label} className="min-h-24 rounded-xl border border-slate-100 bg-white p-4 shadow-[0_3px_12px_rgba(27,54,54,0.06)]">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-[11px] font-semibold tracking-[0.04em] text-[#66807d]">{isTravelList ? ["TOTAL TRAVELS", "APPROVED", "PENDING", "REQUEST CORRECTION", "REJECTED"][index] : label}</p>
-                <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${color} text-white`}>
-                  <Icon size={16} aria-hidden="true" />
-                </span>
+        {/* Header section */}
+        <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#078A97] text-white shadow-sm">
+                <BusFront size={18} />
+              </span>
+              <div>
+                <h1 className="text-xl font-bold tracking-tight text-[#172526] sm:text-2xl">
+                  Bus List Overview
+                </h1>
+                <p className="mt-0.5 text-xs text-[#688080]">
+                  Inspect fleet specifications, compliance documents, and review vehicle approvals
+                </p>
               </div>
-              <p className="mt-2 text-[26px] font-semibold leading-none text-[#1c2b2b]">{value}</p>
-            </article>
-          ))}
-        </section>
-
-        <section className="overflow-hidden rounded-xl border border-[#e1ebee] bg-white shadow-[0_4px_14px_rgba(27,54,54,0.06)]">
-          <div className="flex flex-col gap-3 px-4 pb-3 pt-4 sm:px-5 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <h2 className="text-base font-semibold text-[#172526]">{isTravelList ? "Travels List" : "Bus List"}</h2>
-              <p className="mt-0.5 text-xs text-[#60777b]">Live passenger ticket reservations &amp; payment receipts across all routes</p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <label className="relative min-w-47.5 flex-1 lg:w-40 lg:flex-none">
-                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#617983]" aria-hidden="true" />
-                <input
-                  value={search}
-                  onChange={(event) => updateSearch(event.target.value)}
-                  placeholder="Search PNR, passenger..."
-                  className="h-9 w-full rounded-lg border border-[#e3ecef] bg-[#f7f9fa] pl-8 pr-3 text-xs text-slate-700 outline-none placeholder:text-slate-400 focus:border-teal-600 focus:ring-2 focus:ring-teal-50"
-                />
-              </label>
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setFilterOpen((open) => !open)}
-                  className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[#e3ecef] bg-[#f7f9fa] px-3 text-xs font-medium text-slate-700 hover:bg-slate-100"
-                  aria-expanded={filterOpen}
-                >
-                  <Filter size={13} aria-hidden="true" /> Filter <ChevronDown size={12} aria-hidden="true" />
-                </button>
-                {filterOpen && (
-                  <select
-                    aria-label="Filter by booking status"
-                    autoFocus
-                    value={statusFilter}
-                    onChange={(event) => updateFilter(event.target.value)}
-                    onBlur={() => setFilterOpen(false)}
-                    className="absolute right-0 top-11 z-10 w-40 rounded-lg border border-slate-200 bg-white p-2 text-sm shadow-lg outline-none"
-                  >
-                    <option>All statuses</option>
-                    <option>Confirmed</option>
-                    <option>Pending</option>
-                    <option>Cancelled</option>
-                    <option>Approved</option>
-                    <option>Correction Requested</option>
-                    <option>Rejected</option>
-                  </select>
-                )}
-              </div>
-              <button
-                type="button"
-                onClick={() => downloadBookings(filteredBookings)}
-                className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#078a97] px-3 text-xs font-medium text-white transition hover:bg-[#067681]"
-              >
-                <ArrowDownToLine size={13} aria-hidden="true" /> Export CSV
-              </button>
-              <button
-                type="button"
-                onClick={() => { updateSearch(""); updateFilter("All statuses"); }}
-                className="inline-flex h-9 items-center gap-1 text-xs font-semibold text-[#078a97] hover:text-[#056975]"
-              >
-                View All <ArrowRight size={13} aria-hidden="true" />
-              </button>
             </div>
           </div>
 
-          <div className="mx-3 overflow-x-auto rounded-lg border border-[#e4ecef] sm:mx-4">
-            <table className="w-full min-w-212.5 text-left">
-              <thead className="bg-[#f3f7f8] text-[10px] font-semibold uppercase tracking-[0.04em] text-[#687d86]">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => fetchBuses()}
+              disabled={loading}
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[#d6e3e6] bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-60"
+            >
+              <RefreshCw size={13} className={loading ? "animate-spin text-[#078A97]" : ""} />
+              <span>Refresh</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleExportCSV}
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#078A97] px-3.5 text-xs font-semibold text-white shadow-sm transition hover:bg-[#067681]"
+            >
+              <ArrowDownToLine size={13} /> Export CSV
+            </button>
+          </div>
+        </header>
+
+        {/* Stats Cards */}
+        <section
+          aria-label="Bus summary"
+          className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-2 md:grid-cols-4"
+        >
+          <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                TOTAL BUSES
+              </span>
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-teal-50 text-[#078A97]">
+                <BusFront size={15} />
+              </span>
+            </div>
+            <p className="mt-2 text-2xl font-bold text-slate-900">{stats.total}</p>
+          </div>
+
+          <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                APPROVED BUSES
+              </span>
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
+                <ShieldCheck size={15} />
+              </span>
+            </div>
+            <p className="mt-2 text-2xl font-bold text-emerald-600">{stats.approved}</p>
+          </div>
+
+          <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                PENDING BUSES
+              </span>
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-50 text-amber-600">
+                <Clock size={15} />
+              </span>
+            </div>
+            <p className="mt-2 text-2xl font-bold text-amber-600">{stats.pending}</p>
+          </div>
+
+          <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                REJECTED / SUSPENDED
+              </span>
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-rose-50 text-rose-600">
+                <ShieldAlert size={15} />
+              </span>
+            </div>
+            <p className="mt-2 text-2xl font-bold text-rose-600">
+              {stats.rejected + stats.suspended}
+            </p>
+          </div>
+        </section>
+
+        {/* Table Section */}
+        <section className="overflow-hidden rounded-2xl border border-[#dbe6e9] bg-white shadow-sm">
+          {/* Table Header controls */}
+          <div className="flex flex-col gap-3 border-b border-[#e7eff1] px-4 py-3.5 sm:px-5 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h2 className="text-sm font-bold text-[#172526]">Bus List</h2>
+              <p className="text-[11px] text-[#657d84]">
+                Showing {buses.length} registered vehicles across all operators
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Search input */}
+              <div className="relative min-w-[240px] flex-1 sm:w-72 lg:flex-none">
+                <Search
+                  size={14}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search bus name, registration, operator..."
+                  className="h-9 w-full rounded-xl border border-[#dce7e9] bg-[#f8fafb] pl-9 pr-3 text-xs text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[#078A97] focus:bg-white focus:ring-2 focus:ring-teal-50"
+                />
+              </div>
+
+              {/* Status filter */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setFilterOpen((o) => !o)}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-[#dce7e9] bg-[#f8fafb] px-3 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                >
+                  <Filter size={13} className="text-[#078A97]" />
+                  <span className="capitalize">
+                    {statusFilter === "all" ? "All Statuses" : statusFilter}
+                  </span>
+                  <ChevronDown size={12} />
+                </button>
+
+                {filterOpen && (
+                  <div className="absolute right-0 top-11 z-20 w-44 rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg">
+                    {["all", "pending", "approved", "rejected", "suspended"].map((st) => (
+                      <button
+                        key={st}
+                        type="button"
+                        onClick={() => {
+                          setStatusFilter(st);
+                          setFilterOpen(false);
+                        }}
+                        className={`flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-xs font-medium capitalize transition ${
+                          statusFilter === st
+                            ? "bg-teal-50 font-bold text-[#078A97]"
+                            : "text-slate-600 hover:bg-slate-50"
+                        }`}
+                      >
+                        <span>{st === "all" ? "All Statuses" : st}</span>
+                        {statusFilter === st && <CheckCircle2 size={12} />}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Table */}
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[850px] text-left">
+              <thead className="bg-[#f4f8f9] text-[10px] font-bold uppercase tracking-wider text-slate-500">
                 <tr>
-                  <th className="px-4 py-3">PNR / Ticket</th>
-                  <th className="px-3 py-3">Passenger</th>
-                  <th className="px-3 py-3">Route</th>
-                  <th className="px-3 py-3">Travel Date</th>
-                  <th className="px-3 py-3">Seat Berth</th>
-                  <th className="px-3 py-3 text-right">Fare</th>
-                  <th className="px-3 py-3">Payment</th>
-                  <th className="px-3 py-3">Status</th>
-                  <th className="px-3 py-3 text-center">Actions</th>
+                  <th className="px-5 py-3">Bus Name &amp; Operator</th>
+                  <th className="px-4 py-3">Registration No</th>
+                  <th className="px-4 py-3">Type &amp; Deck</th>
+                  <th className="px-4 py-3">Capacity</th>
+                  <th className="px-4 py-3">Base Fare</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3 text-center">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#e9eff1]">
-                {visibleBookings.map((booking) => (
-                  <tr key={booking.pnr} className="h-13.5 transition-colors hover:bg-[#f9fbfb]">
-                    <td className="whitespace-nowrap px-4 py-2 text-[11px] font-semibold text-[#078a97]">{booking.pnr}</td>
-                    <td className="px-3 py-2">
-                      <div className="flex items-center gap-2 whitespace-nowrap">
-                        <span className={`flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-semibold ${booking.avatar}`}>{booking.initials}</span>
-                        <span className="text-[11px] font-medium text-[#1c292a]">{booking.passenger}</span>
-                      </div>
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-2 text-[11px] text-[#172526]">{booking.route}</td>
-                    <td className="whitespace-nowrap px-3 py-2 font-mono text-[11px] text-[#617983]">{booking.date}</td>
-                    <td className="whitespace-nowrap px-3 py-2 text-[11px] font-semibold text-[#172526]">{booking.seat}</td>
-                    <td className="whitespace-nowrap px-3 py-2 text-right text-[11px] font-semibold text-[#172526]">{booking.fare}</td>
-                    <td className="px-3 py-2">
-                      <span className={`whitespace-nowrap rounded-md px-2 py-1 text-[10px] font-medium ${booking.payment === "Pending" ? "bg-orange-50 text-orange-700" : booking.payment === "Refunded" ? "bg-rose-50 text-rose-600" : "bg-slate-100 text-slate-700"}`}>
-                        {booking.payment}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2">
-                      <span className={`whitespace-nowrap rounded-full border px-2 py-1 text-[10px] font-medium ${statusStyles[booking.status]}`}>
-                        {booking.status}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2 text-center">
-                      <button
-                        type="button"
-                        onClick={() => setSelectedBooking(booking)}
-                        aria-label={`View booking ${booking.pnr}`}
-                        className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#f0f4f7] text-[#536b80] transition hover:bg-teal-50 hover:text-teal-700"
-                      >
-                        <Eye size={14} aria-hidden="true" />
-                      </button>
+              <tbody className="divide-y divide-[#edf3f5] text-xs">
+                {buses.map((bus) => {
+                  const statusKey = (bus.status || "pending").toLowerCase();
+                  const badgeClass =
+                    statusStyles[statusKey] || statusStyles.pending;
+                  const regNo = bus.registrationNumber || "N/A";
+                  const busTitle = bus.busName || "Unnamed Bus";
+                  const operator =
+                    bus.operatorName || bus.agentId?.firstName
+                      ? `${bus.agentId?.firstName || ""} ${bus.agentId?.lastName || ""}`.trim()
+                      : "Operator";
+
+                  return (
+                    <tr
+                      key={bus._id}
+                      className="group transition-colors hover:bg-[#f8fbfb]"
+                    >
+                      {/* Bus Name & Operator */}
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center gap-3">
+                          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-teal-50 text-[13px] font-bold text-[#078A97] border border-teal-100/80">
+                            <BusFront size={16} />
+                          </span>
+                          <div className="min-w-0">
+                            <p className="truncate font-semibold text-slate-800 max-w-[280px]">
+                              {busTitle}
+                            </p>
+                            <p className="text-[10px] text-slate-400 truncate max-w-[240px]">
+                              {operator} · {bus.model || bus.manufacturer || "Coach"}
+                            </p>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Registration No */}
+                      <td className="px-4 py-3.5">
+                        <span className="inline-block rounded-md bg-slate-100 px-2 py-1 font-mono text-[11px] font-bold text-slate-700">
+                          {regNo}
+                        </span>
+                        {bus.internalFleetCode && (
+                          <span className="block text-[9.5px] text-slate-400 mt-0.5">
+                            Fleet: {bus.internalFleetCode}
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Type & Deck */}
+                      <td className="px-4 py-3.5 text-slate-700">
+                        <span className="font-medium capitalize">
+                          {bus.busType?.replace("_", " ") || "Standard"}
+                        </span>
+                        <span className="block text-[10px] text-slate-400 capitalize">
+                          {bus.deckConfiguration || "Single"} Deck · {bus.category || "AC"}
+                        </span>
+                      </td>
+
+                      {/* Capacity */}
+                      <td className="px-4 py-3.5 text-slate-700">
+                        <span className="font-semibold text-slate-800">
+                          {bus.passengerCapacity || bus.totalSeats || 0} Seats
+                        </span>
+                        {(bus.seatCount || bus.berthCount) && (
+                          <span className="block text-[9.5px] text-slate-400">
+                            {bus.seatCount || 0}S + {bus.berthCount || 0}B
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Base Fare */}
+                      <td className="px-4 py-3.5 font-semibold text-slate-800">
+                        {bus.baseFare ? `₹${bus.baseFare}` : "—"}
+                      </td>
+
+                      {/* Status */}
+                      <td className="px-4 py-3.5">
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[10.5px] font-bold uppercase tracking-wider ${badgeClass}`}
+                        >
+                          <span
+                            className={`h-1.5 w-1.5 rounded-full ${
+                              statusKey === "approved"
+                                ? "bg-emerald-500"
+                                : statusKey === "pending"
+                                ? "bg-amber-500"
+                                : "bg-rose-500"
+                            }`}
+                          />
+                          {bus.status || "Pending"}
+                        </span>
+                      </td>
+
+                      {/* View Action */}
+                      <td className="px-4 py-3.5 text-center">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedBusId(bus._id)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-[#d6e3e6] bg-white px-2.5 py-1.5 text-[11px] font-semibold text-[#078A97] shadow-2xs transition hover:border-[#078A97] hover:bg-teal-50"
+                          title="View bus details and review"
+                        >
+                          <Eye size={13} />
+                          <span>View Detail</span>
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+
+                {buses.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="px-5 py-12 text-center text-slate-400">
+                      <BusFront size={32} className="mx-auto mb-2 text-slate-300" />
+                      <p className="font-semibold text-slate-600 text-sm">
+                        No buses found
+                      </p>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        No vehicles found matching current search or status filter.
+                      </p>
                     </td>
                   </tr>
-                ))}
-                {visibleBookings.length === 0 && (
-                  <tr><td colSpan="9" className="px-4 py-10 text-center text-sm text-slate-500">No bookings match your search.</td></tr>
                 )}
               </tbody>
             </table>
           </div>
-
-          <footer className="flex flex-col gap-3 px-4 py-4 text-xs text-[#637980] sm:flex-row sm:items-center sm:justify-between sm:px-5">
-            <p>Showing <span className="font-medium text-[#263638]">{firstResult}–{lastResult}</span> of {filteredBookings.length} bookings</p>
-            <nav aria-label="Bookings pagination" className="flex items-center gap-1.5">
-              <button type="button" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={page === 1} className="rounded-lg border border-[#e7edef] px-3 py-2 text-[11px] hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40">Previous</button>
-              {[1, 2, 3].filter((number) => number <= totalPages).map((number) => (
-                <button key={number} type="button" onClick={() => setPage(number)} aria-current={page === number ? "page" : undefined} className={`h-8 min-w-8 rounded-lg border px-2 text-[11px] font-medium ${page === number ? "border-[#078a97] bg-[#078a97] text-white" : "border-[#e7edef] bg-white text-slate-700 hover:bg-slate-50"}`}>{number}</button>
-              ))}
-              {totalPages > 4 && <span className="px-1 text-slate-500">...</span>}
-              {totalPages > 3 && <button type="button" onClick={() => setPage(totalPages)} aria-current={page === totalPages ? "page" : undefined} className={`h-8 min-w-8 rounded-lg border px-2 text-[11px] font-medium ${page === totalPages ? "border-[#078a97] bg-[#078a97] text-white" : "border-[#e7edef] bg-white text-slate-700 hover:bg-slate-50"}`}>{totalPages}</button>}
-              <button type="button" onClick={() => setPage((current) => Math.min(totalPages, current + 1))} disabled={page === totalPages} className="inline-flex items-center gap-1 rounded-lg border border-[#e7edef] px-3 py-2 text-[11px] font-medium text-[#263638] hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40">Next <ChevronRight size={14} aria-hidden="true" /></button>
-            </nav>
-          </footer>
         </section>
       </main>
-
     </div>
   );
 }

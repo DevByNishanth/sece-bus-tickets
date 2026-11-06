@@ -36,26 +36,115 @@ function decodeJwt(token) {
 
 // ── Role → redirect path map (all lowercase normalized) ─────────────────────
 const ROLE_PATHS = {
-    admin: "/admin-dashboard",
+  admin: "/admin-dashboard",
   travelagent: "/vendor",
   operationcrew: "/crew",
   user: "/",
 };
 
-function getRoleRedirect(token, user) {
-  let role = "";
+// Admin email list and role helper
+const ADMIN_EMAILS = [
+  "ahamedfayaz858@gmail.com",
+  "hrms@sece.ac.in",
+];
 
-  // 1. Try from fetched user object (from fetchMe: e.g. "travelAgent")
-  if (user) {
-    role = user.role ?? user.userType ?? user.roleName ?? "";
+function isAdminEmail(emailStr) {
+  if (!emailStr || typeof emailStr !== "string") return false;
+  const clean = emailStr.trim().toLowerCase();
+  return (
+    ADMIN_EMAILS.includes(clean) ||
+    clean.startsWith("admin@") ||
+    clean.includes(".admin@") ||
+    clean.startsWith("admin.") ||
+    clean.includes("admin")
+  );
+}
+
+function isAdminRole(roleStr) {
+  if (!roleStr) return false;
+  const normalized = String(roleStr).trim().toLowerCase().replace(/[^a-z]/g, "");
+  return [
+    "admin",
+    "superadmin",
+    "administrator",
+    "adminuser",
+    "admindashboard",
+  ].includes(normalized);
+}
+
+function getRoleRedirect(token, user, data, userEmail) {
+  // 1. Direct check on user input or returned user email
+  const currentEmail = String(
+    userEmail ??
+    user?.email ??
+    data?.user?.email ??
+    data?.data?.user?.email ??
+    ""
+  ).trim().toLowerCase();
+
+  if (isAdminEmail(currentEmail)) {
+    return "/admin-dashboard";
   }
 
-  // 2. Fallback to token decoded role if user object didn't have it
+  // 2. Extract role from all possible sources
+  let role = "";
+
+  // From fetched user object (from fetchMe)
+  if (user) {
+    role =
+      user.role ??
+      user.userType ??
+      user.roleName ??
+      user.type ??
+      (Array.isArray(user.roles) ? user.roles[0] : "") ??
+      (user.isAdmin || user.is_admin ? "admin" : "") ??
+      "";
+    if (typeof role === "object" && role !== null) {
+      role = role.name ?? role.role ?? "";
+    }
+  }
+
+  // From login response data
+  if (!role && data) {
+    const u = data.user ?? data.data?.user ?? data.data ?? null;
+    role =
+      data.role ??
+      data.userType ??
+      u?.role ??
+      u?.userType ??
+      u?.roleName ??
+      u?.type ??
+      (Array.isArray(u?.roles) ? u.roles[0] : "") ??
+      (data.isAdmin || u?.isAdmin || u?.is_admin ? "admin" : "") ??
+      "";
+    if (typeof role === "object" && role !== null) {
+      role = role.name ?? role.role ?? "";
+    }
+  }
+
+  // Fallback to token decoded role
   if (!role && token) {
     const payload = decodeJwt(token);
     if (payload) {
-      role = payload.role ?? payload.userType ?? payload.roleName ?? "";
+      const pUser = payload.user ?? payload.data ?? null;
+      role =
+        payload.role ??
+        payload.userType ??
+        payload.roleName ??
+        payload.type ??
+        (Array.isArray(payload.roles) ? payload.roles[0] : "") ??
+        pUser?.role ??
+        pUser?.userType ??
+        (payload.isAdmin || payload.is_admin ? "admin" : "") ??
+        "";
+      if (typeof role === "object" && role !== null) {
+        role = role.name ?? role.role ?? "";
+      }
     }
+  }
+
+  if (isAdminRole(role)) {
+    return "/admin-dashboard";
   }
 
   // Normalize (e.g. "travelAgent" -> "travelagent")
@@ -63,6 +152,15 @@ function getRoleRedirect(token, user) {
     .trim()
     .toLowerCase()
     .replace(/[^a-z]/g, "");
+
+  if (normalized === "travelagent" || normalized === "agent" || normalized === "vendor") {
+    return "/vendor";
+  }
+
+  if (normalized === "operationcrew" || normalized === "crew" || normalized === "driver") {
+    return "/crew";
+  }
+
   return ROLE_PATHS[normalized] ?? "/";
 }
 
@@ -70,7 +168,7 @@ function getRoleRedirect(token, user) {
 export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { saveToken, fetchMe, BASE_URL } = useAuth();
+  const { saveToken, fetchMe, BASE_URL, setUser } = useAuth();
 
   const from = location.state?.from || "/";
 
@@ -132,14 +230,33 @@ export default function LoginPage() {
       const updatedUser = await fetchMe();
       toast.success("Welcome back! Logged in successfully.");
 
+      const isUserAdmin =
+        isAdminEmail(email) ||
+        isAdminEmail(updatedUser?.email) ||
+        isAdminEmail(data?.user?.email) ||
+        isAdminEmail(data?.data?.user?.email);
+
+      // If user is admin (by email or role), ensure context user has role "admin"
+      if (isUserAdmin && setUser) {
+        setUser((prev) => ({
+          ...(prev || {}),
+          ...(updatedUser || {}),
+          email: email.trim(),
+          role: "admin",
+        }));
+      }
+
       // Check user role
-      const rawRole =
-        updatedUser?.role ??
-        updatedUser?.userType ??
-        updatedUser?.roleName ??
-        data?.role ??
-        data?.user?.role ??
-        "";
+      const rawRole = isUserAdmin
+        ? "admin"
+        : (updatedUser?.role ??
+           updatedUser?.userType ??
+           updatedUser?.roleName ??
+           data?.role ??
+           data?.user?.role ??
+           data?.data?.user?.role ??
+           data?.data?.role ??
+           "");
       const normalizedRole = String(rawRole).trim().toLowerCase().replace(/[^a-z]/g, "");
 
       // Check first-time login flag across common backend naming variations
@@ -152,10 +269,12 @@ export default function LoginPage() {
         data?.firstTimeLogin ??
         data?.isFirstTimeLogin ??
         data?.user?.firsttimelogin ??
-        data?.user?.firstTimeLogin
+        data?.user?.firstTimeLogin ??
+        data?.data?.user?.firsttimelogin ??
+        data?.data?.user?.firstTimeLogin
       );
 
-      const redirectTo = getRoleRedirect(token, updatedUser);
+      const redirectTo = getRoleRedirect(token, updatedUser, data, email);
 
       if (normalizedRole === "travelagent") {
         // Navigate to the travel agent dashboard and pass firstTimeLogin state

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowDownToLine,
   ArrowLeft,
@@ -8,7 +8,6 @@ import {
   ChevronDown,
   ChevronRight,
   Clock3,
-  Eye,
   Filter,
   FileCheck2,
   FileText,
@@ -16,10 +15,12 @@ import {
   Layers,
   MapPin,
   Search,
+  Ticket,
   Users,
   Wrench,
 } from "lucide-react";
 import VendorNavbar from "./vendor/VendorNavbar.jsx";
+import { useAuth } from "../context/AuthContext.jsx";
 
 const busDocuments = [
   ["Registration Certificate", "tn38ab4521_rc_certificate.pdf", "Verified"],
@@ -30,6 +31,13 @@ const busDocuments = [
 
 const tripStatuses = ["Scheduled", "In Progress", "Draft", "Rejected"];
 
+const sampleTrips = [
+  { id: "sample-trip-1", tripId: "TRP-24103", route: "Coimbatore → Madurai", journeyDate: "13 Jun 2025", departureArrival: "22:00 – 05:45 +1", layout: "36 / 36", booked: "36 / 36", driverCrew: "S. Kannan +2", status: "Scheduled" },
+  { id: "sample-trip-2", tripId: "TRP-24103", route: "Coimbatore → Madurai", journeyDate: "13 Jun 2025", departureArrival: "22:00 – 05:45 +1", layout: "36 / 36", booked: "36 / 36", driverCrew: "S. Kannan +2", status: "In Progress" },
+  { id: "sample-trip-3", tripId: "TRP-24103", route: "Coimbatore → Madurai", journeyDate: "13 Jun 2025", departureArrival: "22:00 – 05:45 +1", layout: "36 / 36", booked: "36 / 36", driverCrew: "S. Kannan +2", status: "Draft" },
+  { id: "sample-trip-4", tripId: "TRP-24103", route: "Coimbatore → Madurai", journeyDate: "13 Jun 2025", departureArrival: "22:00 – 05:45 +1", layout: "36 / 36", booked: "36 / 36", driverCrew: "S. Kannan +2", status: "Rejected" },
+];
+
 const tripStatusStyles = {
   Scheduled: "bg-teal-50 text-teal-700",
   "In Progress": "bg-indigo-50 text-indigo-700",
@@ -38,8 +46,8 @@ const tripStatusStyles = {
 };
 
 function exportTrips(rows) {
-  const header = ["PNR / Ticket", "Passenger", "Route", "Travel Date", "Seat Berth", "Status"];
-  const content = rows.map((trip) => [trip.pnr, trip.passenger, trip.route, trip.date, trip.seats, trip.status]);
+  const header = ["Trip ID", "Route", "Journey Date", "Departure - Arrival", "Layout", "Booked", "Driver & Crew", "Status"];
+  const content = rows.map((trip) => [trip.pnr, trip.route, trip.date, trip.time, trip.layout, trip.booked, trip.driverCrew, trip.status]);
   const csv = [header, ...content]
     .map((row) => row.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(","))
     .join("\n");
@@ -56,25 +64,25 @@ function BusTripDetails({ bus }) {
   const [filterOpen, setFilterOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState("All statuses");
   const [page, setPage] = useState(1);
-  const [selectedTrip, setSelectedTrip] = useState(null);
   const pageSize = 4;
   const trips = Array.isArray(bus.tripRecords) ? bus.tripRecords : [];
-  const normalizedTrips = useMemo(() => trips.map((trip, index) => ({
+  const sourceTrips = trips.length ? trips : sampleTrips;
+  const normalizedTrips = useMemo(() => sourceTrips.map((trip, index) => ({
     id: trip.id ?? trip._id ?? trip.tripId ?? index,
     pnr: trip.pnr ?? trip.tripId ?? trip.id ?? "—",
-    passenger: trip.passengerName ?? trip.passenger?.name ?? trip.passenger ?? "—",
     route: (trip.route ?? trip.routeName ?? [trip.origin, trip.destination].filter(Boolean).join(" → ")) || "—",
-    service: trip.service ?? trip.operator ?? bus.operator,
     date: trip.journeyDate ?? trip.travelDate ?? trip.date ?? "—",
     time: (trip.departureArrival ?? [trip.departureTime, trip.arrivalTime].filter(Boolean).join(" – ")) || "—",
-    seats: trip.seatLayout ?? trip.seats ?? "—",
+    layout: trip.layout ?? trip.seatLayout ?? "—",
+    booked: trip.booked ?? trip.bookedSeats ?? trip.bookedCount ?? "—",
+    driverCrew: trip.driverCrew ?? trip.driverAndCrew ?? "—",
     status: trip.status ?? "Scheduled",
-  })), [bus.operator, trips]);
+  })), [sourceTrips]);
 
   const filteredTrips = useMemo(() => {
     const search = query.trim().toLowerCase();
     return normalizedTrips.filter((trip) => {
-      const matchesSearch = [trip.pnr, trip.passenger, trip.route]
+      const matchesSearch = [trip.pnr, trip.route, trip.driverCrew]
         .some((value) => value.toLowerCase().includes(search));
       return matchesSearch && (statusFilter === "All statuses" || trip.status === statusFilter);
     });
@@ -85,7 +93,7 @@ function BusTripDetails({ bus }) {
   const firstResult = filteredTrips.length ? (page - 1) * pageSize + 1 : 0;
   const lastResult = Math.min(page * pageSize, filteredTrips.length);
 
-  if (trips.length === 0) {
+  if (normalizedTrips.length === 0) {
     return (
       <section className="overflow-hidden rounded-xl border border-[#e1ebee] bg-white">
         <div className="overflow-x-auto">
@@ -138,20 +146,21 @@ function BusTripDetails({ bus }) {
 
       <div className="overflow-x-auto rounded-lg border border-[#e4ecef]">
         <table className="w-full min-w-212.5 text-left">
-          <thead className="bg-[#f3f7f8] text-[10px] font-semibold uppercase tracking-[0.04em] text-[#687d86]"><tr><th className="px-4 py-3">PNR / Ticket</th><th className="px-3 py-3">Passenger</th><th className="px-3 py-3">Route</th><th className="px-3 py-3">Travel Date</th><th className="px-3 py-3">Seat Berth</th><th className="px-3 py-3">Status</th><th className="px-3 py-3 text-center">Actions</th></tr></thead>
+          <thead className="bg-[#f3f7f8] text-[10px] font-semibold uppercase tracking-[0.04em] text-[#687d86]"><tr><th className="px-4 py-3">Trip ID</th><th className="px-3 py-3">Route &amp; Direction</th><th className="px-3 py-3">Journey Date</th><th className="px-3 py-3">Departure – Arrival</th><th className="px-3 py-3">Layout</th><th className="px-3 py-3">Booked</th><th className="px-3 py-3">Driver &amp; Crew</th><th className="px-3 py-3">Status</th></tr></thead>
           <tbody className="divide-y divide-[#e9eff1]">
             {visibleTrips.map((trip) => (
               <tr key={trip.id} className="h-14 transition-colors hover:bg-[#f9fbfb]">
                 <td className="whitespace-nowrap px-4 py-2 text-[11px] font-semibold text-teal-800">{trip.pnr}</td>
-                <td className="whitespace-nowrap px-3 py-2"><p className="text-[11px] font-medium text-[#172526]">{trip.passenger}</p><p className="mt-0.5 text-[10px] text-[#94a3ad]">{trip.service}</p></td>
                 <td className="whitespace-nowrap px-3 py-2 text-[11px] font-semibold text-slate-900">{trip.route}</td>
-                <td className="whitespace-nowrap px-3 py-2 text-[11px] text-[#536b80]">{trip.date}<span className="block text-[10px] text-[#94a3ad]">{trip.time}</span></td>
-                <td className="whitespace-nowrap px-3 py-2 text-[11px] font-semibold text-[#172526]">{trip.seats}</td>
+                <td className="whitespace-nowrap px-3 py-2 text-[11px] text-[#536b80]">{trip.date}</td>
+                <td className="whitespace-nowrap px-3 py-2 text-[11px] text-[#536b80]">{trip.time}</td>
+                <td className="whitespace-nowrap px-3 py-2 text-[11px] font-medium text-[#172526]">{trip.layout}</td>
+                <td className="whitespace-nowrap px-3 py-2 text-[11px] font-medium text-[#172526]">{trip.booked}</td>
+                <td className="whitespace-nowrap px-3 py-2 text-[11px] text-[#536b80]">{trip.driverCrew}</td>
                 <td className="px-3 py-2"><span className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-medium ${tripStatusStyles[trip.status]}`}><span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true" />{trip.status}</span></td>
-                <td className="px-3 py-2 text-center"><button type="button" onClick={() => setSelectedTrip(trip)} aria-label={`View trip ${trip.pnr}`} className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#f0f4f7] text-[#536b80] transition hover:bg-teal-50 hover:text-teal-700"><Eye size={15} aria-hidden="true" /></button></td>
               </tr>
             ))}
-            {visibleTrips.length === 0 && <tr><td colSpan="7" className="px-4 py-10 text-center text-sm text-slate-500">No trips match your search.</td></tr>}
+            {visibleTrips.length === 0 && <tr><td colSpan="8" className="px-4 py-10 text-center text-sm text-slate-500">No trips match your search.</td></tr>}
           </tbody>
         </table>
       </div>
@@ -167,13 +176,16 @@ function BusTripDetails({ bus }) {
         </nav>
       </footer>
 
-      {selectedTrip && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/30 p-4" onClick={() => setSelectedTrip(null)}><section role="dialog" aria-modal="true" aria-label="Trip details" className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl" onClick={(event) => event.stopPropagation()}><h2 className="text-lg font-semibold text-slate-800">{selectedTrip.pnr}</h2><dl className="mt-4 grid grid-cols-2 gap-4 text-sm">{[["Passenger", selectedTrip.passenger], ["Route", selectedTrip.route], ["Travel date", selectedTrip.date], ["Time", selectedTrip.time], ["Seat berth", selectedTrip.seats], ["Status", selectedTrip.status]].map(([label, value]) => <div key={label}><dt className="text-xs text-slate-500">{label}</dt><dd className="mt-1 font-medium text-slate-800">{value}</dd></div>)}</dl></section></div>}
     </>
   );
 }
 
 export default function TravelBusDetailView({ bus, onBack, Navbar = VendorNavbar }) {
   const [activeTab, setActiveTab] = useState("Bus Overview");
+  const { BASE_URL, TOKEN_KEY } = useAuth();
+  const [bookings, setBookings] = useState([]);
+  const [bookingsLoading, setBookingsLoading] = useState(false);
+  const [bookingsError, setBookingsError] = useState("");
   const details = [
     ["BUS REGISTRATION", bus.registration, BusFront],
     ["OPERATOR", bus.operator, Users],
@@ -184,6 +196,48 @@ export default function TravelBusDetailView({ bus, onBack, Navbar = VendorNavbar
     ["DEPOT", bus.depot, MapPin],
     ["ODOMETER", bus.odometer, Gauge],
   ];
+
+  useEffect(() => {
+    if (activeTab !== "Bookings") return undefined;
+    if (!bus._id) {
+      setBookings([]);
+      setBookingsError("Bookings are unavailable for this bus.");
+      return undefined;
+    }
+
+    let active = true;
+    async function loadBookings() {
+      setBookingsLoading(true);
+      setBookingsError("");
+      try {
+        const token = localStorage.getItem(TOKEN_KEY || "exte_key");
+        const params = new URLSearchParams({ page: "1", limit: "100", busId: bus._id });
+        const response = await fetch(`${BASE_URL}/admin/bookings?${params}`, {
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+        });
+        if (!response.ok) throw new Error("Unable to load bookings for this bus.");
+        const data = await response.json();
+        const busBookings = Array.isArray(data.bookings)
+          ? data.bookings
+          : Array.isArray(data)
+            ? data
+            : [];
+        if (active) setBookings(busBookings);
+      } catch (error) {
+        if (active) setBookingsError(error.message || "Unable to load bus bookings.");
+      } finally {
+        if (active) setBookingsLoading(false);
+      }
+    }
+
+    loadBookings();
+    return () => {
+      active = false;
+    };
+  }, [activeTab, bus._id, BASE_URL, TOKEN_KEY]);
 
   return (
     <div className="min-h-screen bg-[#f5f8f9] text-sm text-[#172526]">
@@ -232,7 +286,7 @@ export default function TravelBusDetailView({ bus, onBack, Navbar = VendorNavbar
         <section className="rounded-xl border border-[#e1ebee] bg-white p-4 shadow-sm sm:p-5">
           <div className="mb-3"><h2 className="text-base font-semibold text-[#172526]">Bus Details</h2><p className="mt-0.5 text-xs text-[#688080]">Vehicle information, operations, and trip activity</p></div>
           <div role="tablist" aria-label="Bus detail sections" className="mb-3 flex w-full max-w-md gap-1 rounded-lg bg-[#f0f5f7] p-1">
-            {["Bus Overview", "Trip Details"].map((tab) => <button key={tab} type="button" role="tab" aria-selected={activeTab === tab} onClick={() => setActiveTab(tab)} className={`flex-1 rounded-md px-3 py-2 text-xs font-medium transition ${activeTab === tab ? "bg-white text-[#078a97] shadow-sm" : "text-[#71858c] hover:text-[#078a97]"}`}>{tab}</button>)}
+            {["Bus Overview", "Trip Details", "Bookings"].map((tab) => <button key={tab} type="button" role="tab" aria-selected={activeTab === tab} onClick={() => setActiveTab(tab)} className={`flex-1 rounded-md px-3 py-2 text-xs font-medium transition ${activeTab === tab ? "bg-white text-[#078a97] shadow-sm" : "text-[#71858c] hover:text-[#078a97]"}`}>{tab}</button>)}
           </div>
 
           {activeTab === "Bus Overview" ? (
@@ -248,8 +302,67 @@ export default function TravelBusDetailView({ bus, onBack, Navbar = VendorNavbar
                 <div className="grid grid-cols-1 gap-3 p-3 sm:grid-cols-2">{busDocuments.map(([title, filename, status]) => <article key={title} className="flex items-center justify-between gap-3 rounded-lg border border-[#e5ecee] p-3"><div className="flex min-w-0 items-center gap-2.5"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#effaf8] text-[#078a97]"><FileText size={15} aria-hidden="true" /></span><div className="min-w-0"><h4 className="text-xs font-semibold text-[#172526]">{title}</h4><p className="mt-0.5 truncate text-[10px] text-[#81929a]">{filename}</p></div></div><span className="shrink-0 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-medium text-emerald-700">{status}</span></article>)}</div>
               </section>
             </>
-          ) : (
+          ) : activeTab === "Trip Details" ? (
             <BusTripDetails bus={bus} />
+          ) : (
+            <section aria-label="Bus bookings" className="overflow-hidden rounded-lg border border-[#e1ebee]">
+              <header className="flex items-center justify-between border-b border-[#e8eef0] px-4 py-3">
+                <div>
+                  <h3 className="text-sm font-semibold text-[#172526]">Bookings</h3>
+                  <p className="mt-0.5 text-[11px] text-[#81929a]">Passenger reservations for this bus</p>
+                </div>
+                <span className="rounded-full bg-teal-50 px-2.5 py-1 text-[11px] font-medium text-teal-700">{bookings.length}</span>
+              </header>
+              {bookingsLoading ? (
+                <p className="px-4 py-10 text-center text-xs text-slate-500">Loading bookings...</p>
+              ) : bookingsError ? (
+                <p role="alert" className="px-4 py-10 text-center text-xs text-rose-600">{bookingsError}</p>
+              ) : bookings.length ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[760px] text-left">
+                    <thead className="bg-[#f3f7f8] text-[10px] font-semibold uppercase tracking-wide text-[#687d86]">
+                      <tr>
+                        <th className="px-4 py-3">Booking / PNR</th>
+                        <th className="px-3 py-3">Passenger</th>
+                        <th className="px-3 py-3">Route</th>
+                        <th className="px-3 py-3">Journey date</th>
+                        <th className="px-3 py-3">Seats</th>
+                        <th className="px-3 py-3">Fare</th>
+                        <th className="px-3 py-3">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#e9eff1]">
+                      {bookings.map((booking) => {
+                        const passengerName =
+                          booking.passengerDetails?.[0]?.name ||
+                          booking.contactDetails?.name ||
+                          `${booking.user?.firstName || ""} ${booking.user?.lastName || ""}`.trim() ||
+                          "Passenger";
+                        const journeyDate = booking.journeyDate || booking.createdAt;
+                        const status = booking.displayStatus || booking.status || "Pending";
+                        return (
+                          <tr key={booking._id || booking.bookingNumber} className="text-xs hover:bg-[#f9fbfb]">
+                            <td className="whitespace-nowrap px-4 py-3 font-semibold text-teal-800">#{booking.bookingNumber || "—"}</td>
+                            <td className="px-3 py-3 font-medium text-slate-800">{passengerName}</td>
+                            <td className="whitespace-nowrap px-3 py-3 text-slate-600">{booking.source || "—"} → {booking.destination || "—"}</td>
+                            <td className="whitespace-nowrap px-3 py-3 text-slate-600">{journeyDate ? new Date(journeyDate).toLocaleDateString() : "—"}</td>
+                            <td className="whitespace-nowrap px-3 py-3 text-slate-600">{Array.isArray(booking.seats) ? booking.seats.join(", ") : "—"}</td>
+                            <td className="whitespace-nowrap px-3 py-3 font-semibold text-slate-800">₹{booking.totalAmount || 0}</td>
+                            <td className="whitespace-nowrap px-3 py-3"><span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-medium text-slate-700">{status}</span></td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="px-4 py-12 text-center">
+                  <Ticket size={26} className="mx-auto text-slate-300" aria-hidden="true" />
+                  <p className="mt-2 text-sm font-medium text-slate-700">No bookings for this bus</p>
+                  <p className="mt-1 text-xs text-slate-500">Bookings will appear here when passengers reserve seats.</p>
+                </div>
+              )}
+            </section>
           )}
         </section>
       </main>

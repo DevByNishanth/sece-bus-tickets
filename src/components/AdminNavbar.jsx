@@ -226,13 +226,19 @@ export default function AdminNavbar() {
             <IndianRupee size={13} className="shrink-0 opacity-70" />
             <span>Finance</span>
           </button>
-           <button
-            type="button"
-            className="flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[11px] font-medium text-slate-500 transition hover:bg-white hover:text-teal-700"
+          <NavLink
+            to="/admin-agency-profile"
+            className={({ isActive }) =>
+              `flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[11px] font-medium transition ${
+                isActive
+                  ? "bg-[#0e8290] text-white shadow-sm"
+                  : "text-slate-500 hover:bg-white hover:text-teal-700"
+              }`
+            }
           >
             <BuildingComplex size={13} className="shrink-0 opacity-70" />
             <span>Agency profile</span>
-          </button>
+          </NavLink>
           <button
             type="button"
             className="flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[11px] font-medium text-slate-500 transition hover:bg-white hover:text-teal-700"
@@ -486,6 +492,20 @@ export default function AdminNavbar() {
           >
             <Ticket size={14} className="shrink-0" />
             Booking
+          </NavLink>
+          <NavLink
+            to="/admin-agency-profile"
+            onClick={() => setMobileMenuOpen(false)}
+            className={({ isActive }) =>
+              `flex items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-medium ${
+                isActive
+                  ? "bg-teal-50 font-semibold text-teal-700"
+                  : "text-slate-600 hover:bg-slate-50"
+              }`
+            }
+          >
+            <BuildingComplex size={14} className="shrink-0" />
+            Agency profile
           </NavLink>
           <button
             type="button"

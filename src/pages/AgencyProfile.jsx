@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Building2,
   BusFront,
@@ -16,6 +16,7 @@ import TravelBusDetailView from "./TravelBusDetailView.jsx";
 
 function getAgencyName(agency) {
   return (
+    agency?.operatorDisplayName ||
     agency?.tradeName ||
     agency?.registeredBusinessName ||
     agency?.businessName ||
@@ -64,6 +65,17 @@ function getBusType(bus) {
   return String(bus.busType || bus.category || "Standard")
     .replaceAll("_", " ")
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function formatTripDateTime(value) {
+  if (!value) return "Not provided";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? value
+    : date.toLocaleString(undefined, {
+        dateStyle: "medium",
+        timeStyle: "short",
+      });
 }
 
 function AgencyFleetOverview({ agency, buses, loading, error, onSelectBus }) {
@@ -155,6 +167,129 @@ function AgencyFleetOverview({ agency, buses, loading, error, onSelectBus }) {
   );
 }
 
+function AgencyBookingsOverview({
+  bookings,
+  page,
+  total,
+  totalPages,
+  stats,
+  loading,
+  error,
+  onPageChange,
+}) {
+  const summaries = [
+    ["Total bookings", stats?.total ?? total],
+    ["Confirmed", stats?.confirmed ?? 0],
+    ["Pending", stats?.pending ?? 0],
+    ["Cancelled", stats?.cancelled ?? 0],
+    ["Failed", stats?.failed ?? 0],
+    ["Total revenue", `₹${Number(stats?.totalRevenue) || 0}`],
+  ];
+
+  return (
+    <section className="space-y-3">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
+        {summaries.map(([label, value]) => (
+          <article key={label} className="rounded-lg border border-[#dbe6e9] bg-white p-3">
+            <p className="text-[10px] text-slate-500">{label}</p>
+            <p className="mt-1 text-base font-semibold text-slate-800">{value}</p>
+          </article>
+        ))}
+      </div>
+
+      <section className="overflow-hidden rounded-xl border border-[#dbe6e9] bg-white">
+        {error && (
+          <p role="alert" className="border-b border-rose-100 bg-rose-50 px-4 py-2 text-xs text-rose-700">
+            {error}
+          </p>
+        )}
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[850px] text-left">
+            <thead className="bg-[#f3f7f8] text-[10px] font-semibold uppercase tracking-wide text-[#687d86]">
+              <tr>
+                <th className="px-4 py-3">Booking / PNR</th>
+                <th className="px-3 py-3">Passenger</th>
+                <th className="px-3 py-3">Route</th>
+                <th className="px-3 py-3">Journey date</th>
+                <th className="px-3 py-3">Seats</th>
+                <th className="px-3 py-3">Fare</th>
+                <th className="px-3 py-3">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 text-[11px]">
+              {loading ? (
+                <tr>
+                  <td colSpan="7" className="px-4 py-10 text-center text-slate-500">Loading agency bookings...</td>
+                </tr>
+              ) : bookings.length ? (
+                bookings.map((booking) => {
+                  const passenger =
+                    booking.passengerDetails?.[0]?.name ||
+                    booking.contactDetails?.name ||
+                    `${booking.user?.firstName || ""} ${booking.user?.lastName || ""}`.trim() ||
+                    "Passenger";
+                  const route =
+                    [booking.source || booking.tripId?.origin, booking.destination || booking.tripId?.destination]
+                      .filter(Boolean)
+                      .join(" → ") || "Not provided";
+                  const seats = Array.isArray(booking.seats)
+                    ? booking.seats.join(", ")
+                    : Array.isArray(booking.seatNumbers)
+                      ? booking.seatNumbers.join(", ")
+                      : "—";
+                  const status = String(booking.status || "Pending")
+                    .replaceAll("_", " ")
+                    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+                  return (
+                    <tr key={booking._id || booking.bookingNumber} className="hover:bg-slate-50">
+                      <td className="whitespace-nowrap px-4 py-3 font-semibold text-teal-800">#{booking.bookingNumber || booking.pnr || booking._id || "—"}</td>
+                      <td className="px-3 py-3 text-slate-700">{passenger}</td>
+                      <td className="px-3 py-3 text-slate-700">{route}</td>
+                      <td className="whitespace-nowrap px-3 py-3 text-slate-600">{formatTripDateTime(booking.journeyDate || booking.tripId?.departureDateTime)}</td>
+                      <td className="px-3 py-3 text-slate-600">{seats}</td>
+                      <td className="whitespace-nowrap px-3 py-3 font-medium text-slate-800">₹{Number(booking.totalAmount ?? booking.totalFare ?? booking.fare) || 0}</td>
+                      <td className="whitespace-nowrap px-3 py-3 text-slate-600">{status}</td>
+                    </tr>
+                  );
+                })
+              ) : (
+                <tr>
+                  <td colSpan="7" className="px-4 py-12 text-center text-slate-500">No bookings found for this agency.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        <footer className="flex items-center justify-between gap-3 border-t border-slate-100 px-4 py-3 text-xs text-slate-500">
+          <p>
+            Showing {bookings.length ? (page - 1) * 20 + 1 : 0}–
+            {(page - 1) * 20 + bookings.length} of {total} bookings
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => onPageChange((current) => Math.max(1, current - 1))}
+              disabled={loading || page <= 1}
+              className="rounded-md border border-slate-200 px-3 py-1.5 disabled:opacity-40"
+            >
+              Previous
+            </button>
+            <span>{page} / {totalPages}</span>
+            <button
+              type="button"
+              onClick={() => onPageChange((current) => Math.min(totalPages, current + 1))}
+              disabled={loading || page >= totalPages}
+              className="rounded-md border border-slate-200 px-3 py-1.5 disabled:opacity-40"
+            >
+              Next
+            </button>
+          </div>
+        </footer>
+      </section>
+    </section>
+  );
+}
+
 function AgencyNavbar() {
   return <AdminNavbar />;
 }
@@ -172,29 +307,56 @@ export default function AgencyProfile() {
   const [buses, setBuses] = useState([]);
   const [loadingBuses, setLoadingBuses] = useState(false);
   const [busError, setBusError] = useState("");
+  const [trips, setTrips] = useState([]);
+  const [tripsPage, setTripsPage] = useState(1);
+  const [tripsTotalPages, setTripsTotalPages] = useState(1);
+  const [tripsTotal, setTripsTotal] = useState(0);
+  const [loadingTrips, setLoadingTrips] = useState(false);
+  const [tripsError, setTripsError] = useState("");
+  const [bookings, setBookings] = useState([]);
+  const [bookingsPage, setBookingsPage] = useState(1);
+  const [bookingsTotalPages, setBookingsTotalPages] = useState(1);
+  const [bookingsTotal, setBookingsTotal] = useState(0);
+  const [bookingStats, setBookingStats] = useState(null);
+  const [loadingBookings, setLoadingBookings] = useState(false);
+  const [bookingsError, setBookingsError] = useState("");
   const [selectedBus, setSelectedBus] = useState(null);
   const tokenKeyName = TOKEN_KEY || "exte_key";
 
   useEffect(() => {
+    const query = search.trim();
+    if (!searchOpen || !query) {
+      setAgencies([]);
+      setLoadingAgencies(false);
+      return undefined;
+    }
+
     let active = true;
 
     async function loadAgencies() {
       setLoadingAgencies(true);
       try {
         const token = localStorage.getItem(tokenKeyName);
-        const response = await fetch(`${BASE_URL}/admin/agents?limit=100`, {
+        const params = new URLSearchParams({ q: query });
+        const response = await fetch(`${BASE_URL}/admin/agencies/search?${params}`, {
           headers: {
             "Content-Type": "application/json",
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
         });
-        if (!response.ok) throw new Error("Unable to load agencies.");
+        if (!response.ok) throw new Error("Unable to search agencies.");
         const data = await response.json();
+        if (!Array.isArray(data.agencies)) {
+          throw new Error(data.message || "Unexpected agency search response.");
+        }
         if (active) {
-          setAgencies(Array.isArray(data.agents) ? data.agents : Array.isArray(data) ? data : []);
+          setAgencies(data.agencies);
         }
       } catch (loadError) {
-        if (active) setError(loadError.message || "Unable to load agencies.");
+        if (active) {
+          setAgencies([]);
+          setError(loadError.message || "Unable to search agencies.");
+        }
       } finally {
         if (active) setLoadingAgencies(false);
       }
@@ -204,37 +366,17 @@ export default function AgencyProfile() {
     return () => {
       active = false;
     };
-  }, [BASE_URL, tokenKeyName]);
-
-  const filteredAgencies = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    if (!query) return [];
-    return agencies
-      .filter((agency) => {
-        const searchableName = [
-          agency.tradeName,
-          agency.registeredBusinessName,
-          agency.businessName,
-          agency.registrationNumber,
-        ]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase();
-        return searchableName.includes(query);
-      })
-      .slice(0, 8);
-  }, [agencies, search]);
+  }, [BASE_URL, search, searchOpen, tokenKeyName]);
 
   async function selectAgency(agency) {
-    const agencyId = agency._id || agency.id;
+    const agencyId = agency.agencyId || agency._id || agency.id;
     setSearch(getAgencyName(agency));
     setSearchOpen(false);
-    setSelectedAgency(null);
+    setSelectedAgency(agency);
+    setTripsPage(1);
+    setBookingsPage(1);
     setError("");
-    if (!agencyId) {
-      setSelectedAgency(agency);
-      return;
-    }
+    if (!agencyId) return;
 
     setLoadingProfile(true);
     try {
@@ -247,7 +389,10 @@ export default function AgencyProfile() {
       });
       if (!response.ok) throw new Error("Unable to load this agency profile.");
       const data = await response.json();
-      setSelectedAgency(data.agent || data || agency);
+      if (!data.agent) {
+        throw new Error(data.message || "Agency profile was missing from the response.");
+      }
+      setSelectedAgency(data.agent);
     } catch (loadError) {
       setError(loadError.message || "Unable to load this agency profile.");
     } finally {
@@ -260,6 +405,8 @@ export default function AgencyProfile() {
     setSearchOpen(true);
     setSelectedAgency(null);
     setSelectedBus(null);
+    setTripsPage(1);
+    setBookingsPage(1);
     setActiveAgencyTab("Travels Overview");
     setError("");
   };
@@ -277,11 +424,23 @@ export default function AgencyProfile() {
       setBusError("");
       try {
         const token = localStorage.getItem(tokenKeyName);
-        const linkedUserId = selectedAgency.userId?._id || selectedAgency.userId;
-        const agencyId = linkedUserId || selectedAgency._id || selectedAgency.id;
-        const params = new URLSearchParams({ limit: "100" });
-        if (agencyId) params.set("agentId", agencyId);
-        const response = await fetch(`${BASE_URL}/admin/buses?${params}`, {
+        const agencyId =
+          selectedAgency.userId?._id ||
+          selectedAgency.user?._id ||
+          selectedAgency.userId ||
+          selectedAgency.agencyId ||
+          selectedAgency._id ||
+          selectedAgency.id;
+        if (!agencyId) throw new Error("Unable to load buses because this agency has no ID.");
+        const params = new URLSearchParams({
+          page: "1",
+          limit: "20",
+          status: "",
+          search: "",
+        });
+        const response = await fetch(
+          `${BASE_URL}/admin/buses/agent/${encodeURIComponent(agencyId)}?${params}`,
+          {
           headers: {
             "Content-Type": "application/json",
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -289,11 +448,9 @@ export default function AgencyProfile() {
         });
         if (!response.ok) throw new Error("Unable to load buses for this agency.");
         const data = await response.json();
-        const agencyBuses = Array.isArray(data.buses)
-          ? data.buses
-          : Array.isArray(data)
-            ? data
-            : [];
+        const agencyBuses =
+          [data.buses, data.data?.buses, data.results, data.data, data]
+            .find(Array.isArray) || [];
         if (active) setBuses(agencyBuses);
       } catch (loadError) {
         if (active) setBusError(loadError.message || "Unable to load agency buses.");
@@ -308,11 +465,146 @@ export default function AgencyProfile() {
     };
   }, [BASE_URL, selectedAgency, tokenKeyName]);
 
+  useEffect(() => {
+    if (!selectedAgency || activeAgencyTab !== "Trips") {
+      setTrips([]);
+      setTripsError("");
+      setLoadingTrips(false);
+      return undefined;
+    }
+
+    const agencyId =
+      selectedAgency.userId?._id ||
+      selectedAgency.user?._id ||
+      selectedAgency.userId ||
+      selectedAgency.agencyId;
+    if (!agencyId) {
+      setTrips([]);
+      setTripsError("Unable to load trips because this agency has no ID.");
+      return undefined;
+    }
+
+    let active = true;
+    async function loadAgencyTrips() {
+      setLoadingTrips(true);
+      setTripsError("");
+      try {
+        const token = localStorage.getItem(tokenKeyName);
+        const params = new URLSearchParams({
+          agencyId,
+          page: String(tripsPage),
+          limit: "20",
+        });
+        const response = await fetch(`${BASE_URL}/admin/trips?${params}`, {
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+        });
+        if (!response.ok) throw new Error("Unable to load trips for this agency.");
+        const data = await response.json();
+        if (!Array.isArray(data.trips)) {
+          throw new Error(data.message || "Unexpected trips response.");
+        }
+        if (active) {
+          setTrips(data.trips);
+          setTripsTotalPages(Math.max(1, Number(data.totalPages) || 1));
+          setTripsTotal(Number(data.total) || 0);
+        }
+      } catch (loadError) {
+        if (active) {
+          setTrips([]);
+          setTripsError(loadError.message || "Unable to load trips for this agency.");
+        }
+      } finally {
+        if (active) setLoadingTrips(false);
+      }
+    }
+
+    loadAgencyTrips();
+    return () => {
+      active = false;
+    };
+  }, [BASE_URL, activeAgencyTab, selectedAgency, tokenKeyName, tripsPage]);
+
+  useEffect(() => {
+    if (!selectedAgency || activeAgencyTab !== "Bookings") {
+      setBookings([]);
+      setBookingsError("");
+      setLoadingBookings(false);
+      return undefined;
+    }
+
+    const agencyId =
+      selectedAgency.userId?._id ||
+      selectedAgency.userId ||
+      selectedAgency.user?._id ||
+      selectedAgency.agencyId ||
+      selectedAgency._id;
+    if (!agencyId) {
+      setBookings([]);
+      setBookingsError("Unable to load bookings because this agency has no ID.");
+      return undefined;
+    }
+
+    let active = true;
+    async function loadAgencyBookings() {
+      setLoadingBookings(true);
+      setBookingsError("");
+      try {
+        const token = localStorage.getItem(tokenKeyName);
+        const params = new URLSearchParams({
+          page: String(bookingsPage),
+          limit: "20",
+        });
+        const response = await fetch(
+          `${BASE_URL}/admin/bookings/agent/${encodeURIComponent(agencyId)}?${params}`,
+          {
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+          },
+        );
+        if (!response.ok) throw new Error("Unable to load bookings for this agency.");
+        const data = await response.json();
+        if (!Array.isArray(data.bookings)) {
+          throw new Error(data.message || "Unexpected bookings response.");
+        }
+        if (active) {
+          setBookings(data.bookings);
+          setBookingsTotal(Number(data.total) || 0);
+          setBookingsTotalPages(Math.max(1, Number(data.totalPages) || 1));
+          setBookingStats(data.stats || null);
+        }
+      } catch (loadError) {
+        if (active) {
+          setBookings([]);
+          setBookingStats(null);
+          setBookingsError(loadError.message || "Unable to load bookings for this agency.");
+        }
+      } finally {
+        if (active) setLoadingBookings(false);
+      }
+    }
+
+    loadAgencyBookings();
+    return () => {
+      active = false;
+    };
+  }, [BASE_URL, activeAgencyTab, bookingsPage, selectedAgency, tokenKeyName]);
+
   const registeredAddress = getAddress(selectedAgency?.registeredAddress);
+  const agencyContactName = [
+    selectedAgency?.user?.firstName || selectedAgency?.userId?.firstName,
+    selectedAgency?.user?.lastName || selectedAgency?.userId?.lastName,
+  ]
+    .filter(Boolean)
+    .join(" ");
   const ownerName =
     selectedAgency?.primaryContactPerson ||
-    selectedAgency?.operatorDisplayName ||
-    `${selectedAgency?.userId?.firstName || ""} ${selectedAgency?.userId?.lastName || ""}`.trim();
+    agencyContactName ||
+    selectedAgency?.operatorDisplayName;
   const documents = selectedAgency
     ? [
         {
@@ -416,21 +708,25 @@ export default function AgencyProfile() {
               >
                 {loadingAgencies ? (
                   <p className="px-3 py-2 text-xs text-slate-500">Loading agencies...</p>
-                ) : filteredAgencies.length ? (
-                  filteredAgencies.map((agency) => (
+                ) : agencies.length ? (
+                  agencies.map((agency) => (
                     <button
-                      key={agency._id || agency.id || getAgencyName(agency)}
+                      key={agency.agencyId || agency._id || agency.id || getAgencyName(agency)}
                       type="button"
                       onMouseDown={(event) => event.preventDefault()}
                       onClick={() => selectAgency(agency)}
                       className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-xs text-slate-700 hover:bg-teal-50"
                     >
                       <Building2 size={14} className="shrink-0 text-[#0e8290]" />
-                      <span className="min-w-0 flex-1 truncate font-medium">
-                        {getAgencyName(agency)}
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-medium">{getAgencyName(agency)}</span>
+                        <span className="block truncate text-[10px] text-slate-400">
+                          {agency.registeredBusinessName || agency.businessEmail || agency.user?.email}
+                        </span>
                       </span>
-                      <span className="text-[10px] text-slate-400">
-                        {agency.status || "Agency"}
+                      <span className="shrink-0 text-right text-[10px] text-slate-400">
+                        <span className="block">{agency.status || "Agency"}</span>
+                        <span className="block">{agency.busCount ?? 0} buses · {agency.driverCount ?? 0} drivers · {agency.crewCount ?? 0} crew</span>
                       </span>
                     </button>
                   ))
@@ -450,7 +746,7 @@ export default function AgencyProfile() {
           </p>
         )}
 
-        {loadingProfile ? (
+        {loadingProfile && !selectedAgency ? (
           <div className="flex min-h-[50vh] items-center justify-center text-sm text-slate-500">
             Loading agency profile...
           </div>
@@ -485,22 +781,21 @@ export default function AgencyProfile() {
                 </div>
               </div>
               <dl className="grid grid-cols-1 divide-y divide-slate-100 sm:grid-cols-2 sm:divide-x sm:divide-y-0 lg:grid-cols-3">
-                <InfoItem label="Application ID" value={selectedAgency.applicationId || selectedAgency.applicationNumber || selectedAgency.registrationNumber} />
-                <InfoItem label="Company ID" value={selectedAgency.companyId || selectedAgency._id || selectedAgency.id} />
+                <InfoItem label="Registration Number" value={selectedAgency.registrationNumber} />
                 <InfoItem label="Legal Business Name" value={selectedAgency.registeredBusinessName || selectedAgency.businessName} />
-                <InfoItem label="Trade Name" value={selectedAgency.tradeName || selectedAgency.operatingName} />
+                <InfoItem label="Trade Name" value={selectedAgency.tradeName || selectedAgency.operatingName || selectedAgency.operatorDisplayName} />
                 <InfoItem label="Business Type" value={selectedAgency.businessType} />
                 <InfoItem label="Owner / Authorized Person" value={ownerName} />
                 <InfoItem
                   label="Phone Verification"
-                  value={selectedAgency.businessMobile || selectedAgency.userId?.phone}
+                  value={selectedAgency.businessMobile || selectedAgency.user?.phone || selectedAgency.userId?.phone}
                   className="text-emerald-700"
                 />
                 <InfoItem
                   label="Email Verification"
-                  value={selectedAgency.businessEmail || selectedAgency.userId?.email}
+                  value={selectedAgency.businessEmail || selectedAgency.user?.email || selectedAgency.userId?.email}
                 />
-                <InfoItem label="PAN" value={selectedAgency.businessPan} />
+                <InfoItem label="Bus Pan" value={selectedAgency.businessPan} />
                 <InfoItem label="GSTIN" value={selectedAgency.gstin} />
                 <InfoItem
                   label="Registered Date"
@@ -564,6 +859,108 @@ export default function AgencyProfile() {
                 loading={loadingBuses}
                 error={busError}
                 onSelectBus={setSelectedBus}
+              />
+            ) : activeAgencyTab === "Trips" ? (
+              <section className="overflow-hidden rounded-xl border border-[#dbe6e9] bg-white">
+                {tripsError && (
+                  <p role="alert" className="border-b border-rose-100 bg-rose-50 px-4 py-2 text-xs text-rose-700">
+                    {tripsError}
+                  </p>
+                )}
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[900px] text-left">
+                    <thead className="bg-[#f3f7f8] text-[10px] font-semibold uppercase tracking-wide text-[#687d86]">
+                      <tr>
+                        <th className="px-4 py-3">Trip ID</th>
+                        <th className="px-3 py-3">Route</th>
+                        <th className="px-3 py-3">Departure</th>
+                        <th className="px-3 py-3">Arrival</th>
+                        <th className="px-3 py-3">Bus</th>
+                        <th className="px-3 py-3">Capacity</th>
+                        <th className="px-3 py-3">Driver &amp; Crew</th>
+                        <th className="px-3 py-3">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-[11px]">
+                      {loadingTrips ? (
+                        <tr>
+                          <td colSpan="8" className="px-4 py-10 text-center text-slate-500">Loading agency trips...</td>
+                        </tr>
+                      ) : trips.length ? (
+                        trips.map((trip) => {
+                          const routeName =
+                            trip.route?.routeName ||
+                            [trip.origin || trip.route?.originCity, trip.destination || trip.route?.destinationCity]
+                              .filter(Boolean)
+                              .join(" → ") ||
+                            "Not provided";
+                          const crewNames = [
+                            ...(Array.isArray(trip.drivers) ? trip.drivers : []),
+                            ...(Array.isArray(trip.crews) ? trip.crews : []),
+                          ]
+                            .map((member) => member.fullName)
+                            .filter(Boolean)
+                            .join(", ") || "Not assigned";
+                          const status = String(trip.status || "Unknown")
+                            .replaceAll("_", " ")
+                            .replace(/\b\w/g, (letter) => letter.toUpperCase());
+                          return (
+                            <tr key={trip._id} className="hover:bg-slate-50">
+                              <td className="whitespace-nowrap px-4 py-3 font-semibold text-teal-800">{trip.tripNumber || trip._id || "—"}</td>
+                              <td className="px-3 py-3 font-medium text-slate-800">{routeName}</td>
+                              <td className="whitespace-nowrap px-3 py-3 text-slate-600">{formatTripDateTime(trip.departureDateTime)}</td>
+                              <td className="whitespace-nowrap px-3 py-3 text-slate-600">{formatTripDateTime(trip.arrivalDateTime)}</td>
+                              <td className="px-3 py-3 text-slate-600">{trip.busId?.busName || trip.busId?.registrationNumber || "Not provided"}</td>
+                              <td className="whitespace-nowrap px-3 py-3 text-slate-600">{trip.seatLayout?.totalPassengerCapacity ?? trip.busId?.passengerCapacity ?? "—"}</td>
+                              <td className="px-3 py-3 text-slate-600">{crewNames}</td>
+                              <td className="px-3 py-3 text-slate-600">{status}</td>
+                            </tr>
+                          );
+                        })
+                      ) : (
+                        <tr>
+                          <td colSpan="8" className="px-4 py-10 text-center text-slate-500">No trips found for this agency.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                <footer className="flex items-center justify-between gap-3 border-t border-slate-100 px-4 py-3 text-xs text-slate-500">
+                  <p>
+                    Showing {trips.length ? (tripsPage - 1) * 20 + 1 : 0}–
+                    {(tripsPage - 1) * 20 + trips.length} of {tripsTotal} trips
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setTripsPage((page) => Math.max(1, page - 1))}
+                      disabled={loadingTrips || tripsPage <= 1}
+                      className="rounded-md border border-slate-200 px-3 py-1.5 disabled:opacity-40"
+                    >
+                      Previous
+                    </button>
+                    <span>{tripsPage} / {tripsTotalPages}</span>
+                    <button
+                      type="button"
+                      onClick={() => setTripsPage((page) => Math.min(tripsTotalPages, page + 1))}
+                      disabled={loadingTrips || tripsPage >= tripsTotalPages}
+                      className="rounded-md border border-slate-200 px-3 py-1.5 disabled:opacity-40"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </footer>
+              </section>
+            ) : activeAgencyTab === "Bookings" ? (
+              <AgencyBookingsOverview
+                bookings={bookings}
+                page={bookingsPage}
+                total={bookingsTotal}
+                totalPages={bookingsTotalPages}
+                stats={bookingStats}
+                loading={loadingBookings}
+                error={bookingsError}
+                onPageChange={setBookingsPage}
               />
             ) : (
               <section className="rounded-xl border border-[#dbe6e9] bg-white px-4 py-12 text-center text-xs text-slate-500">

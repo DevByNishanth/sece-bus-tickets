@@ -8,6 +8,7 @@ import {
   ChevronDown,
   ChevronRight,
   Clock3,
+  Eye,
   Filter,
   FileCheck2,
   FileText,
@@ -108,11 +109,12 @@ function BusTripDetails({ bus }) {
                 <th className="px-3 py-3">Booked</th>
                 <th className="px-3 py-3">Driver &amp; Crew</th>
                 <th className="px-3 py-3">Status</th>
+                <th className="px-3 py-3">Action</th>
               </tr>
             </thead>
             <tbody>
               <tr>
-                <td colSpan="8" className="h-72 px-4 py-8">
+                <td colSpan="9" className="h-72 px-4 py-8">
                   <div className="flex h-full flex-col items-center justify-center text-center">
                     <span className="flex h-14 w-14 items-center justify-center rounded-full bg-[#e6f7f5] text-[#078a97]"><MapPin size={22} aria-hidden="true" /></span>
                     <h2 className="mt-4 text-sm font-semibold text-slate-800">No trips found</h2>
@@ -146,7 +148,7 @@ function BusTripDetails({ bus }) {
 
       <div className="overflow-x-auto rounded-lg border border-[#e4ecef]">
         <table className="w-full min-w-212.5 text-left">
-          <thead className="bg-[#f3f7f8] text-[10px] font-semibold uppercase tracking-[0.04em] text-[#687d86]"><tr><th className="px-4 py-3">Trip ID</th><th className="px-3 py-3">Route &amp; Direction</th><th className="px-3 py-3">Journey Date</th><th className="px-3 py-3">Departure – Arrival</th><th className="px-3 py-3">Layout</th><th className="px-3 py-3">Booked</th><th className="px-3 py-3">Driver &amp; Crew</th><th className="px-3 py-3">Status</th></tr></thead>
+          <thead className="bg-[#f3f7f8] text-[10px] font-semibold uppercase tracking-[0.04em] text-[#687d86]"><tr><th className="px-4 py-3">Trip ID</th><th className="px-3 py-3">Route &amp; Direction</th><th className="px-3 py-3">Journey Date</th><th className="px-3 py-3">Departure – Arrival</th><th className="px-3 py-3">Layout</th><th className="px-3 py-3">Booked</th><th className="px-3 py-3">Driver &amp; Crew</th><th className="px-3 py-3">Status</th><th className="px-3 py-3">Action</th></tr></thead>
           <tbody className="divide-y divide-[#e9eff1]">
             {visibleTrips.map((trip) => (
               <tr key={trip.id} className="h-14 transition-colors hover:bg-[#f9fbfb]">
@@ -158,9 +160,10 @@ function BusTripDetails({ bus }) {
                 <td className="whitespace-nowrap px-3 py-2 text-[11px] font-medium text-[#172526]">{trip.booked}</td>
                 <td className="whitespace-nowrap px-3 py-2 text-[11px] text-[#536b80]">{trip.driverCrew}</td>
                 <td className="px-3 py-2"><span className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-medium ${tripStatusStyles[trip.status]}`}><span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true" />{trip.status}</span></td>
+                <td className="px-3 py-2"><span className="inline-flex h-7 w-7 items-center justify-center rounded-md text-[#078a97]" aria-label={`View trip ${trip.pnr}`}><Eye size={15} aria-hidden="true" /></span></td>
               </tr>
             ))}
-            {visibleTrips.length === 0 && <tr><td colSpan="8" className="px-4 py-10 text-center text-sm text-slate-500">No trips match your search.</td></tr>}
+            {visibleTrips.length === 0 && <tr><td colSpan="9" className="px-4 py-10 text-center text-sm text-slate-500">No trips match your search.</td></tr>}
           </tbody>
         </table>
       </div>

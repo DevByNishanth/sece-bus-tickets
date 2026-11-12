@@ -30,20 +30,15 @@ const busDocuments = [
   ["Fitness Certificate", "vehicle_fitness_certificate.pdf", "Verified"],
 ];
 
-const tripStatuses = ["Scheduled", "In Progress", "Draft", "Rejected"];
-
-const sampleTrips = [
-  { id: "sample-trip-1", tripId: "TRP-24103", route: "Coimbatore → Madurai", journeyDate: "13 Jun 2025", departureArrival: "22:00 – 05:45 +1", layout: "36 / 36", booked: "36 / 36", driverCrew: "S. Kannan +2", status: "Scheduled" },
-  { id: "sample-trip-2", tripId: "TRP-24103", route: "Coimbatore → Madurai", journeyDate: "13 Jun 2025", departureArrival: "22:00 – 05:45 +1", layout: "36 / 36", booked: "36 / 36", driverCrew: "S. Kannan +2", status: "In Progress" },
-  { id: "sample-trip-3", tripId: "TRP-24103", route: "Coimbatore → Madurai", journeyDate: "13 Jun 2025", departureArrival: "22:00 – 05:45 +1", layout: "36 / 36", booked: "36 / 36", driverCrew: "S. Kannan +2", status: "Draft" },
-  { id: "sample-trip-4", tripId: "TRP-24103", route: "Coimbatore → Madurai", journeyDate: "13 Jun 2025", departureArrival: "22:00 – 05:45 +1", layout: "36 / 36", booked: "36 / 36", driverCrew: "S. Kannan +2", status: "Rejected" },
-];
+const tripStatuses = ["Scheduled", "In Progress", "Completed", "Cancelled", "Draft", "Rejected"];
 
 const tripStatusStyles = {
   Scheduled: "bg-teal-50 text-teal-700",
   "In Progress": "bg-indigo-50 text-indigo-700",
   Draft: "bg-slate-100 text-slate-600",
   Rejected: "bg-rose-50 text-rose-700",
+  Completed: "bg-emerald-50 text-emerald-700",
+  Cancelled: "bg-rose-50 text-rose-700",
 };
 
 function exportTrips(rows) {
@@ -60,31 +55,29 @@ function exportTrips(rows) {
   URL.revokeObjectURL(url);
 }
 
-function BusTripDetails({ bus }) {
+function BusTripDetails({ trips, loading, error }) {
   const [query, setQuery] = useState("");
   const [filterOpen, setFilterOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState("All statuses");
   const [page, setPage] = useState(1);
   const pageSize = 4;
-  const trips = Array.isArray(bus.tripRecords) ? bus.tripRecords : [];
-  const sourceTrips = trips.length ? trips : sampleTrips;
-  const normalizedTrips = useMemo(() => sourceTrips.map((trip, index) => ({
-    id: trip.id ?? trip._id ?? trip.tripId ?? index,
-    pnr: trip.pnr ?? trip.tripId ?? trip.id ?? "—",
-    route: (trip.route ?? trip.routeName ?? [trip.origin, trip.destination].filter(Boolean).join(" → ")) || "—",
-    date: trip.journeyDate ?? trip.travelDate ?? trip.date ?? "—",
+  const normalizedTrips = useMemo(() => trips.map((trip, index) => ({
+    id: trip.id ?? trip._id ?? trip.tripId?._id ?? trip.tripId ?? index,
+    pnr: trip.pnr ?? trip.tripNumber ?? (typeof trip.tripId === "object" ? trip.tripId?.tripNumber ?? trip.tripId?._id : trip.tripId) ?? trip.id ?? "—",
+    route: (trip.route ?? trip.routeName ?? [trip.origin ?? trip.source ?? trip.from, trip.destination ?? trip.destinationCity ?? trip.to].filter(Boolean).join(" → ")) || "—",
+    date: trip.journeyDate ?? trip.travelDate ?? trip.departureDateTime ?? trip.date ?? "—",
     time: (trip.departureArrival ?? [trip.departureTime, trip.arrivalTime].filter(Boolean).join(" – ")) || "—",
-    layout: trip.layout ?? trip.seatLayout ?? "—",
+    layout: trip.layout ?? trip.seatLayout?.name ?? (typeof trip.seatLayout === "string" ? trip.seatLayout : "—"),
     booked: trip.booked ?? trip.bookedSeats ?? trip.bookedCount ?? "—",
-    driverCrew: trip.driverCrew ?? trip.driverAndCrew ?? "—",
-    status: trip.status ?? "Scheduled",
-  })), [sourceTrips]);
+    driverCrew: trip.driverCrew ?? trip.driverAndCrew ?? trip.driver?.name ?? "—",
+    status: String(trip.status ?? "Scheduled").toLowerCase().replaceAll("_", " ").replaceAll("-", " ").replace(/\b\w/g, (letter) => letter.toUpperCase()),
+  })), [trips]);
 
   const filteredTrips = useMemo(() => {
     const search = query.trim().toLowerCase();
     return normalizedTrips.filter((trip) => {
       const matchesSearch = [trip.pnr, trip.route, trip.driverCrew]
-        .some((value) => value.toLowerCase().includes(search));
+        .some((value) => String(value).toLowerCase().includes(search));
       return matchesSearch && (statusFilter === "All statuses" || trip.status === statusFilter);
     });
   }, [query, statusFilter, normalizedTrips]);
@@ -97,6 +90,7 @@ function BusTripDetails({ bus }) {
   if (normalizedTrips.length === 0) {
     return (
       <section className="overflow-hidden rounded-xl border border-[#e1ebee] bg-white">
+        {error && <p role="alert" className="border-b border-rose-100 bg-rose-50 px-4 py-2 text-xs text-rose-700">{error}</p>}
         <div className="overflow-x-auto">
           <table className="w-full min-w-212.5 text-left">
             <thead className="bg-[#f3f7f8] text-[10px] font-semibold uppercase tracking-wide text-[#687d86]">
@@ -117,11 +111,8 @@ function BusTripDetails({ bus }) {
                 <td colSpan="9" className="h-72 px-4 py-8">
                   <div className="flex h-full flex-col items-center justify-center text-center">
                     <span className="flex h-14 w-14 items-center justify-center rounded-full bg-[#e6f7f5] text-[#078a97]"><MapPin size={22} aria-hidden="true" /></span>
-                    <h2 className="mt-4 text-sm font-semibold text-slate-800">No trips found</h2>
-                    <p className="mt-1 text-xs text-slate-500">Try another filter or create a new trip for this bus.</p>
-                    <button type="button" onClick={() => bus.onAddTrip?.()} className="mt-4 inline-flex items-center gap-2 rounded-lg bg-[#078a97] px-4 py-2 text-xs font-medium text-white transition hover:bg-[#067681]">
-                      <span aria-hidden="true">+</span> Add Trip
-                    </button>
+                    <h2 className="mt-4 text-sm font-semibold text-slate-800">{loading ? "Loading trips..." : "No trips found"}</h2>
+                    {!loading && <p className="mt-1 text-xs text-slate-500">No trips have been allocated to this bus yet.</p>}
                   </div>
                 </td>
               </tr>
@@ -159,7 +150,7 @@ function BusTripDetails({ bus }) {
                 <td className="whitespace-nowrap px-3 py-2 text-[11px] font-medium text-[#172526]">{trip.layout}</td>
                 <td className="whitespace-nowrap px-3 py-2 text-[11px] font-medium text-[#172526]">{trip.booked}</td>
                 <td className="whitespace-nowrap px-3 py-2 text-[11px] text-[#536b80]">{trip.driverCrew}</td>
-                <td className="px-3 py-2"><span className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-medium ${tripStatusStyles[trip.status]}`}><span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true" />{trip.status}</span></td>
+                <td className="px-3 py-2"><span className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-medium ${tripStatusStyles[trip.status] || "bg-slate-100 text-slate-600"}`}><span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true" />{trip.status}</span></td>
                 <td className="px-3 py-2"><span className="inline-flex h-7 w-7 items-center justify-center rounded-md text-[#078a97]" aria-label={`View trip ${trip.pnr}`}><Eye size={15} aria-hidden="true" /></span></td>
               </tr>
             ))}
@@ -186,23 +177,163 @@ function BusTripDetails({ bus }) {
 export default function TravelBusDetailView({ bus, onBack, Navbar = VendorNavbar }) {
   const [activeTab, setActiveTab] = useState("Bus Overview");
   const { BASE_URL, TOKEN_KEY } = useAuth();
+  const busId = bus._id ?? bus.id ?? bus.busId;
+  const [busOverview, setBusOverview] = useState(bus);
+  const [overviewStats, setOverviewStats] = useState(null);
+  const [overviewLoading, setOverviewLoading] = useState(false);
+  const [overviewError, setOverviewError] = useState("");
+  const [trips, setTrips] = useState([]);
+  const [tripStats, setTripStats] = useState(null);
+  const [tripsLoading, setTripsLoading] = useState(false);
+  const [tripsError, setTripsError] = useState("");
   const [bookings, setBookings] = useState([]);
   const [bookingsLoading, setBookingsLoading] = useState(false);
   const [bookingsError, setBookingsError] = useState("");
+  const normalizedTripStatuses = trips.map((trip) =>
+    String(trip.status || "").toLowerCase().replaceAll("_", " ").replaceAll("-", " ").trim(),
+  );
+  const tripSummary = overviewStats
+    ?? busOverview.tripStats
+    ?? busOverview.tripSummary
+    ?? busOverview.stats
+    ?? tripStats
+    ?? busOverview;
+  const tripCounts = {
+    total: tripSummary.totalTrips ?? tripSummary.total ?? tripSummary.tripCount ?? normalizedTripStatuses.length,
+    upcoming: tripSummary.upcoming ?? tripSummary.upcomingTrips ?? tripSummary.scheduled ?? normalizedTripStatuses.filter((status) => ["upcoming", "scheduled", "confirmed"].includes(status)).length,
+    inProgress: tripSummary.inProgress ?? tripSummary.inProgressTrips ?? tripSummary.in_progress ?? normalizedTripStatuses.filter((status) => status === "in progress").length,
+    completed: tripSummary.completed ?? tripSummary.completedTrips ?? normalizedTripStatuses.filter((status) => status === "completed").length,
+    cancelled: tripSummary.cancelled ?? tripSummary.cancelledTrips ?? tripSummary.canceled ?? normalizedTripStatuses.filter((status) => ["cancelled", "canceled"].includes(status)).length,
+    drafts: tripSummary.drafts ?? tripSummary.draftTrips ?? normalizedTripStatuses.filter((status) => status === "draft").length,
+  };
+  const registration = busOverview.registration ?? busOverview.registrationNumber ?? bus.registration ?? bus.busName;
+  const operator = busOverview.operator ?? busOverview.operatorName ?? bus.operator;
+  const manufacturerModel = [busOverview.manufacturer, busOverview.model]
+    .filter(Boolean)
+    .join(" ") || busOverview.modelName || bus.model;
+  const busType = busOverview.busType ?? busOverview.category ?? busOverview.specification ?? bus.specification;
+  const deck = busOverview.deckConfiguration ?? busOverview.deck ?? bus.deck;
+  const passengerCapacity = busOverview.passengerCapacity ?? busOverview.totalSeats;
+  const capacity = passengerCapacity
+    ? `${passengerCapacity} seats`
+    : busOverview.capacity ?? bus.capacity;
+  const depot = busOverview.depot?.city ?? busOverview.depot?.name ?? busOverview.depot ?? bus.depot;
+  const busStatus = busOverview.status || bus.status || "Active";
   const details = [
-    ["BUS REGISTRATION", bus.registration, BusFront],
-    ["OPERATOR", bus.operator, Users],
-    ["MANUFACTURER / MODEL", bus.model, Wrench],
-    ["BUS TYPE", bus.specification, BusFront],
-    ["DECK CONFIGURATION", bus.deck, Layers],
-    ["PASSENGER CAPACITY", bus.capacity, Users],
-    ["DEPOT", bus.depot, MapPin],
-    ["ODOMETER", bus.odometer, Gauge],
+    ["BUS REGISTRATION", registration, BusFront],
+    ["OPERATOR", operator, Users],
+    ["MANUFACTURER / MODEL", manufacturerModel, Wrench],
+    ["BUS TYPE", busType, BusFront],
+    ["DECK CONFIGURATION", deck, Layers],
+    ["PASSENGER CAPACITY", capacity, Users],
+    ["DEPOT", depot, MapPin],
+    ["ODOMETER", busOverview.odometer ? `${busOverview.odometer} km` : bus.odometer, Gauge],
   ];
 
   useEffect(() => {
+    if (!busId) {
+      setOverviewError("Bus details are unavailable because this bus has no ID.");
+      return undefined;
+    }
+
+    let active = true;
+    async function loadBusOverview() {
+      setOverviewLoading(true);
+      setOverviewError("");
+      try {
+        const token = localStorage.getItem(TOKEN_KEY || "exte_key");
+        const response = await fetch(
+          `${BASE_URL}/admin/buses/${encodeURIComponent(busId)}`,
+          {
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+          },
+        );
+        if (!response.ok) throw new Error(`Unable to load bus overview (HTTP ${response.status}).`);
+        const data = await response.json();
+        const payload = data.data ?? data;
+        const busData = data.bus ?? payload.bus ?? payload;
+        if (!busData || typeof busData !== "object" || Array.isArray(busData)) {
+          throw new Error(data.message || "Unexpected bus overview response.");
+        }
+        if (active) {
+          setBusOverview((current) => ({ ...current, ...busData }));
+          setOverviewStats(data.stats ?? payload.stats ?? busData.tripStats ?? busData.stats ?? null);
+        }
+      } catch (error) {
+        if (active) setOverviewError(error.message || "Unable to load bus overview.");
+      } finally {
+        if (active) setOverviewLoading(false);
+      }
+    }
+
+    loadBusOverview();
+    return () => {
+      active = false;
+    };
+  }, [busId, BASE_URL, TOKEN_KEY]);
+
+  useEffect(() => {
+    if (activeTab !== "Trip Details") return undefined;
+    if (!busId) {
+      setTrips([]);
+      setTripStats(null);
+      setTripsError("Trips are unavailable because this bus has no ID.");
+      return undefined;
+    }
+
+    let active = true;
+    async function loadBusTrips() {
+      setTripsLoading(true);
+      setTripsError("");
+      try {
+        const token = localStorage.getItem(TOKEN_KEY || "exte_key");
+        const response = await fetch(
+          `${BASE_URL}/admin/trips/bus/${encodeURIComponent(busId)}`,
+          {
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+          },
+        );
+        if (!response.ok) throw new Error(`Unable to load trips for this bus (HTTP ${response.status}).`);
+        const data = await response.json();
+        const payload = data.data ?? data;
+        const busTrips = Array.isArray(data.trips)
+          ? data.trips
+          : Array.isArray(payload.trips)
+            ? payload.trips
+            : Array.isArray(payload)
+              ? payload
+              : null;
+        if (!busTrips) throw new Error(data.message || "Unexpected bus trips response.");
+        if (active) {
+          setTrips(busTrips);
+          setTripStats(data.stats ?? payload.stats ?? data.summary ?? payload.summary ?? payload);
+        }
+      } catch (error) {
+        if (active) {
+          setTrips([]);
+          setTripStats(null);
+          setTripsError(error.message || "Unable to load trips for this bus.");
+        }
+      } finally {
+        if (active) setTripsLoading(false);
+      }
+    }
+
+    loadBusTrips();
+    return () => {
+      active = false;
+    };
+  }, [activeTab, busId, BASE_URL, TOKEN_KEY]);
+
+  useEffect(() => {
     if (activeTab !== "Bookings") return undefined;
-    if (!bus._id) {
+    if (!busId) {
       setBookings([]);
       setBookingsError("Bookings are unavailable for this bus.");
       return undefined;
@@ -214,7 +345,7 @@ export default function TravelBusDetailView({ bus, onBack, Navbar = VendorNavbar
       setBookingsError("");
       try {
         const token = localStorage.getItem(TOKEN_KEY || "exte_key");
-        const params = new URLSearchParams({ page: "1", limit: "100", busId: bus._id });
+        const params = new URLSearchParams({ page: "1", limit: "100", busId: String(busId) });
         const response = await fetch(`${BASE_URL}/admin/bookings?${params}`, {
           headers: {
             "Content-Type": "application/json",
@@ -240,7 +371,7 @@ export default function TravelBusDetailView({ bus, onBack, Navbar = VendorNavbar
     return () => {
       active = false;
     };
-  }, [activeTab, bus._id, BASE_URL, TOKEN_KEY]);
+  }, [activeTab, busId, BASE_URL, TOKEN_KEY]);
 
   return (
     <div className="min-h-screen bg-[#f5f8f9] text-sm text-[#172526]">
@@ -252,7 +383,7 @@ export default function TravelBusDetailView({ bus, onBack, Navbar = VendorNavbar
             <ChevronRight size={14} aria-hidden="true" />
             <button type="button" onClick={onBack} className="hover:text-[#078a97]">Buses</button>
             <ChevronRight size={14} aria-hidden="true" />
-            <span className="font-medium text-[#078a97]">{bus.registration}</span>
+            <span className="font-medium text-[#078a97]">{registration}</span>
           </nav>
           <button type="button" onClick={onBack} className="inline-flex items-center gap-2 rounded-lg border border-[#dce7e9] bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50">
             <ArrowLeft size={15} aria-hidden="true" /> Back to Bus Overview
@@ -263,21 +394,21 @@ export default function TravelBusDetailView({ bus, onBack, Navbar = VendorNavbar
           <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#e6f7f5] text-[#078a97]"><BusFront size={24} aria-hidden="true" /></span>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-xl font-semibold text-[#172526]">{bus.registration}</h1>
-              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700"><CheckCircle2 size={12} aria-hidden="true" /> Active</span>
+              <h1 className="text-xl font-semibold text-[#172526]">{registration}</h1>
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700"><CheckCircle2 size={12} aria-hidden="true" /> {busStatus}</span>
             </div>
-            <p className="mt-1 text-xs text-[#688080]">{bus.operator} <span className="px-1">·</span> {bus.specification} <span className="px-1">·</span> {bus.deck} <span className="px-1">·</span> {bus.capacity}</p>
+            <p className="mt-1 text-xs text-[#688080]">{operator} <span className="px-1">·</span> {busType} <span className="px-1">·</span> {deck} <span className="px-1">·</span> {capacity}</p>
           </div>
         </section>
 
         <section aria-label="Trip summary" className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
           {[
-            ["Total trips", bus.totalTrips, BusFront],
-            ["Upcoming", bus.trips[0][0], CalendarDays],
-            ["In progress", bus.inProgress, Clock3],
-            ["Completed", bus.trips[1][0], CheckCircle2],
-            ["Cancelled", bus.trips[2][0], Clock3],
-            ["Drafts", bus.trips[4][0], FileText],
+            ["Total trips", tripCounts.total, BusFront],
+            ["Upcoming", tripCounts.upcoming, CalendarDays],
+            ["In progress", tripCounts.inProgress, Clock3],
+            ["Completed", tripCounts.completed, CheckCircle2],
+            ["Cancelled", tripCounts.cancelled, Clock3],
+            ["Drafts", tripCounts.drafts, FileText],
           ].map(([label, count, Icon]) => (
             <article key={label} className="rounded-lg border border-[#e7edef] bg-white px-3 py-3 shadow-sm">
               <div className="flex items-center gap-1.5 text-[10px] font-medium text-[#688080]"><Icon size={13} className="text-[#078a97]" aria-hidden="true" />{label}</div>
@@ -285,6 +416,8 @@ export default function TravelBusDetailView({ bus, onBack, Navbar = VendorNavbar
             </article>
           ))}
         </section>
+        {overviewLoading && <p role="status" className="mb-3 text-xs text-slate-500">Loading bus overview...</p>}
+        {overviewError && <p role="alert" className="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{overviewError}</p>}
 
         <section className="rounded-xl border border-[#e1ebee] bg-white p-4 shadow-sm sm:p-5">
           <div className="mb-3"><h2 className="text-base font-semibold text-[#172526]">Bus Details</h2><p className="mt-0.5 text-xs text-[#688080]">Vehicle information, operations, and trip activity</p></div>
@@ -306,7 +439,7 @@ export default function TravelBusDetailView({ bus, onBack, Navbar = VendorNavbar
               </section>
             </>
           ) : activeTab === "Trip Details" ? (
-            <BusTripDetails bus={bus} />
+            <BusTripDetails trips={trips} loading={tripsLoading} error={tripsError} />
           ) : (
             <section aria-label="Bus bookings" className="overflow-hidden rounded-lg border border-[#e1ebee]">
               <header className="flex items-center justify-between border-b border-[#e8eef0] px-4 py-3">

@@ -633,7 +633,7 @@ export default function AgencyProfile() {
   };
   const detailBus = selectedBus
     ? {
-        _id: selectedBus._id || selectedBus.id,
+        _id: selectedBus._id || selectedBus.id || selectedBus.busId,
         registration: selectedBus.registrationNumber || selectedBus.busName || "Bus details",
         operator: selectedBus.operatorName || getAgencyName(selectedAgency),
         model: [selectedBus.manufacturer, selectedBus.model].filter(Boolean).join(" ") || "Not provided",
@@ -643,15 +643,11 @@ export default function AgencyProfile() {
         depot: selectedBus.depot || selectedAgency?.operatingAddress?.city || "Not provided",
         odometer: selectedBus.odometer ? `${selectedBus.odometer} km` : "Not provided",
         totalTrips: getBusCount(selectedBus, "totalTrips", "tripCount"),
-        inProgress: getBusCount(selectedBus, "inProgressTrips", "inProgress"),
-        trips: [
-          [getBusCount(selectedBus, "upcomingTrips", "upcomingTripCount")],
-          [getBusCount(selectedBus, "completedTrips", "completedTripCount")],
-          [getBusCount(selectedBus, "cancelledTrips", "cancelledTripCount")],
-          [getBusCount(selectedBus, "rejectedTrips", "rejectedTripCount")],
-          [getBusCount(selectedBus, "draftTrips", "draftCount")],
-        ],
-        tripRecords: Array.isArray(selectedBus.tripRecords) ? selectedBus.tripRecords : [],
+        upcomingTrips: getBusCount(selectedBus, "upcomingTrips", "upcomingTripCount"),
+        inProgressTrips: getBusCount(selectedBus, "inProgressTrips", "inProgress"),
+        completedTrips: getBusCount(selectedBus, "completedTrips", "completedTripCount"),
+        cancelledTrips: getBusCount(selectedBus, "cancelledTrips", "cancelledTripCount"),
+        draftTrips: getBusCount(selectedBus, "draftTrips", "draftCount"),
       }
     : null;
 

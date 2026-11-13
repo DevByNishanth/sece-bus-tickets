@@ -8,7 +8,6 @@ import {
   CheckCircle,
   ChevronDown,
   Clock,
-  IndianRupee,
   LayoutDashboard,
   LogOut,
   Mail,
@@ -217,15 +216,6 @@ export default function AdminNavbar() {
             <Ticket size={13} className="shrink-0" />
             <span>Booking</span>
           </NavLink>
-
-          
-          <button
-            type="button"
-            className="flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[11px] font-medium text-slate-500 transition hover:bg-white hover:text-teal-700"
-          >
-            <IndianRupee size={13} className="shrink-0 opacity-70" />
-            <span>Finance</span>
-          </button>
           <NavLink
             to="/admin-agency-profile"
             className={({ isActive }) =>

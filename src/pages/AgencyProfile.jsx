@@ -1,14 +1,19 @@
 import { useEffect, useState } from "react";
 import {
+  ArrowLeft,
   Building2,
   BusFront,
+  CalendarDays,
   CheckCircle2,
+  Clock3,
   Eye,
   FileCheck2,
   FileText,
   MapPin,
   Search,
+  Users,
   Wrench,
+  XCircle,
 } from "lucide-react";
 import AdminNavbar from "../components/AdminNavbar.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
@@ -71,7 +76,7 @@ function formatTripDateTime(value) {
   if (!value) return "Not provided";
   const date = new Date(value);
   return Number.isNaN(date.getTime())
-    ? value
+    ? getTripDisplayValue(value)
     : date.toLocaleString(undefined, {
         dateStyle: "medium",
         timeStyle: "short",
@@ -290,6 +295,339 @@ function AgencyBookingsOverview({
   );
 }
 
+function formatTripDate(value) {
+  if (!value) return "Not provided";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? getTripDisplayValue(value)
+    : date.toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function formatTripTime(value) {
+  if (!value) return "Not provided";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? getTripDisplayValue(value)
+    : date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+}
+
+function getTripDuration(departure, arrival) {
+  const start = new Date(departure);
+  const end = new Date(arrival);
+  if (!departure || !arrival || Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return "Not provided";
+  }
+  const durationMinutes = Math.round((end.getTime() - start.getTime()) / 60000);
+  if (durationMinutes < 0) return "Not provided";
+  const hours = Math.floor(durationMinutes / 60);
+  const minutes = durationMinutes % 60;
+  return [hours ? `${hours}h` : null, minutes ? `${minutes}m` : null]
+    .filter(Boolean)
+    .join(" ") || "Less than 1m";
+}
+
+function formatTripFare(value) {
+  if (value === undefined || value === null || value === "") return "Not provided";
+  const numericValue = typeof value === "number"
+    ? value
+    : typeof value === "string" && /^\d+(\.\d+)?$/.test(value.trim())
+      ? Number(value)
+      : null;
+  return numericValue === null
+    ? getTripDisplayValue(value)
+    : `₹${numericValue.toLocaleString("en-IN")}`;
+}
+
+function getTripDisplayValue(value) {
+  if (value === undefined || value === null || value === "") return "Not provided";
+  if (typeof value === "string" || typeof value === "number") return value;
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (Array.isArray(value)) {
+    return value.map(getTripDisplayValue).filter((item) => item !== "Not provided").join(", ") || "Not provided";
+  }
+  if (typeof value === "object") {
+    const displayValue = [
+      value.name,
+      value.label,
+      value.title,
+      value.fullName,
+      value.routeName,
+      value.city,
+      value.value,
+      value.amount,
+      value.price,
+    ].find((item) => item !== undefined && item !== null && item !== "");
+    return displayValue === undefined ? "Not provided" : getTripDisplayValue(displayValue);
+  }
+  return "Not provided";
+}
+
+function getSeatFareSummary(seatLayout) {
+  if (!seatLayout || typeof seatLayout !== "object") {
+    return { total: 0, priced: 0, minimum: undefined, maximum: undefined, hasDifferentFares: false };
+  }
+  const decks = [
+    seatLayout.lowerDeck,
+    seatLayout.upperDeck,
+    ...(Array.isArray(seatLayout.decks) ? seatLayout.decks : []),
+  ].filter(Boolean);
+  const rows = [
+    ...(Array.isArray(seatLayout.rows) ? seatLayout.rows : []),
+    ...decks.flatMap((deck) => (Array.isArray(deck.rows) ? deck.rows : [])),
+  ];
+  const seats = [
+    ...(Array.isArray(seatLayout.seats) ? seatLayout.seats : []),
+    ...rows.flatMap((row) => [
+      ...(Array.isArray(row.seats) ? row.seats : []),
+      ...(Array.isArray(row.berths) ? row.berths : []),
+    ]),
+  ];
+  const fares = seats
+    .map((seat) => {
+      const value = seat?.fare ?? seat?.price ?? seat?.baseFare;
+      return value === undefined || value === null || value === "" ? null : Number(value);
+    })
+    .filter((fare) => fare !== null && Number.isFinite(fare) && fare >= 0);
+
+  return {
+    total: seats.length,
+    priced: fares.length,
+    minimum: fares.length ? Math.min(...fares) : undefined,
+    maximum: fares.length ? Math.max(...fares) : undefined,
+    hasDifferentFares: new Set(fares).size > 1,
+  };
+}
+
+function TripReviewCard({ title, Icon, children, className = "" }) {
+  return (
+    <section className={`rounded-xl border border-[#e4ecef] bg-white p-4 shadow-sm ${className}`}>
+      <header className="mb-3 flex items-center gap-2 border-b border-slate-100 pb-3">
+        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-teal-50 text-[#078A97]">
+          <Icon size={14} aria-hidden="true" />
+        </span>
+        <h2 className="text-xs font-semibold text-slate-800">{title}</h2>
+      </header>
+      {children}
+    </section>
+  );
+}
+
+function TripReviewField({ label, value }) {
+  return (
+    <div className="flex items-start justify-between gap-3 py-1.5 text-[10px]">
+      <dt className="shrink-0 text-slate-500">{label}</dt>
+      <dd className="text-right font-medium text-slate-800">
+        {getTripDisplayValue(value)}
+      </dd>
+    </div>
+  );
+}
+
+function resolveTripBus(trip, buses) {
+  const busReference = trip?.busId || trip?.bus;
+  const busId = busReference && typeof busReference === "object"
+    ? busReference._id || busReference.id || busReference.busId
+    : busReference;
+  return buses.find((bus) =>
+    [bus._id, bus.id, bus.busId].some((id) => id && String(id) === String(busId)),
+  ) || (
+    busReference && typeof busReference === "object"
+      ? busReference
+      : busId
+        ? { _id: busId }
+        : null
+  );
+}
+
+function AgencyTripDetailView({ trip, bus, agency, onBack }) {
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [trip._id]);
+
+  const route = trip.route && typeof trip.route === "object" ? trip.route : {};
+  const origin = getTripDisplayValue(trip.origin || trip.source || trip.from || route.originCity || route.origin);
+  const destination = getTripDisplayValue(trip.destination || trip.to || route.destinationCity || route.destination);
+  const routeName = getTripDisplayValue(route.routeName || trip.routeName || (
+    origin !== "Not provided" && destination !== "Not provided"
+      ? `${origin} — ${destination}`
+      : "Not provided"
+  ));
+  const distance = route.distance || trip.distance || trip.distanceKm;
+  const routeDisplay = distance
+    ? `${routeName} · ${typeof distance === "number" ? `${distance} km` : distance}`
+    : routeName;
+  const departure = trip.departureDateTime || trip.departure;
+  const arrival = trip.arrivalDateTime || trip.arrival;
+  const stops = Array.isArray(trip.stops) ? trip.stops : Array.isArray(route.stops) ? route.stops : [];
+  const seatLayout = trip.seatLayout;
+  const layoutName = typeof seatLayout === "string"
+    ? seatLayout
+    : seatLayout?.name || seatLayout?.layoutName || seatLayout?.configuration || "Not provided";
+  const capacity = seatLayout?.totalPassengerCapacity
+    ?? bus?.passengerCapacity
+    ?? bus?.totalSeats
+    ?? "Not provided";
+  const busName = bus?.registrationNumber || bus?.busName || trip.busName || "Not provided";
+  const busType = bus?.busType || bus?.category || bus?.specification || trip.busType || "Not provided";
+  const deck = bus?.deckConfiguration || seatLayout?.deckConfiguration || trip.deckConfiguration || "Not provided";
+  const fareDetails = trip.fareDetails || trip.pricing || (
+    trip.fare && typeof trip.fare === "object" ? trip.fare : {}
+  );
+  const seatFareSummary = getSeatFareSummary(seatLayout);
+  const hasExplicitBaseFare =
+    (trip.baseFare !== undefined && trip.baseFare !== null)
+    || (fareDetails.baseFare !== undefined && fareDetails.baseFare !== null)
+    || typeof trip.fare === "number";
+  const baseFare = trip.baseFare
+    ?? fareDetails.baseFare
+    ?? (typeof trip.fare === "number" ? trip.fare : undefined)
+    ?? seatFareSummary.minimum;
+  const baseFareDisplay = seatFareSummary.hasDifferentFares && !hasExplicitBaseFare
+    ? `${formatTripFare(seatFareSummary.minimum)}–${formatTripFare(seatFareSummary.maximum)}`
+    : formatTripFare(baseFare);
+  const passengerPays = trip.passengerPays
+    ?? trip.passengerFare
+    ?? trip.totalFare
+    ?? fareDetails.passengerPays
+    ?? fareDetails.totalFare;
+  const farePlan = typeof trip.farePlan === "string"
+    ? trip.farePlan
+    : trip.farePlan?.name || trip.farePlanName || fareDetails.farePlanName || "Not provided";
+  const fareMode = trip.fareMode
+    || trip.pricingMode
+    || fareDetails.mode
+    || (seatFareSummary.priced
+      ? seatFareSummary.hasDifferentFares ? "Seat-based fare" : "Common fare"
+      : "Not provided");
+  const fareCoverage = trip.pricingCoverage
+    || fareDetails.coverage
+    || (seatFareSummary.total
+      ? `${seatFareSummary.priced}/${seatFareSummary.total} ${/sleeper|berth/i.test(`${seatLayout?.layoutType || ""} ${busType}`) ? "berths" : "seats"} priced`
+      : "Not provided");
+  const crew = [
+    ...(Array.isArray(trip.drivers) ? trip.drivers.filter(Boolean).map((member) => ({ member, role: "Driver" })) : []),
+    ...(Array.isArray(trip.crews) ? trip.crews.filter(Boolean).map((member) => ({ member, role: "Crew" })) : []),
+  ].map(({ member, role }) => {
+    const name = typeof member === "string"
+      ? member
+      : member.fullName || [member.firstName, member.lastName].filter(Boolean).join(" ");
+    const title = typeof member === "object" && (member.role || member.designation)
+      ? member.role || member.designation
+      : role;
+    return [name, title].filter(Boolean).join(" · ");
+  }).filter(Boolean);
+  const status = String(trip.status || "Unknown")
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+  const stopSummary = stops.length
+    ? `${stops.length} stops`
+    : trip.stopCount
+      ? `${trip.stopCount} stops`
+      : "Not provided";
+
+  return (
+    <main className="min-h-screen bg-[#f5f8f9] px-4 py-5 text-[#172526] sm:px-6">
+      <div className="mx-auto max-w-[1320px]">
+        <button type="button" onClick={onBack} className="mb-4 inline-flex items-center gap-2 text-xs font-medium text-slate-600 hover:text-[#078A97]">
+          <ArrowLeft size={15} aria-hidden="true" /> Back to trips
+        </button>
+        <header className="mb-5 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-semibold text-[#172526]">Review &amp; create</h1>
+            <p className="mt-1 text-xs text-slate-500">Confirm every detail before publishing the trip.</p>
+          </div>
+          <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${status === "Scheduled" ? "bg-orange-50 text-orange-700" : "bg-slate-100 text-slate-700"}`}>
+            {status}
+          </span>
+        </header>
+
+        <div className="grid gap-3 xl:grid-cols-[minmax(0,2fr)_minmax(270px,0.95fr)]">
+          <div className="grid content-start gap-3 md:grid-cols-2">
+            <TripReviewCard title="Journey & route" Icon={MapPin}>
+              <dl className="divide-y divide-slate-100">
+                <TripReviewField label="Journey" value={`${origin} — ${destination}`} />
+                <TripReviewField label="Departure" value={formatTripDateTime(departure)} />
+                <TripReviewField label="Arrival" value={formatTripDateTime(arrival)} />
+                <TripReviewField label="Route" value={routeDisplay} />
+                <TripReviewField label="Stops" value={stopSummary} />
+              </dl>
+            </TripReviewCard>
+
+            <TripReviewCard title="Bus & layout" Icon={BusFront}>
+              <dl className="divide-y divide-slate-100">
+                <TripReviewField label="Bus" value={busName} />
+                <TripReviewField label="Vehicle" value={busType} />
+                <TripReviewField label="Layout" value={layoutName} />
+                <TripReviewField label="Capacity" value={`${capacity}${capacity === "Not provided" ? "" : " seats / berths"}`} />
+                <TripReviewField label="Deck" value={deck} />
+              </dl>
+            </TripReviewCard>
+
+            <TripReviewCard title="Pricing" Icon={FileCheck2}>
+              <dl className="divide-y divide-slate-100">
+                <TripReviewField label="Mode" value={fareMode} />
+                <TripReviewField label="Fare plan" value={farePlan} />
+                <TripReviewField label="Base fare" value={baseFareDisplay} />
+                <TripReviewField label="Passenger pays" value={formatTripFare(passengerPays)} />
+                <TripReviewField label="Coverage" value={fareCoverage} />
+              </dl>
+            </TripReviewCard>
+
+            <TripReviewCard title="Driver & crew" Icon={Users}>
+              {crew.length ? (
+                <ul className="space-y-2">
+                  {crew.map((member, index) => (
+                    <li key={`${member}-${index}`} className="rounded-lg bg-slate-50 px-3 py-2 text-[10px] font-medium text-slate-700">
+                      {member}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-[10px] text-slate-500">No driver or crew assigned.</p>
+              )}
+              <p className="mt-3 text-[9px] text-slate-400">{crew.length} assigned</p>
+            </TripReviewCard>
+          </div>
+
+          <aside className="rounded-xl border border-[#e4ecef] bg-white p-4 shadow-sm">
+            <div className="mb-4 flex items-center justify-between gap-2">
+              <h2 className="text-xs font-semibold text-slate-800">Trip summary</h2>
+              <span className="rounded-full bg-teal-50 px-2 py-1 text-[9px] font-medium text-teal-700">
+                {getTripDisplayValue(getAgencyName(agency))}
+              </span>
+            </div>
+            <div className="relative mb-4 space-y-5 pl-6">
+              <span className="absolute bottom-1 left-[7px] top-2 border-l border-dashed border-slate-300" aria-hidden="true" />
+              <div className="relative">
+                <span className="absolute -left-6 top-0.5 h-4 w-4 rounded-full border-4 border-teal-100 bg-teal-600" aria-hidden="true" />
+                <p className="text-[9px] text-slate-400">Origin · {formatTripDate(departure)}</p>
+                <p className="mt-0.5 text-xs font-semibold text-slate-800">{origin}</p>
+                <p className="mt-0.5 text-[9px] text-slate-500">{formatTripTime(departure)}</p>
+              </div>
+              <div className="relative">
+                <span className="absolute -left-6 top-0.5 h-4 w-4 rounded-full border-4 border-orange-100 bg-orange-500" aria-hidden="true" />
+                <p className="text-[9px] text-slate-400">Destination · {formatTripDate(arrival)}</p>
+                <p className="mt-0.5 text-xs font-semibold text-slate-800">{destination}</p>
+                <p className="mt-0.5 text-[9px] text-slate-500">{formatTripTime(arrival)} · {getTripDuration(departure, arrival)}</p>
+              </div>
+            </div>
+            <div className="space-y-2 border-t border-slate-100 pt-3">
+              <TripReviewField label="Bus" value={busName} />
+              <TripReviewField label="Route" value={routeName} />
+              <TripReviewField label="Layout" value={layoutName} />
+              <TripReviewField label="Base fare" value={formatTripFare(baseFare)} />
+              <TripReviewField label="Driver & crew" value={crew.length ? `${crew.length} assigned` : "Not assigned"} />
+            </div>
+            <p className="mt-4 flex items-center gap-1.5 border-t border-slate-100 pt-3 text-[9px] text-emerald-700">
+              <CheckCircle2 size={12} aria-hidden="true" /> Trip details loaded.
+            </p>
+          </aside>
+        </div>
+      </div>
+    </main>
+  );
+}
+
 function AgencyNavbar() {
   return <AdminNavbar />;
 }
@@ -321,6 +659,8 @@ export default function AgencyProfile() {
   const [loadingBookings, setLoadingBookings] = useState(false);
   const [bookingsError, setBookingsError] = useState("");
   const [selectedBus, setSelectedBus] = useState(null);
+  const [selectedTrip, setSelectedTrip] = useState(null);
+  const [returnToBusTrips, setReturnToBusTrips] = useState(false);
   const tokenKeyName = TOKEN_KEY || "exte_key";
 
   useEffect(() => {
@@ -373,6 +713,9 @@ export default function AgencyProfile() {
     setSearch(getAgencyName(agency));
     setSearchOpen(false);
     setSelectedAgency(agency);
+    setSelectedBus(null);
+    setSelectedTrip(null);
+    setReturnToBusTrips(false);
     setTripsPage(1);
     setBookingsPage(1);
     setError("");
@@ -405,6 +748,8 @@ export default function AgencyProfile() {
     setSearchOpen(true);
     setSelectedAgency(null);
     setSelectedBus(null);
+    setSelectedTrip(null);
+    setReturnToBusTrips(false);
     setTripsPage(1);
     setBookingsPage(1);
     setActiveAgencyTab("Travels Overview");
@@ -648,16 +993,65 @@ export default function AgencyProfile() {
         completedTrips: getBusCount(selectedBus, "completedTrips", "completedTripCount"),
         cancelledTrips: getBusCount(selectedBus, "cancelledTrips", "cancelledTripCount"),
         draftTrips: getBusCount(selectedBus, "draftTrips", "draftCount"),
+        agencyId:
+          selectedAgency?.userId?._id ||
+          selectedAgency?.user?._id ||
+          selectedAgency?.userId ||
+          selectedAgency?.agencyId,
       }
     : null;
+  const agentTripCounts = trips.reduce(
+    (counts, trip) => {
+      const status = String(trip.status || "")
+        .toLowerCase()
+        .replaceAll("_", " ")
+        .replaceAll("-", " ")
+        .trim();
+      const approvalStatus = String(trip.approvalStatus || trip.approval?.status || "")
+        .toLowerCase()
+        .replaceAll("_", " ")
+        .replaceAll("-", " ")
+        .trim();
+
+      if (["upcoming", "scheduled", "confirmed"].includes(status)) counts.upcoming += 1;
+      if (["in progress", "ongoing"].includes(status)) counts.inProgress += 1;
+      if (status === "completed") counts.completed += 1;
+      if (["cancelled", "canceled"].includes(status)) counts.cancelled += 1;
+      if (
+        ["pending", "pending approval", "awaiting approval"].includes(status)
+        || ["pending", "pending approval", "awaiting approval"].includes(approvalStatus)
+      ) counts.pendingApproval += 1;
+      if (status === "draft") counts.drafts += 1;
+      if (status === "rejected" || approvalStatus === "rejected") counts.rejected += 1;
+      return counts;
+    },
+    { upcoming: 0, inProgress: 0, completed: 0, cancelled: 0, pendingApproval: 0, drafts: 0, rejected: 0 },
+  );
+
+  if (selectedTrip) {
+    return (
+      <AgencyTripDetailView
+        trip={selectedTrip}
+        bus={resolveTripBus(selectedTrip, buses)}
+        agency={selectedAgency}
+        onBack={() => setSelectedTrip(null)}
+      />
+    );
+  }
 
   if (detailBus) {
     return (
       <TravelBusDetailView
         bus={detailBus}
+        agencyId={detailBus.agencyId}
+        initialTab={returnToBusTrips ? "Trip Details" : "Bus Overview"}
+        onViewTrip={(trip) => {
+          setReturnToBusTrips(true);
+          setSelectedTrip(trip);
+        }}
         onBack={() => {
+          setReturnToBusTrips(false);
           setSelectedBus(null);
-          setActiveAgencyTab("Bus Overview");
         }}
         Navbar={AgencyNavbar}
       />
@@ -854,9 +1248,33 @@ export default function AgencyProfile() {
                 buses={buses}
                 loading={loadingBuses}
                 error={busError}
-                onSelectBus={setSelectedBus}
+                onSelectBus={(bus) => {
+                  setReturnToBusTrips(false);
+                  setSelectedBus(bus);
+                }}
               />
             ) : activeAgencyTab === "Trips" ? (
+              <>
+              <section aria-label="Agent trip summary" className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-8">
+                {[
+                  ["Total trips", tripsTotal || trips.length, BusFront, "text-[#078a97]"],
+                  ["Upcoming", agentTripCounts.upcoming, CalendarDays, "text-[#078a97]"],
+                  ["In progress", agentTripCounts.inProgress, Clock3, "text-[#078a97]"],
+                  ["Completed", agentTripCounts.completed, CheckCircle2, "text-emerald-700"],
+                  ["Cancelled", agentTripCounts.cancelled, XCircle, "text-rose-700"],
+                  ["Pending approval", agentTripCounts.pendingApproval, Clock3, "text-amber-600"],
+                  ["Drafts", agentTripCounts.drafts, FileText, "text-[#078a97]"],
+                  ["Rejected", agentTripCounts.rejected, XCircle, "text-rose-700"],
+                ].map(([label, count, Icon, iconClass]) => (
+                  <article key={label} className="rounded-lg border border-[#e7edef] bg-white px-3 py-3 shadow-sm">
+                    <div className="flex items-center gap-1.5 text-[10px] font-medium text-[#688080]">
+                      <Icon size={13} className={iconClass} aria-hidden="true" />
+                      {label}
+                    </div>
+                    <p className="mt-1 text-lg font-semibold leading-none text-[#172526]">{count}</p>
+                  </article>
+                ))}
+              </section>
               <section className="overflow-hidden rounded-xl border border-[#dbe6e9] bg-white">
                 {tripsError && (
                   <p role="alert" className="border-b border-rose-100 bg-rose-50 px-4 py-2 text-xs text-rose-700">
@@ -867,7 +1285,6 @@ export default function AgencyProfile() {
                   <table className="w-full min-w-[900px] text-left">
                     <thead className="bg-[#f3f7f8] text-[10px] font-semibold uppercase tracking-wide text-[#687d86]">
                       <tr>
-                        <th className="px-4 py-3">Trip ID</th>
                         <th className="px-3 py-3">Route</th>
                         <th className="px-3 py-3">Departure</th>
                         <th className="px-3 py-3">Arrival</th>
@@ -875,6 +1292,7 @@ export default function AgencyProfile() {
                         <th className="px-3 py-3">Capacity</th>
                         <th className="px-3 py-3">Driver &amp; Crew</th>
                         <th className="px-3 py-3">Status</th>
+                        <th className="px-3 py-3">Action</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 text-[11px]">
@@ -902,14 +1320,28 @@ export default function AgencyProfile() {
                             .replace(/\b\w/g, (letter) => letter.toUpperCase());
                           return (
                             <tr key={trip._id} className="hover:bg-slate-50">
-                              <td className="whitespace-nowrap px-4 py-3 font-semibold text-teal-800">{trip.tripNumber || trip._id || "—"}</td>
                               <td className="px-3 py-3 font-medium text-slate-800">{routeName}</td>
                               <td className="whitespace-nowrap px-3 py-3 text-slate-600">{formatTripDateTime(trip.departureDateTime)}</td>
                               <td className="whitespace-nowrap px-3 py-3 text-slate-600">{formatTripDateTime(trip.arrivalDateTime)}</td>
                               <td className="px-3 py-3 text-slate-600">{trip.busId?.busName || trip.busId?.registrationNumber || "Not provided"}</td>
                               <td className="whitespace-nowrap px-3 py-3 text-slate-600">{trip.seatLayout?.totalPassengerCapacity ?? trip.busId?.passengerCapacity ?? "—"}</td>
                               <td className="px-3 py-3 text-slate-600">{crewNames}</td>
-                              <td className="px-3 py-3 text-slate-600">{status}</td>
+                              <td className={`px-3 py-3 ${status === "Scheduled" ? "font-semibold text-orange-700" : "text-slate-950"}`}>{status}</td>
+                              <td className="px-3 py-3">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedBus(null);
+                                    setReturnToBusTrips(false);
+                                    setSelectedTrip(trip);
+                                  }}
+                                  aria-label={`View trip details for ${routeName}`}
+                                  title={`View trip details for ${routeName}`}
+                                  className="inline-flex h-7 w-7 items-center justify-center rounded-md text-[#078A97] hover:bg-teal-50"
+                                >
+                                  <Eye size={14} aria-hidden="true" />
+                                </button>
+                              </td>
                             </tr>
                           );
                         })
@@ -947,6 +1379,7 @@ export default function AgencyProfile() {
                   </div>
                 </footer>
               </section>
+              </>
             ) : activeAgencyTab === "Bookings" ? (
               <AgencyBookingsOverview
                 bookings={bookings}

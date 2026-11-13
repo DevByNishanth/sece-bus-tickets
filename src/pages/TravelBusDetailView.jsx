@@ -33,7 +33,7 @@ const busDocuments = [
 const tripStatuses = ["Scheduled", "In Progress", "Completed", "Cancelled", "Draft", "Rejected"];
 
 const tripStatusStyles = {
-  Scheduled: "bg-teal-50 text-teal-700",
+  Scheduled: "bg-slate-100 text-red-900",
   "In Progress": "bg-indigo-50 text-indigo-700",
   Draft: "bg-slate-100 text-slate-600",
   Rejected: "bg-rose-50 text-rose-700",
@@ -55,23 +55,126 @@ function exportTrips(rows) {
   URL.revokeObjectURL(url);
 }
 
-function BusTripDetails({ trips, loading, error }) {
+function getTripDisplayText(value, fallback = "—") {
+  if (value === undefined || value === null || value === "") return fallback;
+  if (typeof value === "string" || typeof value === "number") return String(value);
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? fallback : value.toLocaleString();
+  if (Array.isArray(value)) {
+    return value.map((item) => getTripDisplayText(item, "")).filter(Boolean).join(" – ") || fallback;
+  }
+  if (typeof value === "object") {
+    const label = value.routeName
+      ?? value.fullName
+      ?? value.name
+      ?? value.label
+      ?? value.title
+      ?? value.city
+      ?? value.registrationNumber
+      ?? value._id
+      ?? value.id;
+    return label === undefined ? fallback : getTripDisplayText(label, fallback);
+  }
+  return fallback;
+}
+
+function formatTripDate(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? getTripDisplayText(value, "")
+    : date.toLocaleDateString(undefined, {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        timeZone: "Asia/Kolkata",
+      });
+}
+
+function formatTripTime(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? getTripDisplayText(value, "")
+    : date.toLocaleTimeString(undefined, {
+        hour: "2-digit",
+        minute: "2-digit",
+        hourCycle: "h23",
+        timeZone: "Asia/Kolkata",
+      });
+}
+
+function BusTripDetails({ trips, loading, error, onViewTrip }) {
   const [query, setQuery] = useState("");
   const [filterOpen, setFilterOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState("All statuses");
   const [page, setPage] = useState(1);
   const pageSize = 4;
-  const normalizedTrips = useMemo(() => trips.map((trip, index) => ({
-    id: trip.id ?? trip._id ?? trip.tripId?._id ?? trip.tripId ?? index,
-    pnr: trip.pnr ?? trip.tripNumber ?? (typeof trip.tripId === "object" ? trip.tripId?.tripNumber ?? trip.tripId?._id : trip.tripId) ?? trip.id ?? "—",
-    route: (trip.route ?? trip.routeName ?? [trip.origin ?? trip.source ?? trip.from, trip.destination ?? trip.destinationCity ?? trip.to].filter(Boolean).join(" → ")) || "—",
-    date: trip.journeyDate ?? trip.travelDate ?? trip.departureDateTime ?? trip.date ?? "—",
-    time: (trip.departureArrival ?? [trip.departureTime, trip.arrivalTime].filter(Boolean).join(" – ")) || "—",
-    layout: trip.layout ?? trip.seatLayout?.name ?? (typeof trip.seatLayout === "string" ? trip.seatLayout : "—"),
-    booked: trip.booked ?? trip.bookedSeats ?? trip.bookedCount ?? "—",
-    driverCrew: trip.driverCrew ?? trip.driverAndCrew ?? trip.driver?.name ?? "—",
-    status: String(trip.status ?? "Scheduled").toLowerCase().replaceAll("_", " ").replaceAll("-", " ").replace(/\b\w/g, (letter) => letter.toUpperCase()),
-  })), [trips]);
+  const normalizedTrips = useMemo(() => trips.map((trip, index) => {
+    const route = trip.route && typeof trip.route === "object" ? trip.route : {};
+    const routeValue = typeof trip.route === "string"
+      ? trip.route
+      : route.routeName ?? trip.routeName;
+    const routeCities = [
+      trip.origin ?? trip.source ?? trip.from ?? route.originCity ?? route.origin,
+      trip.destination ?? trip.destinationCity ?? trip.to ?? route.destinationCity ?? route.destination,
+    ].map((value) => getTripDisplayText(value, "")).filter(Boolean).join(" → ");
+    const seatLayout = trip.seatLayout && typeof trip.seatLayout === "object" ? trip.seatLayout : {};
+    const seatRows = [
+      seatLayout.lowerDeck,
+      seatLayout.upperDeck,
+      ...(Array.isArray(seatLayout.decks) ? seatLayout.decks : []),
+    ].filter(Boolean).flatMap((deck) => Array.isArray(deck.rows) ? deck.rows : []);
+    const seats = [
+      ...(Array.isArray(seatLayout.seats) ? seatLayout.seats : []),
+      ...seatRows.flatMap((row) => [
+        ...(Array.isArray(row.seats) ? row.seats : []),
+        ...(Array.isArray(row.berths) ? row.berths : []),
+      ]),
+    ];
+    const explicitBooked = trip.bookedSeats ?? trip.bookedCount ?? trip.booked;
+    const hasAvailability = seats.some((seat) =>
+      seat && (typeof seat.available === "boolean" || typeof seat.isBooked === "boolean" || seat.status),
+    );
+    const bookedCount = Array.isArray(explicitBooked)
+      ? explicitBooked.length
+      : explicitBooked ?? seats.filter((seat) =>
+          seat && (seat.available === false || seat.isBooked === true || String(seat.status).toLowerCase() === "booked"),
+        ).length;
+    const totalSeats = seatLayout.totalPassengerCapacity ?? seats.length;
+    const hasBookedData = explicitBooked !== undefined || hasAvailability;
+    const crewNames = [
+      ...(Array.isArray(trip.drivers) ? trip.drivers : []),
+      ...(Array.isArray(trip.crews) ? trip.crews : []),
+    ].map((member) => getTripDisplayText(member, "")).filter(Boolean).join(", ");
+    const driverCrew = trip.driverCrew
+      ?? trip.driverAndCrew
+      ?? (crewNames || trip.driver?.fullName || trip.driver?.name);
+    const tripId = trip.id ?? trip._id ?? trip.tripId?._id ?? trip.tripId ?? index;
+    return {
+      id: getTripDisplayText(tripId, String(index)),
+      sourceTrip: trip,
+      pnr: getTripDisplayText(
+        trip.pnr
+          ?? trip.tripNumber
+          ?? (typeof trip.tripId === "object" ? trip.tripId?.tripNumber ?? trip.tripId?._id : trip.tripId)
+          ?? trip.id
+          ?? trip._id,
+      ),
+      route: getTripDisplayText(routeValue ?? routeCities),
+      date: getTripDisplayText(formatTripDate(trip.journeyDate ?? trip.travelDate ?? trip.departureDateTime ?? trip.date)),
+      time: getTripDisplayText(
+        trip.departureArrival
+          ?? [formatTripTime(trip.departureDateTime ?? trip.departureTime), formatTripTime(trip.arrivalDateTime ?? trip.arrivalTime)].filter(Boolean).join(" – "),
+      ),
+      layout: getTripDisplayText(trip.layout ?? seatLayout.layoutType ?? seatLayout.name ?? (typeof trip.seatLayout === "string" ? trip.seatLayout : null)),
+      booked: hasBookedData
+        ? `${getTripDisplayText(bookedCount, "0")}${totalSeats ? ` / ${totalSeats}` : ""}`
+        : "—",
+      driverCrew: getTripDisplayText(driverCrew),
+      status: String(trip.status ?? "Scheduled").toLowerCase().replaceAll("_", " ").replaceAll("-", " ").replace(/\b\w/g, (letter) => letter.toUpperCase()),
+    };
+  }), [trips]);
 
   const filteredTrips = useMemo(() => {
     const search = query.trim().toLowerCase();
@@ -95,7 +198,6 @@ function BusTripDetails({ trips, loading, error }) {
           <table className="w-full min-w-212.5 text-left">
             <thead className="bg-[#f3f7f8] text-[10px] font-semibold uppercase tracking-wide text-[#687d86]">
               <tr>
-                <th className="px-4 py-3">Trip ID</th>
                 <th className="px-3 py-3">Route &amp; Direction</th>
                 <th className="px-3 py-3">Journey Date</th>
                 <th className="px-3 py-3">Departure – Arrival</th>
@@ -108,7 +210,7 @@ function BusTripDetails({ trips, loading, error }) {
             </thead>
             <tbody>
               <tr>
-                <td colSpan="9" className="h-72 px-4 py-8">
+                <td colSpan="8" className="h-72 px-4 py-8">
                   <div className="flex h-full flex-col items-center justify-center text-center">
                     <span className="flex h-14 w-14 items-center justify-center rounded-full bg-[#e6f7f5] text-[#078a97]"><MapPin size={22} aria-hidden="true" /></span>
                     <h2 className="mt-4 text-sm font-semibold text-slate-800">{loading ? "Loading trips..." : "No trips found"}</h2>
@@ -139,11 +241,10 @@ function BusTripDetails({ trips, loading, error }) {
 
       <div className="overflow-x-auto rounded-lg border border-[#e4ecef]">
         <table className="w-full min-w-212.5 text-left">
-          <thead className="bg-[#f3f7f8] text-[10px] font-semibold uppercase tracking-[0.04em] text-[#687d86]"><tr><th className="px-4 py-3">Trip ID</th><th className="px-3 py-3">Route &amp; Direction</th><th className="px-3 py-3">Journey Date</th><th className="px-3 py-3">Departure – Arrival</th><th className="px-3 py-3">Layout</th><th className="px-3 py-3">Booked</th><th className="px-3 py-3">Driver &amp; Crew</th><th className="px-3 py-3">Status</th><th className="px-3 py-3">Action</th></tr></thead>
+          <thead className="bg-[#f3f7f8] text-[10px] font-semibold uppercase tracking-[0.04em] text-[#687d86]"><tr><th className="px-3 py-3">Route &amp; Direction</th><th className="px-3 py-3">Journey Date</th><th className="px-3 py-3">Departure – Arrival</th><th className="px-3 py-3">Layout</th><th className="px-3 py-3">Booked</th><th className="px-3 py-3">Driver &amp; Crew</th><th className="px-3 py-3">Status</th><th className="px-3 py-3">Action</th></tr></thead>
           <tbody className="divide-y divide-[#e9eff1]">
             {visibleTrips.map((trip) => (
               <tr key={trip.id} className="h-14 transition-colors hover:bg-[#f9fbfb]">
-                <td className="whitespace-nowrap px-4 py-2 text-[11px] font-semibold text-teal-800">{trip.pnr}</td>
                 <td className="whitespace-nowrap px-3 py-2 text-[11px] font-semibold text-slate-900">{trip.route}</td>
                 <td className="whitespace-nowrap px-3 py-2 text-[11px] text-[#536b80]">{trip.date}</td>
                 <td className="whitespace-nowrap px-3 py-2 text-[11px] text-[#536b80]">{trip.time}</td>
@@ -151,10 +252,10 @@ function BusTripDetails({ trips, loading, error }) {
                 <td className="whitespace-nowrap px-3 py-2 text-[11px] font-medium text-[#172526]">{trip.booked}</td>
                 <td className="whitespace-nowrap px-3 py-2 text-[11px] text-[#536b80]">{trip.driverCrew}</td>
                 <td className="px-3 py-2"><span className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-medium ${tripStatusStyles[trip.status] || "bg-slate-100 text-slate-600"}`}><span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true" />{trip.status}</span></td>
-                <td className="px-3 py-2"><span className="inline-flex h-7 w-7 items-center justify-center rounded-md text-[#078a97]" aria-label={`View trip ${trip.pnr}`}><Eye size={15} aria-hidden="true" /></span></td>
+                <td className="px-3 py-2"><button type="button" onClick={() => onViewTrip?.(trip.sourceTrip)} className="inline-flex h-7 w-7 items-center justify-center rounded-md text-[#078a97] hover:bg-teal-50" aria-label={`View trip details for ${trip.route}`} title={`View trip details for ${trip.route}`}><Eye size={15} aria-hidden="true" /></button></td>
               </tr>
             ))}
-            {visibleTrips.length === 0 && <tr><td colSpan="9" className="px-4 py-10 text-center text-sm text-slate-500">No trips match your search.</td></tr>}
+            {visibleTrips.length === 0 && <tr><td colSpan="8" className="px-4 py-10 text-center text-sm text-slate-500">No trips match your search.</td></tr>}
           </tbody>
         </table>
       </div>
@@ -174,8 +275,15 @@ function BusTripDetails({ trips, loading, error }) {
   );
 }
 
-export default function TravelBusDetailView({ bus, onBack, Navbar = VendorNavbar }) {
-  const [activeTab, setActiveTab] = useState("Bus Overview");
+export default function TravelBusDetailView({
+  bus,
+  onBack,
+  Navbar = VendorNavbar,
+  agencyId,
+  initialTab = "Bus Overview",
+  onViewTrip,
+}) {
+  const [activeTab, setActiveTab] = useState(initialTab);
   const { BASE_URL, TOKEN_KEY } = useAuth();
   const busId = bus._id ?? bus.id ?? bus.busId;
   const [busOverview, setBusOverview] = useState(bus);
@@ -192,6 +300,7 @@ export default function TravelBusDetailView({ bus, onBack, Navbar = VendorNavbar
   const normalizedTripStatuses = trips.map((trip) =>
     String(trip.status || "").toLowerCase().replaceAll("_", " ").replaceAll("-", " ").trim(),
   );
+  const tripListLoaded = activeTab === "Trip Details" && !tripsLoading && !tripsError;
   const tripSummary = overviewStats
     ?? busOverview.tripStats
     ?? busOverview.tripSummary
@@ -199,12 +308,12 @@ export default function TravelBusDetailView({ bus, onBack, Navbar = VendorNavbar
     ?? tripStats
     ?? busOverview;
   const tripCounts = {
-    total: tripSummary.totalTrips ?? tripSummary.total ?? tripSummary.tripCount ?? normalizedTripStatuses.length,
-    upcoming: tripSummary.upcoming ?? tripSummary.upcomingTrips ?? tripSummary.scheduled ?? normalizedTripStatuses.filter((status) => ["upcoming", "scheduled", "confirmed"].includes(status)).length,
-    inProgress: tripSummary.inProgress ?? tripSummary.inProgressTrips ?? tripSummary.in_progress ?? normalizedTripStatuses.filter((status) => status === "in progress").length,
-    completed: tripSummary.completed ?? tripSummary.completedTrips ?? normalizedTripStatuses.filter((status) => status === "completed").length,
-    cancelled: tripSummary.cancelled ?? tripSummary.cancelledTrips ?? tripSummary.canceled ?? normalizedTripStatuses.filter((status) => ["cancelled", "canceled"].includes(status)).length,
-    drafts: tripSummary.drafts ?? tripSummary.draftTrips ?? normalizedTripStatuses.filter((status) => status === "draft").length,
+    total: tripListLoaded ? normalizedTripStatuses.length : tripSummary.totalTrips ?? tripSummary.total ?? tripSummary.tripCount ?? normalizedTripStatuses.length,
+    upcoming: tripListLoaded ? normalizedTripStatuses.filter((status) => ["upcoming", "scheduled", "confirmed"].includes(status)).length : tripSummary.upcoming ?? tripSummary.upcomingTrips ?? tripSummary.scheduled ?? normalizedTripStatuses.filter((status) => ["upcoming", "scheduled", "confirmed"].includes(status)).length,
+    inProgress: tripListLoaded ? normalizedTripStatuses.filter((status) => status === "in progress").length : tripSummary.inProgress ?? tripSummary.inProgressTrips ?? tripSummary.in_progress ?? normalizedTripStatuses.filter((status) => status === "in progress").length,
+    completed: tripListLoaded ? normalizedTripStatuses.filter((status) => status === "completed").length : tripSummary.completed ?? tripSummary.completedTrips ?? normalizedTripStatuses.filter((status) => status === "completed").length,
+    cancelled: tripListLoaded ? normalizedTripStatuses.filter((status) => ["cancelled", "canceled"].includes(status)).length : tripSummary.cancelled ?? tripSummary.cancelledTrips ?? tripSummary.canceled ?? normalizedTripStatuses.filter((status) => ["cancelled", "canceled"].includes(status)).length,
+    drafts: tripListLoaded ? normalizedTripStatuses.filter((status) => status === "draft").length : tripSummary.drafts ?? tripSummary.draftTrips ?? normalizedTripStatuses.filter((status) => status === "draft").length,
   };
   const registration = busOverview.registration ?? busOverview.registrationNumber ?? bus.registration ?? bus.busName;
   const operator = busOverview.operator ?? busOverview.operatorName ?? bus.operator;
@@ -290,8 +399,15 @@ export default function TravelBusDetailView({ bus, onBack, Navbar = VendorNavbar
       setTripsError("");
       try {
         const token = localStorage.getItem(TOKEN_KEY || "exte_key");
+        const tripsUrl = agencyId
+          ? `${BASE_URL}/admin/trips?${new URLSearchParams({
+              agencyId: String(agencyId),
+              page: "1",
+              limit: "100",
+            })}`
+          : `${BASE_URL}/admin/trips/bus/${encodeURIComponent(busId)}`;
         const response = await fetch(
-          `${BASE_URL}/admin/trips/bus/${encodeURIComponent(busId)}`,
+          tripsUrl,
           {
             headers: {
               "Content-Type": "application/json",
@@ -302,17 +418,26 @@ export default function TravelBusDetailView({ bus, onBack, Navbar = VendorNavbar
         if (!response.ok) throw new Error(`Unable to load trips for this bus (HTTP ${response.status}).`);
         const data = await response.json();
         const payload = data.data ?? data;
-        const busTrips = Array.isArray(data.trips)
+        const agencyTrips = Array.isArray(data.trips)
           ? data.trips
           : Array.isArray(payload.trips)
             ? payload.trips
             : Array.isArray(payload)
               ? payload
               : null;
-        if (!busTrips) throw new Error(data.message || "Unexpected bus trips response.");
+        if (!agencyTrips) throw new Error(data.message || "Unexpected bus trips response.");
+        const busTrips = agencyId
+          ? agencyTrips.filter((trip) => {
+              const reference = trip.busId ?? trip.bus ?? trip.vehicleId;
+              const tripBusId = reference && typeof reference === "object"
+                ? reference._id ?? reference.id ?? reference.busId
+                : reference;
+              return tripBusId != null && String(tripBusId) === String(busId);
+            })
+          : agencyTrips;
         if (active) {
           setTrips(busTrips);
-          setTripStats(data.stats ?? payload.stats ?? data.summary ?? payload.summary ?? payload);
+          setTripStats(agencyId ? null : data.stats ?? payload.stats ?? data.summary ?? payload.summary ?? payload);
         }
       } catch (error) {
         if (active) {
@@ -329,7 +454,7 @@ export default function TravelBusDetailView({ bus, onBack, Navbar = VendorNavbar
     return () => {
       active = false;
     };
-  }, [activeTab, busId, BASE_URL, TOKEN_KEY]);
+  }, [activeTab, busId, agencyId, BASE_URL, TOKEN_KEY]);
 
   useEffect(() => {
     if (activeTab !== "Bookings") return undefined;
@@ -439,7 +564,7 @@ export default function TravelBusDetailView({ bus, onBack, Navbar = VendorNavbar
               </section>
             </>
           ) : activeTab === "Trip Details" ? (
-            <BusTripDetails trips={trips} loading={tripsLoading} error={tripsError} />
+            <BusTripDetails trips={trips} loading={tripsLoading} error={tripsError} onViewTrip={onViewTrip} />
           ) : (
             <section aria-label="Bus bookings" className="overflow-hidden rounded-lg border border-[#e1ebee]">
               <header className="flex items-center justify-between border-b border-[#e8eef0] px-4 py-3">

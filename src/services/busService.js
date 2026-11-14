@@ -114,28 +114,12 @@ export function getApiBaseUrl(customBase = null) {
 }
 
 /**
- * Returns prioritized candidate base URLs for failover.
- * If the configured base URL fails to connect (e.g. due to network disconnection or CORS),
- * requests gracefully attempt relative proxy ('/api') or local dev server.
+ * Returns prioritized candidate base URLs for API requests.
+ * Uses the configured environment base URL (VITE_API_BASE_URL) from .env.
  */
 export function getCandidateBaseUrls(customBase = null) {
   const primary = getApiBaseUrl(customBase);
-  const candidates = [primary];
-
-  const fallbacks = [
-    '/api',
-    'http://localhost:8000/api',
-    'http://127.0.0.1:8000/api',
-    'http://10.57.1.245:8000/api'
-  ];
-
-  for (const fb of fallbacks) {
-    if (!candidates.includes(fb)) {
-      candidates.push(fb);
-    }
-  }
-
-  return candidates;
+  return [primary];
 }
 
 /**
@@ -468,8 +452,7 @@ export function mapApiBusToUiBus(apiBus, index = 0) {
  * GET {{baseUrl}}/buses/search?source={source}&destination={destination}&journeyDate={journeyDate}
  * 
  * Uses live API with authentication token retrieved from browser inspect -> Application.
- * Tries prioritized candidate endpoints (configured baseUrl, Vite proxy /api, localhost:8000)
- * so that unreachable private IPs or CORS restrictions do not cause unhandled crashes.
+ * Queries the base URL configured via VITE_API_BASE_URL (or customBase).
  */
 export async function fetchBusesSearch({
   source = 'Chennai',

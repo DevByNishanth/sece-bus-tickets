@@ -83,7 +83,7 @@ function formatTripDateTime(value) {
       });
 }
 
-function AgencyFleetOverview({ agency, buses, loading, error, onSelectBus }) {
+function AgencyFleetOverview({ agency, buses, loading, error, tripCountsByBus, tripsError, onSelectBus }) {
   const stats = [
     ["Authorized fleet", buses.length, BusFront, "bg-teal-50 text-[#078A97]", "buses"],
     ["Available today", buses.filter((bus) => ["approved", "active", "available"].includes(getBusStatus(bus))).length, CheckCircle2, "bg-emerald-50 text-emerald-600", "buses"],
@@ -108,6 +108,7 @@ function AgencyFleetOverview({ agency, buses, loading, error, onSelectBus }) {
       </div>
 
       {error && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{error}</p>}
+      {tripsError && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{tripsError}</p>}
       {loading ? (
         <div className="rounded-xl border border-[#dbe6e9] bg-white px-4 py-12 text-center text-xs text-slate-500">Loading agency buses...</div>
       ) : buses.length ? (
@@ -117,12 +118,13 @@ function AgencyFleetOverview({ agency, buses, loading, error, onSelectBus }) {
             const isActive = ["active", "approved", "available"].includes(status);
             const registration = bus.registrationNumber || bus.busName || "Unnamed bus";
             const capacity = bus.passengerCapacity || bus.totalSeats || 0;
+            const busTripCounts = tripCountsByBus[bus._id || bus.id || bus.busId];
             const counters = [
-              ["Upcoming", getBusCount(bus, "upcomingTrips", "upcomingTripCount")],
-              ["Completed", getBusCount(bus, "completedTrips", "completedTripCount")],
-              ["Cancelled", getBusCount(bus, "cancelledTrips", "cancelledTripCount")],
-              ["Rejected", getBusCount(bus, "rejectedTrips", "rejectedTripCount")],
-              ["Drafts", getBusCount(bus, "draftTrips", "draftCount")],
+              ["Upcoming", busTripCounts?.upcoming ?? getBusCount(bus, "upcomingTrips", "upcomingTripCount")],
+              ["Completed", busTripCounts?.completed ?? getBusCount(bus, "completedTrips", "completedTripCount")],
+              ["Cancelled", busTripCounts?.cancelled ?? getBusCount(bus, "cancelledTrips", "cancelledTripCount")],
+              ["Rejected", busTripCounts?.rejected ?? getBusCount(bus, "rejectedTrips", "rejectedTripCount")],
+              ["Drafts", busTripCounts?.drafts ?? getBusCount(bus, "draftTrips", "draftCount")],
             ];
             return (
               <article key={bus._id || registration} className="rounded-xl border border-[#dbe6e9] bg-white p-3.5">
@@ -645,6 +647,8 @@ export default function AgencyProfile() {
   const [buses, setBuses] = useState([]);
   const [loadingBuses, setLoadingBuses] = useState(false);
   const [busError, setBusError] = useState("");
+  const [tripCountsByBus, setTripCountsByBus] = useState({});
+  const [busTripsError, setBusTripsError] = useState("");
   const [trips, setTrips] = useState([]);
   const [tripsPage, setTripsPage] = useState(1);
   const [tripsTotalPages, setTripsTotalPages] = useState(1);
@@ -871,6 +875,99 @@ export default function AgencyProfile() {
       active = false;
     };
   }, [BASE_URL, activeAgencyTab, selectedAgency, tokenKeyName, tripsPage]);
+
+  useEffect(() => {
+    if (!selectedAgency || activeAgencyTab !== "Bus Overview") {
+      setTripCountsByBus({});
+      setBusTripsError("");
+      return undefined;
+    }
+    setTripCountsByBus({});
+
+    const agencyId =
+      selectedAgency.userId?._id ||
+      selectedAgency.user?._id ||
+      selectedAgency.userId ||
+      selectedAgency.agencyId ||
+      selectedAgency._id;
+    if (!agencyId) {
+      setTripCountsByBus({});
+      setBusTripsError("Unable to load bus trip counts because this agency has no ID.");
+      return undefined;
+    }
+
+    let active = true;
+    async function loadBusTripCounts() {
+      setBusTripsError("");
+      try {
+        const token = localStorage.getItem(tokenKeyName);
+        const params = new URLSearchParams({
+          agencyId: String(agencyId),
+          page: "1",
+          limit: "100",
+        });
+        const response = await fetch(`${BASE_URL}/admin/trips?${params}`, {
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+        });
+        if (!response.ok) throw new Error("Unable to load bus trip counts.");
+        const data = await response.json();
+        const agencyTrips = Array.isArray(data.trips)
+          ? data.trips
+          : Array.isArray(data.data?.trips)
+            ? data.data.trips
+            : Array.isArray(data.data)
+              ? data.data
+            : null;
+        if (!agencyTrips) throw new Error(data.message || "Unexpected trips response.");
+
+        const counts = {};
+        for (const trip of agencyTrips) {
+          const busReference = trip.busId ?? trip.bus ?? trip.vehicleId;
+          const busId = busReference && typeof busReference === "object"
+            ? busReference._id ?? busReference.id ?? busReference.busId
+            : busReference;
+          if (busId == null) continue;
+
+          const busCounts = counts[String(busId)] ??= {
+            upcoming: 0,
+            completed: 0,
+            cancelled: 0,
+            rejected: 0,
+            drafts: 0,
+          };
+          const status = String(trip.status || "")
+            .toLowerCase()
+            .replaceAll("_", " ")
+            .replaceAll("-", " ")
+            .trim();
+          const approvalStatus = String(trip.approvalStatus || trip.approval?.status || "")
+            .toLowerCase()
+            .replaceAll("_", " ")
+            .replaceAll("-", " ")
+            .trim();
+          if (["upcoming", "scheduled", "confirmed"].includes(status)) busCounts.upcoming += 1;
+          if (status === "completed") busCounts.completed += 1;
+          if (["cancelled", "canceled"].includes(status)) busCounts.cancelled += 1;
+          if (status === "rejected" || approvalStatus === "rejected") busCounts.rejected += 1;
+          if (status === "draft") busCounts.drafts += 1;
+        }
+        if (active) setTripCountsByBus(counts);
+      } catch (loadError) {
+        if (active) {
+          setTripCountsByBus({});
+          setBusTripsError(loadError.message || "Unable to load bus trip counts.");
+        }
+      }
+    }
+
+    loadBusTripCounts();
+    return () => {
+      active = false;
+    };
+  }, [BASE_URL, activeAgencyTab, selectedAgency, tokenKeyName]);
 
   useEffect(() => {
     if (!selectedAgency || activeAgencyTab !== "Bookings") {
@@ -1248,6 +1345,8 @@ export default function AgencyProfile() {
                 buses={buses}
                 loading={loadingBuses}
                 error={busError}
+                tripCountsByBus={tripCountsByBus}
+                tripsError={busTripsError}
                 onSelectBus={(bus) => {
                   setReturnToBusTrips(false);
                   setSelectedBus(bus);

@@ -1,233 +1,1388 @@
-import { useMemo, useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
-  ArrowDownToLine,
   ArrowLeft,
-  Banknote,
-  Building2,
+  AlertTriangle,
   BusFront,
-  CalendarDays,
+  Check,
   CheckCircle2,
-  ChevronDown,
-  ChevronRight,
+  Clock,
   Clock3,
-  Eye,
+  Edit2,
   FileCheck2,
   FileText,
-  Filter,
-  Mail,
-  MapPin,
-  Phone,
-  Search,
+  Image as ImageIcon,
+  Maximize2,
+  Percent,
+  RefreshCw,
+  ShieldAlert,
   ShieldCheck,
+  User,
   X,
+  Zap,
 } from "lucide-react";
-import VendorNavbar from "./vendor/VendorNavbar.jsx";
-
-const tripStats = [
-  ["Total trips", "138", BusFront],
-  ["Upcoming", "4", CalendarDays],
-  ["In progress", "1", Clock3],
-  ["Completed", "128", CheckCircle2],
-  ["Cancelled", "3", X],
-  ["Drafts", "1", FileText],
-];
-
-const profileFields = [
-  ["APPLICATION ID", "TRV-2026-0012"],
-  ["COMPANY ID", "CMP-0084"],
-  ["LEGAL BUSINESS NAME", "Kovai Express Travels"],
-  ["TRADE NAME", "Kovai Express"],
-  ["BUSINESS TYPE", "Private Limited Company"],
-  ["OWNER / AUTHORIZED PERSON", "R. Karthikeyan"],
-  ["PHONE VERIFICATION", "+91 98765 42018 · Verified", "verified"],
-  ["EMAIL VERIFICATION", "admin@kovaiexpress.in · Verified", "verified"],
-  ["PAN", "AABCK4821G"],
-  ["GSTIN", "33AABCK4821G1ZX"],
-  ["REGISTERED DATE", "18 Mar 2017"],
-  ["OPERATING LOCATIONS", "Coimbatore, Madurai, Salem"],
-  ["REGISTERED ADDRESS", "42, Avinashi Road, Peelamedu, Coimbatore 641004", "wide"],
-];
-
-const documents = [
-  { title: "PAN & Business Identity", filename: "kovai_express_pan_card.pdf", date: "Uploaded 12 Mar 2026 · 2.4 MB", icon: FileText },
-  { title: "GST Registration Certificate", filename: "gst_reg_cert_form06.pdf", date: "Uploaded 14 Mar 2026 · 1.8 MB", icon: FileCheck2 },
-  { title: "Stage Carriage Fleet Permits", filename: "tamilnadu_pb_permits_batch.pdf", date: "Uploaded 15 Mar 2026 · 4.1 MB", icon: BusFront },
-  { title: "Settlement Bank Account Proof", filename: "hdfc_cancelled_cheque.pdf", date: "Uploaded 12 Mar 2026 · 960 KB", icon: Banknote },
-];
-
-const tripTypes = ["Scheduled", "In Progress", "Draft", "Rejected"];
-const trips = Array.from({ length: 120 }, (_, index) => ({
-  id: `TRP-24103-${index + 1}`,
-  reference: "TRP-24103",
-  passenger: "S. Kannan +2",
-  route: "Coimbatore → Madurai",
-  service: "Highway Express",
-  date: "13 Jun 2025",
-  time: "22:00 – 05:45 +1",
-  seats: "36 / 36",
-  status: tripTypes[index % tripTypes.length],
-}));
+import { toast } from "react-toastify";
+import AdminNavbar from "../components/AdminNavbar.jsx";
+import { useAuth } from "../context/AuthContext";
 
 const statusStyles = {
-  Scheduled: "bg-teal-50 text-teal-700",
-  "In Progress": "bg-indigo-50 text-indigo-700",
-  Draft: "bg-slate-100 text-slate-600",
-  Rejected: "bg-rose-50 text-rose-700",
+  approved: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  pending: "border-amber-200 bg-amber-50 text-amber-700",
+  rejected: "border-rose-200 bg-rose-50 text-rose-700",
+  suspended: "border-slate-300 bg-slate-100 text-slate-700",
 };
 
-function exportTrips(rows) {
-  const header = ["Trip ID", "Passenger", "Route", "Travel Date", "Time", "Seat Berth", "Status"];
-  const lines = rows.map((trip) => [trip.reference, trip.passenger, trip.route, trip.date, trip.time, trip.seats, trip.status]);
-  const csv = [header, ...lines]
-    .map((line) => line.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(","))
-    .join("\n");
-  const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = "bus-trips.csv";
-  link.click();
-  URL.revokeObjectURL(url);
-}
+const busApprovalChecklist = [
+  "Registration Certificate (RC) verified with transport authority",
+  "National / State Permit validity checked and active",
+  "Insurance policy document and coverage period verified",
+  "Fitness Certificate (FC) and validity verified",
+  "Pollution Under Control (PUC) certificate checked",
+  "Deck layout and seating capacity verified",
+];
 
-function TripDetails({ onSelectTrip }) {
-  const [query, setQuery] = useState("");
-  const [filterOpen, setFilterOpen] = useState(false);
-  const [statusFilter, setStatusFilter] = useState("All statuses");
-  const [page, setPage] = useState(1);
-  const pageSize = 4;
+// Exact seat shape matching the uploaded screenshot with top headrest, seat number, fare and bottom cushion
+function BusSeatItem({ seatNumber, type, fare, isSleeper = false }) {
+  if (isSleeper) {
+    return (
+      <div
+        className="group relative flex h-24 w-12 flex-col justify-between rounded-xl border-2 border-[#169aa8] bg-white p-1.5 shadow-xs transition hover:border-[#0e7c88]"
+        title={`${seatNumber} • ${type || "Upper Sleeper"} • ₹${fare || ""}`}
+      >
+        {/* Pillow area */}
+        <div className="h-4 w-full rounded-md border border-[#8ce1e8] bg-[#d7f7f9]" />
 
-  const filteredTrips = useMemo(() => {
-    const search = query.trim().toLowerCase();
-    return trips.filter((trip) => {
-      const matchesSearch = [trip.reference, trip.passenger, trip.route]
-        .some((value) => value.toLowerCase().includes(search));
-      return matchesSearch && (statusFilter === "All statuses" || trip.status === statusFilter);
-    });
-  }, [query, statusFilter]);
+        {/* Berth number & fare */}
+        <div className="my-auto text-center leading-tight">
+          <span className="font-bold text-[11px] text-[#087f95]">
+            {seatNumber}
+          </span>
+          {fare && (
+            <span className="block text-[9px] font-semibold text-[#668899] mt-0.5">
+              ₹{fare}
+            </span>
+          )}
+        </div>
 
-  const totalPages = Math.max(1, Math.ceil(filteredTrips.length / pageSize));
-  const visibleTrips = filteredTrips.slice((page - 1) * pageSize, page * pageSize);
-  const firstResult = filteredTrips.length ? (page - 1) * pageSize + 1 : 0;
-  const lastResult = Math.min(page * pageSize, filteredTrips.length);
+        {/* Bottom cushion in exact match color */}
+        <div className="h-2 w-full rounded-b-md bg-[#b8f1f5]" />
+      </div>
+    );
+  }
 
   return (
-    <>
-      <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
-        <label className="relative min-w-48 flex-1 sm:flex-none">
-          <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#617983]" aria-hidden="true" />
-          <input value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} placeholder="Search trip, passenger..." className="h-9 w-full rounded-lg border border-[#e3ecef] bg-[#f7f9fa] pl-8 pr-3 text-xs outline-none placeholder:text-slate-400 focus:border-teal-600 focus:ring-2 focus:ring-teal-50" />
-        </label>
-        <div className="relative">
-          <button type="button" onClick={() => setFilterOpen((open) => !open)} aria-expanded={filterOpen} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[#e3ecef] bg-[#f7f9fa] px-3 text-xs font-medium text-slate-700 hover:bg-slate-100">
-            <Filter size={13} aria-hidden="true" /> Filter <ChevronDown size={12} aria-hidden="true" />
-          </button>
-          {filterOpen && <select aria-label="Filter trips by status" autoFocus value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setPage(1); }} onBlur={() => setFilterOpen(false)} className="absolute right-0 top-11 z-10 w-40 rounded-lg border border-slate-200 bg-white p-2 text-sm shadow-lg outline-none"><option>All statuses</option>{tripTypes.map((status) => <option key={status}>{status}</option>)}</select>}
-        </div>
-        <button type="button" onClick={() => exportTrips(filteredTrips)} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#078a97] px-3 text-xs font-medium text-white transition hover:bg-[#067681]"><ArrowDownToLine size={13} aria-hidden="true" /> Export CSV</button>
+    <div
+      className="group relative flex h-16 w-12 flex-col justify-between rounded-xl border-2 border-[#169aa8] bg-white p-1 shadow-xs transition hover:border-[#0e7c88]"
+      title={`${seatNumber} • ${type || "Luxury Pushback"} • ₹${fare || ""}`}
+    >
+      {/* Top curved headrest matching screenshot */}
+      <div className="h-3 w-full rounded-t-lg border border-[#8ce1e8] bg-[#d7f7f9]" />
+
+      {/* Seat number & price */}
+      <div className="my-auto text-center leading-tight">
+        <span className="font-bold text-[11px] text-[#087f95]">
+          {seatNumber}
+        </span>
+        {fare && (
+          <span className="block text-[9.5px] font-semibold text-[#668899] mt-0.5">
+            ₹{fare}
+          </span>
+        )}
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-[#e4ecef]">
-        <table className="w-full min-w-212.5 text-left">
-          <thead className="bg-[#f3f7f8] text-[10px] font-semibold uppercase tracking-[0.04em] text-[#687d86]">
-            <tr>
-              <th className="px-4 py-3">PNR / Ticket</th>
-              <th className="px-3 py-3">Passenger</th>
-              <th className="px-3 py-3">Route</th>
-              <th className="px-3 py-3">Travel Date</th>
-              <th className="px-3 py-3">Seat Berth</th>
-              <th className="px-3 py-3">Status</th>
-              <th className="px-3 py-3 text-center">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-[#e9eff1]">
-            {visibleTrips.map((trip) => (
-              <tr key={trip.id} className="h-14 transition-colors hover:bg-[#f9fbfb]">
-                <td className="whitespace-nowrap px-4 py-2 text-[11px] font-semibold text-teal-800">{trip.reference}</td>
-                <td className="whitespace-nowrap px-3 py-2"><p className="text-[11px] font-medium text-[#172526]">{trip.passenger}</p><p className="mt-0.5 text-[10px] text-[#94a3ad]">{trip.service}</p></td>
-                <td className="whitespace-nowrap px-3 py-2 text-[11px] font-semibold text-slate-900">{trip.route}</td>
-                <td className="whitespace-nowrap px-3 py-2 text-[11px] text-[#536b80]">{trip.date}<span className="block text-[10px] text-[#94a3ad]">{trip.time}</span></td>
-                <td className="whitespace-nowrap px-3 py-2 text-[11px] font-semibold text-[#172526]">{trip.seats}</td>
-                <td className="px-3 py-2"><span className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-medium ${statusStyles[trip.status]}`}><span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true" />{trip.status}</span></td>
-                <td className="px-3 py-2 text-center"><button type="button" onClick={() => onSelectTrip(trip)} aria-label={`View trip ${trip.reference}`} className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#f0f4f7] text-[#536b80] transition hover:bg-teal-50 hover:text-teal-700"><Eye size={15} aria-hidden="true" /></button></td>
-              </tr>
-            ))}
-            {visibleTrips.length === 0 && <tr><td colSpan="7" className="px-4 py-10 text-center text-sm text-slate-500">No trips match your search.</td></tr>}
-          </tbody>
-        </table>
-      </div>
-
-      <footer className="flex flex-col gap-3 pt-4 text-xs text-[#637980] sm:flex-row sm:items-center sm:justify-between">
-        <p>Showing <span className="font-medium text-[#263638]">{firstResult}–{lastResult}</span> of {filteredTrips.length} trips</p>
-        <nav aria-label="Trip pagination" className="flex items-center gap-1.5">
-          <button type="button" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={page === 1} className="rounded-lg border border-[#e7edef] px-3 py-2 text-[11px] hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40">Previous</button>
-          {[1, 2, 3].filter((number) => number <= totalPages).map((number) => <button key={number} type="button" onClick={() => setPage(number)} aria-current={page === number ? "page" : undefined} className={`h-8 min-w-8 rounded-lg border px-2 text-[11px] font-medium ${page === number ? "border-[#078a97] bg-[#078a97] text-white" : "border-[#e7edef] bg-white text-slate-700 hover:bg-slate-50"}`}>{number}</button>)}
-          {totalPages > 4 && <span className="px-1 text-slate-500">...</span>}
-          {totalPages > 3 && <button type="button" onClick={() => setPage(totalPages)} aria-current={page === totalPages ? "page" : undefined} className={`h-8 min-w-8 rounded-lg border px-2 text-[11px] font-medium ${page === totalPages ? "border-[#078a97] bg-[#078a97] text-white" : "border-[#e7edef] bg-white text-slate-700 hover:bg-slate-50"}`}>{totalPages}</button>}
-          <button type="button" onClick={() => setPage((current) => Math.min(totalPages, current + 1))} disabled={page === totalPages} className="inline-flex items-center gap-1 rounded-lg border border-[#e7edef] px-3 py-2 text-[11px] font-medium text-[#263638] hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40">Next <ChevronRight size={14} aria-hidden="true" /></button>
-        </nav>
-      </footer>
-    </>
+      {/* Bottom cushion in matching turquoise tint */}
+      <div className="h-2.5 w-full rounded-b-lg bg-[#b8f1f5]" />
+    </div>
   );
 }
 
-export default function AdminBusDetailScreen({ booking, onBack }) {
-  const [activeTab, setActiveTab] = useState("Bus Overview");
-  const [selectedDocument, setSelectedDocument] = useState(null);
-  const [selectedTrip, setSelectedTrip] = useState(null);
-  const busNumber = booking.busNumber || "TN 38 AB 4521";
+// Steering wheel SVG
+const SteeringWheel = () => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className="h-6 w-6 text-slate-400"
+  >
+    <circle cx="12" cy="12" r="9" />
+    <circle cx="12" cy="12" r="3" />
+    <path d="M12 3v6" />
+    <path d="M12 15v6" />
+    <path d="M3.5 14l5.5-2" />
+    <path d="M20.5 14l-5.5-2" />
+  </svg>
+);
+
+export default function AdminBusDetailScreen({
+  busId,
+  onBack,
+  onStatusChange,
+  Navbar = AdminNavbar,
+}) {
+  const { BASE_URL, TOKEN_KEY } = useAuth();
+  const tokenKeyName = TOKEN_KEY || "exte_key";
+
+  const [bus, setBus] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [actionLoading, setActionLoading] = useState(false);
+
+  // Review Modals
+  const [approveModalOpen, setApproveModalOpen] = useState(false);
+  const [rejectModalOpen, setRejectModalOpen] = useState(false);
+  const [photoPreview, setPhotoPreview] = useState(null);
+
+  // Form states
+  const [commission, setCommission] = useState(10);
+  const [editCommissionModalOpen, setEditCommissionModalOpen] = useState(false);
+  const [newCommissionValue, setNewCommissionValue] = useState(10);
+  const [commissionRemarks, setCommissionRemarks] = useState("");
+  const [updatingCommission, setUpdatingCommission] = useState(false);
+  const [remarks, setRemarks] = useState(
+    "Registration certificate, insurance, fitness, and permit verified successfully."
+  );
+  const [rejectionRemarks, setRejectionRemarks] = useState(
+    "Fitness certificate scan is illegible. Please re-upload a clear copy."
+  );
+
+  // Approval checklist states
+  const [checkedApprovalItems, setCheckedApprovalItems] = useState([]);
+
+  const toggleApprovalItem = (index) => {
+    setCheckedApprovalItems((prev) =>
+      prev.includes(index) ? prev.filter((i) => i !== index) : [...prev, index]
+    );
+  };
+
+  const allApprovalChecked =
+    checkedApprovalItems.length === busApprovalChecklist.length;
+
+  const fetchBusDetail = useCallback(async () => {
+    if (!busId) return;
+    setLoading(true);
+    setError(null);
+    const token = localStorage.getItem(tokenKeyName);
+
+    try {
+      const res = await fetch(`${BASE_URL}/admin/buses/${busId}`, {
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setBus(data.bus || data);
+      } else {
+        setError(`Failed to fetch bus details (Status ${res.status})`);
+      }
+    } catch (err) {
+      setError(err.message || "Failed to load bus details.");
+    } finally {
+      setLoading(false);
+    }
+  }, [BASE_URL, busId, tokenKeyName]);
+
+  useEffect(() => {
+    fetchBusDetail();
+  }, [fetchBusDetail]);
+
+  const handleReviewBus = async (actionType) => {
+    setActionLoading(true);
+    const token = localStorage.getItem(tokenKeyName);
+
+    const payload = {
+      action: actionType,
+      remarks: actionType === "approve" ? remarks.trim() : rejectionRemarks.trim(),
+    };
+
+    if (actionType === "approve") {
+      payload.commission = Number(commission);
+    }
+
+    try {
+      const res = await fetch(`${BASE_URL}/admin/buses/${busId}/review`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok) {
+        toast.success(data.message || `Bus has been successfully ${actionType}d!`);
+        setBus(data.bus || { ...bus, status: actionType === "approve" ? "approved" : "rejected" });
+        setApproveModalOpen(false);
+        setRejectModalOpen(false);
+        setCheckedApprovalItems([]);
+        onStatusChange?.(actionType);
+      } else {
+        toast.error(data.message || "Failed to submit bus review");
+      }
+    } catch (err) {
+      toast.error(err.message || "Network error while submitting review");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleUpdateCommission = async () => {
+    if (newCommissionValue === "" || isNaN(Number(newCommissionValue))) {
+      toast.error("Please enter a valid commission percentage.");
+      return;
+    }
+    const val = Number(newCommissionValue);
+    if (val < 0 || val > 100) {
+      toast.error("Commission must be between 0% and 100%.");
+      return;
+    }
+
+    setUpdatingCommission(true);
+    const token = localStorage.getItem(tokenKeyName);
+
+    try {
+      const res = await fetch(`${BASE_URL}/admin/buses/${busId}/commission`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          commission: val,
+          remarks: commissionRemarks.trim() || undefined,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok) {
+        toast.success(data.message || `Commission updated to ${val}% successfully!`);
+        setCommission(val);
+        setBus((prev) => (prev ? { ...prev, commission: val } : prev));
+        setEditCommissionModalOpen(false);
+      } else {
+        toast.error(data.message || "Failed to update commission");
+      }
+    } catch (err) {
+      toast.error(err.message || "Network error while updating commission");
+    } finally {
+      setUpdatingCommission(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#f5f8f9] text-[#172526]">
+        <Navbar />
+        <div className="flex h-96 flex-col items-center justify-center gap-3">
+          <RefreshCw className="h-8 w-8 animate-spin text-[#078A97]" />
+          <p className="text-sm font-medium text-slate-500">
+            Loading bus specification &amp; compliance records...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !bus) {
+    return (
+      <div className="min-h-screen bg-[#f5f8f9] text-[#172526]">
+        <Navbar />
+        <div className="mx-auto max-w-xl px-4 py-16 text-center">
+          <div className="inline-flex rounded-2xl bg-rose-50 p-3 text-rose-600">
+            <AlertTriangle size={28} />
+          </div>
+          <h2 className="mt-3 text-lg font-bold text-slate-800">
+            {error || "Bus not found"}
+          </h2>
+          <button
+            type="button"
+            onClick={onBack}
+            className="mt-5 inline-flex items-center gap-2 rounded-xl bg-[#078A97] px-4 py-2 text-xs font-semibold text-white shadow-sm"
+          >
+            <ArrowLeft size={14} /> Back to Bus List
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const currentStatus = (bus.status || "pending").toLowerCase();
+  const exteriorPhotos = Array.isArray(bus.exteriorPhotos) ? bus.exteriorPhotos : [];
+  const interiorPhotos = Array.isArray(bus.interiorPhotos) ? bus.interiorPhotos : [];
 
   return (
-    <div className="min-h-screen bg-[#f5f8f9] text-sm text-[#172526]">
-      <VendorNavbar />
-      <main className="mx-auto w-full max-w-[1600px] px-4 pb-8 pt-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-[#f5f8f9] text-[#172526] pb-16">
+      <Navbar />
+
+      <main className="mx-auto w-full max-w-[1600px] px-4 pt-4 sm:px-6 lg:px-8">
+        {/* Navigation & Action Bar on top */}
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-xs text-[#688080]"><button type="button" onClick={onBack} className="hover:text-[#078a97]">My Buses</button><ChevronRight size={14} aria-hidden="true" /><span className="font-medium text-[#078a97]">{busNumber} / ABT Travels</span></nav>
-          <button type="button" onClick={onBack} className="inline-flex items-center gap-2 rounded-lg border border-[#dce7e9] bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"><ArrowLeft size={15} aria-hidden="true" /> Back to Bus List</button>
+          <button
+            type="button"
+            onClick={onBack}
+            className="inline-flex items-center gap-2 rounded-xl border border-[#dce7e9] bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+          >
+            <ArrowLeft size={15} /> Back to Bus List
+          </button>
+
+          {/* Action buttons kept at top */}
+          <div className="flex flex-wrap items-center gap-2">
+            {currentStatus !== "approved" && (
+              <button
+                type="button"
+                onClick={() => {
+                  setCheckedApprovalItems([]);
+                  setApproveModalOpen(true);
+                }}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-[#078A97] px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#06747f] cursor-pointer"
+              >
+                <Check size={14} /> Approve Bus
+              </button>
+            )}
+
+            {currentStatus !== "rejected" && (
+              <button
+                type="button"
+                onClick={() => setRejectModalOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-rose-300 bg-white px-3.5 py-2 text-xs font-bold text-rose-600 shadow-sm transition hover:bg-rose-50 cursor-pointer"
+              >
+                <X size={14} /> Reject Bus
+              </button>
+            )}
+          </div>
         </div>
 
-        <section className="mb-3 flex flex-col gap-3 rounded-xl border border-[#e4ecef] bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:px-5">
-          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#e6f7f5] text-[#078a97]"><BusFront size={24} aria-hidden="true" /></span>
-          <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h1 className="text-xl font-semibold text-[#172526]">{busNumber}</h1><span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700"><CheckCircle2 size={12} aria-hidden="true" /> Active</span></div><p className="mt-1 text-xs text-[#688080]">Emerald Express <span className="px-1">·</span> AC Sleeper <span className="px-1">·</span> Double deck <span className="px-1">·</span> 36 seats</p></div>
+        {/* Hero Card without MongoDB ID */}
+        <section className="mb-5 overflow-hidden rounded-2xl border border-[#dbe6e9] bg-white p-5 shadow-sm sm:p-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-4">
+              <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-teal-50 text-teal-700 border border-teal-100">
+                <BusFront size={28} />
+              </span>
+              <div>
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">
+                    {bus.busName}
+                  </h1>
+                  <span
+                    className={`inline-flex items-center gap-1 rounded-full border px-3 py-0.5 text-[11px] font-bold uppercase tracking-wider ${
+                      statusStyles[currentStatus] || statusStyles.pending
+                    }`}
+                  >
+                    <span
+                      className={`h-1.5 w-1.5 rounded-full ${
+                        currentStatus === "approved"
+                          ? "bg-emerald-500"
+                          : currentStatus === "pending"
+                          ? "bg-amber-500"
+                          : "bg-rose-500"
+                      }`}
+                    />
+                    {bus.status}
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-slate-500">
+                  Operator: <strong className="text-slate-700">{bus.operatorName || "N/A"}</strong> · Reg No:{" "}
+                  <strong className="font-mono text-slate-800">{bus.registrationNumber}</strong> · Type:{" "}
+                  <strong className="capitalize text-slate-700">{bus.busType?.replace("_", " ")}</strong> (
+                  {bus.deckConfiguration || "Single"} Deck)
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-col text-left sm:text-right text-xs text-slate-500 border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-100">
+              {bus.submittedAt && (
+                <span className="text-[11px] font-medium text-slate-500">
+                  Submitted on{" "}
+                  <strong className="text-slate-700 font-semibold">
+                    {new Date(bus.submittedAt).toLocaleDateString()}
+                  </strong>
+                </span>
+              )}
+              {bus.rating && (
+                <span className="mt-0.5 text-[11px] text-amber-600 font-semibold">
+                  ★ {bus.rating} ({bus.totalRatings || 0} reviews)
+                </span>
+              )}
+
+              {/* Commission directly below Submitted on & Rating with edit pen icon - Only for Approved buses */}
+              {currentStatus === "approved" && (
+                <div className="mt-1.5 flex items-center gap-1.5 sm:justify-end">
+                  <span className="text-[11px] font-medium text-slate-500">Commission:</span>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-teal-50 px-2 py-0.5 text-[11px] font-bold text-[#078A97] border border-teal-100">
+                    {bus.commission !== null && bus.commission !== undefined
+                      ? `${bus.commission}%`
+                      : "10%"}<span className="font-medium text-slate-400">per seat</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewCommissionValue(
+                        bus.commission !== null && bus.commission !== undefined ? bus.commission : 10
+                      );
+                      setCommissionRemarks(bus.adminRemarks || "");
+                      setEditCommissionModalOpen(true);
+                    }}
+                    title="Change Commission"
+                    className="flex h-6 w-6 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:border-[#078A97] hover:bg-teal-50 hover:text-[#078A97]"
+                  >
+                    <Edit2 size={11} />
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
         </section>
 
-        <section aria-label="Trip summary" className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-          {tripStats.map(([label, count, Icon]) => <article key={label} className="rounded-lg border border-[#e7edef] bg-white px-3 py-3 shadow-sm"><div className="flex items-center gap-1.5 text-[10px] font-medium text-[#688080]"><Icon size={13} className="text-[#078a97]" aria-hidden="true" /> {label}</div><p className="mt-1 text-lg font-semibold leading-none text-[#172526]">{count}</p></article>)}
-        </section>
+        {/* 2-Column Grid */}
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+          {/* Left Column (2 spans): Vehicle Specs, Photos, Seating Layout */}
+          <div className="space-y-5 lg:col-span-2">
+            {/* Full Vehicle Specifications */}
+            <div className="rounded-2xl border border-[#dbe6e9] bg-white p-5 shadow-sm">
+              <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                <BusFront size={16} className="text-[#078A97]" />
+                <h2 className="text-sm font-bold text-slate-800">
+                  All Vehicle Specifications &amp; Identifiers
+                </h2>
+              </div>
 
-        <section className="rounded-xl border border-[#e1ebee] bg-white p-4 shadow-sm sm:p-5">
-          <div className="mb-3"><h2 className="text-base font-semibold text-[#172526]">Bus Details</h2><p className="mt-0.5 text-xs text-[#688080]">Live passenger ticket reservations &amp; payment receipts across all routes</p></div>
-          <div role="tablist" aria-label="Bus detail sections" className="mb-3 flex w-full max-w-md gap-1 rounded-lg bg-[#f0f5f7] p-1">
-            {["Bus Overview", "Trip Details"].map((tab) => <button key={tab} type="button" role="tab" aria-selected={activeTab === tab} onClick={() => setActiveTab(tab)} className={`flex-1 rounded-md px-3 py-2 text-xs font-medium transition ${activeTab === tab ? "bg-white text-[#078a97] shadow-sm" : "text-[#71858c] hover:text-[#078a97]"}`}>{tab}</button>)}
+              <dl className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3 text-xs">
+                <div>
+                  <dt className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                    Registration No
+                  </dt>
+                  <dd className="mt-1 font-mono font-bold text-slate-800">
+                    {bus.registrationNumber || "N/A"}
+                  </dd>
+                </div>
+
+                <div>
+                  <dt className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                    Internal Fleet Code
+                  </dt>
+                  <dd className="mt-1 font-mono font-medium text-slate-700">
+                    {bus.internalFleetCode || "N/A"}
+                  </dd>
+                </div>
+
+                <div>
+                  <dt className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                    Manufacturer
+                  </dt>
+                  <dd className="mt-1 font-medium text-slate-800">
+                    {bus.manufacturer || "N/A"}
+                  </dd>
+                </div>
+
+                <div>
+                  <dt className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                    Model
+                  </dt>
+                  <dd className="mt-1 font-medium text-slate-800">
+                    {bus.model || "N/A"}
+                  </dd>
+                </div>
+
+                <div>
+                  <dt className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                    Manufacturing Year
+                  </dt>
+                  <dd className="mt-1 font-medium text-slate-800">
+                    {bus.manufacturingYear || "N/A"}
+                  </dd>
+                </div>
+
+                <div>
+                  <dt className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                    Ownership Type
+                  </dt>
+                  <dd className="mt-1 font-medium capitalize text-slate-800">
+                    {bus.ownershipType || "Owned"}
+                  </dd>
+                </div>
+
+                <div>
+                  <dt className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                    Chassis Number
+                  </dt>
+                  <dd className="mt-1 font-mono text-slate-700">
+                    {bus.chassisNumber || "Not Specified"}
+                  </dd>
+                </div>
+
+                <div>
+                  <dt className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                    Engine Number
+                  </dt>
+                  <dd className="mt-1 font-mono text-slate-700">
+                    {bus.engineNumber || "Not Specified"}
+                  </dd>
+                </div>
+
+                <div>
+                  <dt className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                    Depot / Base Location
+                  </dt>
+                  <dd className="mt-1 text-slate-700">
+                    {bus.depo || "Primary Depot"}
+                  </dd>
+                </div>
+
+                <div>
+                  <dt className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                    Bus Type &amp; Category
+                  </dt>
+                  <dd className="mt-1 font-medium capitalize text-slate-800">
+                    {bus.busType?.replace("_", " ") || "Standard"} ({bus.category || "AC"})
+                  </dd>
+                </div>
+
+                <div>
+                  <dt className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                    Deck Configuration
+                  </dt>
+                  <dd className="mt-1 font-medium capitalize text-slate-800">
+                    {bus.deckConfiguration || "Single"} Deck
+                  </dd>
+                </div>
+
+                <div>
+                  <dt className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                    Total Passenger Capacity
+                  </dt>
+                  <dd className="mt-1 font-bold text-[#078A97]">
+                    {bus.passengerCapacity || bus.totalSeats || 0} Total
+                  </dd>
+                </div>
+
+                <div>
+                  <dt className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                    Seats &amp; Berths
+                  </dt>
+                  <dd className="mt-1 text-slate-700">
+                    {bus.seatCount || 0} Pushback Seats · {bus.berthCount || 0} Sleeper Berths
+                  </dd>
+                </div>
+
+                <div>
+                  <dt className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                    Base Fare
+                  </dt>
+                  <dd className="mt-1 font-bold text-slate-900">
+                    {bus.baseFare ? `₹${bus.baseFare}` : "Not Set"}
+                  </dd>
+                </div>
+
+                <div>
+                  <dt className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                    Odometer / Last Service
+                  </dt>
+                  <dd className="mt-1 text-slate-700">
+                    {bus.odometer ? `${bus.odometer} km` : "0 km"}
+                    {bus.lastServiceDate &&
+                      ` · Serviced ${new Date(bus.lastServiceDate).toLocaleDateString()}`}
+                  </dd>
+                </div>
+              </dl>
+
+              {/* Amenities */}
+              {Array.isArray(bus.amenities) && bus.amenities.length > 0 && (
+                <div className="mt-4 border-t border-slate-100 pt-3">
+                  <dt className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-2">
+                    Onboard Amenities
+                  </dt>
+                  <dd className="flex flex-wrap gap-1.5">
+                    {bus.amenities.map((item) => (
+                      <span
+                        key={item}
+                        className="rounded-full bg-slate-100 px-2.5 py-1 text-[10.5px] font-semibold text-slate-700 capitalize"
+                      >
+                        {item.replace(/([A-Z])/g, " $1")}
+                      </span>
+                    ))}
+                  </dd>
+                </div>
+              )}
+
+              {bus.description && (
+                <div className="mt-4 border-t border-slate-100 pt-3">
+                  <dt className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                    Vehicle Description
+                  </dt>
+                  <dd className="mt-1 text-xs text-slate-600 leading-relaxed">
+                    {bus.description}
+                  </dd>
+                </div>
+              )}
+            </div>
+
+            {/* Vehicle Photos Gallery (Exterior & Interior) */}
+            <div className="rounded-2xl border border-[#dbe6e9] bg-white p-5 shadow-sm">
+              <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                <ImageIcon size={16} className="text-[#078A97]" />
+                <h2 className="text-sm font-bold text-slate-800">
+                  Vehicle Gallery (Exterior &amp; Interior Photos)
+                </h2>
+              </div>
+
+              {/* Exterior Photos */}
+              <div className="mt-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-700">
+                    Exterior Photos
+                  </span>
+                  <span className="text-[11px] text-slate-400 font-medium">
+                    {exteriorPhotos.length} Photos
+                  </span>
+                </div>
+
+                {exteriorPhotos.length > 0 ? (
+                  <div className="mt-2.5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    {exteriorPhotos.map((photo, i) => (
+                      <div
+                        key={i}
+                        onClick={() => setPhotoPreview(photo.url)}
+                        className="group relative aspect-4/3 cursor-pointer overflow-hidden rounded-xl border border-slate-200 bg-slate-100 transition hover:shadow-md"
+                      >
+                        <img
+                          src={photo.url}
+                          alt={`Exterior ${i + 1}`}
+                          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 transition-opacity group-hover:opacity-100">
+                          <Maximize2 size={16} className="text-white" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="mt-2 flex h-24 items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 text-xs text-slate-400">
+                    No exterior photos uploaded
+                  </div>
+                )}
+              </div>
+
+              {/* Interior Photos */}
+              <div className="mt-5 border-t border-slate-100 pt-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-700">
+                    Interior &amp; Seating Photos
+                  </span>
+                  <span className="text-[11px] text-slate-400 font-medium">
+                    {interiorPhotos.length} Photos
+                  </span>
+                </div>
+
+                {interiorPhotos.length > 0 ? (
+                  <div className="mt-2.5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    {interiorPhotos.map((photo, i) => (
+                      <div
+                        key={i}
+                        onClick={() => setPhotoPreview(photo.url)}
+                        className="group relative aspect-4/3 cursor-pointer overflow-hidden rounded-xl border border-slate-200 bg-slate-100 transition hover:shadow-md"
+                      >
+                        <img
+                          src={photo.url}
+                          alt={`Interior ${i + 1}`}
+                          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 transition-opacity group-hover:opacity-100">
+                          <Maximize2 size={16} className="text-white" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="mt-2 flex h-24 items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 text-xs text-slate-400">
+                    No interior photos uploaded
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Realistic Bus Cabin Layout with Soft Gray Background */}
+            {bus.seatLayout && (
+              <div className="rounded-2xl border border-[#dbe6e9] bg-white p-5 shadow-sm">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div className="flex items-center gap-2">
+                    <Zap size={16} className="text-[#078A97]" />
+                    <h2 className="text-sm font-bold text-slate-800">
+                      Real Bus Cabin &amp; Seat Layout
+                    </h2>
+                  </div>
+                  <span className="rounded-full bg-teal-50 px-2.5 py-0.5 text-xs font-bold text-[#078A97]">
+                    {bus.seatLayout.totalPassengerCapacity || bus.passengerCapacity || 32} Total Berths &amp; Seats
+                  </span>
+                </div>
+
+                {/* Legend */}
+                <div className="mt-3 flex flex-wrap items-center gap-4 text-[11px] text-slate-500">
+                  <div className="flex items-center gap-1.5">
+                    <span className="h-3.5 w-3.5 rounded border border-[#169aa8] bg-[#d7f7f9]" />
+                    <span>Seater Pushback</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="h-4 w-3 rounded border border-[#169aa8] bg-[#d7f7f9]" />
+                    <span>Sleeper Berth</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="h-3 w-3 rounded-full bg-slate-400" />
+                    <span>Driver Cabin / Front</span>
+                  </div>
+                </div>
+
+                <div className="mt-5 grid grid-cols-1 gap-6 xl:grid-cols-2">
+                  {/* Lower Deck Coach Container - in Elegant Soft Gray (#f1f5f9 / #e2e8f0) */}
+                  {bus.seatLayout.lowerDeck && (
+                    <div className="rounded-3xl border-2 border-slate-300 bg-[#f1f5f9] p-4 shadow-inner">
+                      <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                        <span className="text-xs font-bold text-slate-800">
+                          {bus.seatLayout.lowerDeck.deckName || "Lower Deck (Seater)"}
+                        </span>
+                        <span className="font-mono text-[11px] font-semibold text-slate-600 bg-white px-2 py-0.5 rounded-full border border-slate-200">
+                          {bus.seatLayout.lowerDeck.passengerCapacity || 16} Seats
+                        </span>
+                      </div>
+
+                      {/* Driver Front Cabin */}
+                      <div className="mt-3 flex items-center justify-between rounded-xl bg-white p-2.5 border border-slate-200/90 shadow-2xs">
+                        <div className="flex items-center gap-2">
+                          <SteeringWheel />
+                          <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wide">
+                            Driver Cabin
+                          </span>
+                        </div>
+                        <span className="text-[10px] font-semibold text-slate-400">
+                          Front Door
+                        </span>
+                      </div>
+
+                      {/* Seats Grid */}
+                      <div className="mt-4 space-y-3">
+                        {bus.seatLayout.lowerDeck.rows?.map((row) => (
+                          <div
+                            key={row.rowNumber}
+                            className="flex items-center justify-between rounded-xl bg-white/95 p-2.5 border border-slate-200 shadow-2xs"
+                          >
+                            <span className="w-6 font-mono text-[10px] font-bold text-slate-400">
+                              {row.rowLabel || `R${row.rowNumber}`}
+                            </span>
+
+                            {/* Left Side (2 seats) */}
+                            <div className="flex items-center gap-2">
+                              {row.seats?.slice(0, 2).map((seat) => (
+                                <BusSeatItem
+                                  key={seat.seatNumber}
+                                  seatNumber={seat.seatNumber}
+                                  type={seat.type}
+                                  fare={seat.fare}
+                                  isSleeper={false}
+                                />
+                              ))}
+                            </div>
+
+                            {/* Gangway / Aisle */}
+                            <div className="flex flex-col items-center justify-center px-1">
+                              <span className="text-[8px] font-bold tracking-widest text-slate-300 uppercase rotate-90">
+                                AISLE
+                              </span>
+                            </div>
+
+                            {/* Right Side (2 seats) */}
+                            <div className="flex items-center gap-2">
+                              {row.seats?.slice(2).map((seat) => (
+                                <BusSeatItem
+                                  key={seat.seatNumber}
+                                  seatNumber={seat.seatNumber}
+                                  type={seat.type}
+                                  fare={seat.fare}
+                                  isSleeper={false}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Upper Deck Coach Container - in Matching Elegant Soft Gray (#f1f5f9 / #e2e8f0) */}
+                  {bus.seatLayout.upperDeck && (
+                    <div className="rounded-3xl border-2 border-slate-300 bg-[#f1f5f9] p-4 shadow-inner">
+                      <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                        <span className="text-xs font-bold text-slate-800">
+                          {bus.seatLayout.upperDeck.deckName || "Upper Deck (Sleeper)"}
+                        </span>
+                        <span className="font-mono text-[11px] font-semibold text-slate-600 bg-white px-2 py-0.5 rounded-full border border-slate-200">
+                          {bus.seatLayout.upperDeck.passengerCapacity || 16} Berths
+                        </span>
+                      </div>
+
+                      {/* Upper Deck Windshield Header */}
+                      <div className="mt-3 flex items-center justify-between rounded-xl bg-white p-2.5 border border-slate-200/90 shadow-2xs">
+                        <div className="flex items-center gap-2">
+                          <span className="h-2 w-2 rounded-full bg-teal-500" />
+                          <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wide">
+                            Upper Deck Windshield
+                          </span>
+                        </div>
+                        <span className="text-[10px] font-semibold text-teal-700">
+                          Panoramic View
+                        </span>
+                      </div>
+
+                      {/* Berths Grid */}
+                      <div className="mt-4 space-y-3">
+                        {bus.seatLayout.upperDeck.rows?.map((row) => (
+                          <div
+                            key={row.rowNumber}
+                            className="flex items-center justify-between rounded-xl bg-white/95 p-2.5 border border-slate-200 shadow-2xs"
+                          >
+                            <span className="w-6 font-mono text-[10px] font-bold text-slate-400">
+                              {row.rowLabel || `R${row.rowNumber}`}
+                            </span>
+
+                            {/* Left Side (2 berths) */}
+                            <div className="flex items-center gap-2">
+                              {row.berths?.slice(0, 2).map((berth) => (
+                                <BusSeatItem
+                                  key={berth.seatNumber}
+                                  seatNumber={berth.seatNumber}
+                                  type={berth.type}
+                                  fare={berth.fare}
+                                  isSleeper={true}
+                                />
+                              ))}
+                            </div>
+
+                            {/* Gangway / Aisle */}
+                            <div className="flex flex-col items-center justify-center px-1">
+                              <span className="text-[8px] font-bold tracking-widest text-slate-300 uppercase rotate-90">
+                                AISLE
+                              </span>
+                            </div>
+
+                            {/* Right Side (2 berths) */}
+                            <div className="flex items-center gap-2">
+                              {row.berths?.slice(2).map((berth) => (
+                                <BusSeatItem
+                                  key={berth.seatNumber}
+                                  seatNumber={berth.seatNumber}
+                                  type={berth.type}
+                                  fare={berth.fare}
+                                  isSleeper={true}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
-          {activeTab === "Bus Overview" ? (
-            <>
-              <section className="overflow-hidden rounded-xl border border-[#e1ebee]">
-                <header className="flex items-center gap-3 border-b border-[#e8eef0] px-4 py-3"><span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#eaf9f7] text-[#078a97]"><Building2 size={16} aria-hidden="true" /></span><div><h3 className="text-sm font-semibold text-[#172526]">Bus Profile</h3><p className="text-[11px] text-[#81929a]">Legal identity and operating information</p></div></header>
-                <dl className="grid grid-cols-1 divide-y divide-[#edf1f2] sm:grid-cols-2 sm:divide-y-0 lg:grid-cols-3">
-                  {profileFields.map(([label, value, variant], index) => <div key={label} className={`min-w-0 border-[#edf1f2] px-4 py-3 ${index % 3 !== 0 ? "lg:border-l" : ""} ${index >= 3 ? "lg:border-t" : ""} ${variant === "wide" ? "sm:col-span-2 lg:col-span-3" : ""}`}><dt className="text-[10px] font-medium tracking-wide text-[#8799a6]">{label}</dt><dd className={`mt-1 wrap-break-word text-xs font-medium ${variant === "verified" ? "text-emerald-700" : "text-[#172526]"}`}>{label === "PHONE VERIFICATION" && <Phone size={12} className="mr-1 inline" aria-hidden="true" />}{label === "EMAIL VERIFICATION" && <Mail size={12} className="mr-1 inline" aria-hidden="true" />}{label === "OPERATING LOCATIONS" && <MapPin size={12} className="mr-1 inline" aria-hidden="true" />}{value}</dd></div>)}
-                </dl>
-              </section>
-
-              <section className="mt-3 overflow-hidden rounded-xl border border-[#e1ebee]">
-                <header className="flex items-center gap-3 border-b border-[#e8eef0] px-4 py-3"><span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#eaf9f7] text-[#078a97]"><FileCheck2 size={16} aria-hidden="true" /></span><div><h3 className="text-sm font-semibold text-[#172526]">Document Verification</h3><p className="text-[11px] text-[#81929a]">Requirements shown are configured for this business type</p></div></header>
-                <div className="grid grid-cols-1 gap-3 p-3 sm:grid-cols-2">
-                  {documents.map(({ title, filename, date, icon: Icon }) => <article key={title} className="rounded-lg border border-[#e5ecee] p-3"><div className="flex items-start gap-2.5"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#effaf8] text-[#078a97]"><Icon size={15} aria-hidden="true" /></span><div className="min-w-0 flex-1"><h4 className="text-xs font-semibold text-[#172526]">{title}</h4><p className="mt-0.5 text-[10px] text-[#81929a]">Required document</p></div></div><div className="mt-3 flex flex-wrap items-end justify-between gap-2 border-t border-[#edf1f2] pt-2.5"><div className="min-w-0"><p className="truncate text-[10px] font-medium text-[#536b80]">{filename}</p><p className="mt-0.5 text-[10px] text-[#94a3ad]">{date}</p></div><button type="button" onClick={() => setSelectedDocument({ title, filename })} className="shrink-0 text-[11px] font-medium text-[#078a97] hover:underline">Review</button></div></article>)}
+          {/* Right Column (1 span): Compliance Documents & Review History */}
+          <div className="space-y-5">
+            {/* Travel Agent Info */}
+            {bus.agentId && (
+              <div className="rounded-2xl border border-[#dbe6e9] bg-white p-5 shadow-sm">
+                <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                  <User size={16} className="text-[#078A97]" />
+                  <h2 className="text-sm font-bold text-slate-800">
+                    Operator Contact
+                  </h2>
                 </div>
-              </section>
-            </>
-          ) : (
-            <TripDetails onSelectTrip={setSelectedTrip} />
-          )}
-        </section>
+
+                <dl className="mt-4 space-y-3 text-xs">
+                  <div>
+                    <dt className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                      Contact Name
+                    </dt>
+                    <dd className="mt-0.5 font-semibold text-slate-800">
+                      {bus.agentId.firstName} {bus.agentId.lastName}
+                    </dd>
+                  </div>
+
+                  <div>
+                    <dt className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                      Email
+                    </dt>
+                    <dd className="mt-0.5 text-slate-700">{bus.agentId.email}</dd>
+                  </div>
+
+                  <div>
+                    <dt className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                      Phone
+                    </dt>
+                    <dd className="mt-0.5 text-slate-700">{bus.agentId.phone}</dd>
+                  </div>
+                </dl>
+              </div>
+            )}
+
+            {/* Compliance Documents */}
+            <div className="rounded-2xl border border-[#dbe6e9] bg-white p-5 shadow-sm">
+              <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                <FileCheck2 size={16} className="text-[#078A97]" />
+                <h2 className="text-sm font-bold text-slate-800">
+                  Compliance Documents
+                </h2>
+              </div>
+
+              <div className="mt-4 space-y-3">
+                {[
+                  {
+                    title: "Registration Certificate (RC)",
+                    doc: bus.rcDoc,
+                    number: bus.rcDoc?.documentNumber,
+                  },
+                  {
+                    title: "Permit Document",
+                    doc: bus.permit,
+                    number: bus.permit?.permitNumber,
+                  },
+                  {
+                    title: "Insurance Policy",
+                    doc: bus.insurance,
+                    number: bus.insurance?.policyNumber,
+                  },
+                  {
+                    title: "Fitness Certificate",
+                    doc: bus.fitness,
+                    number: bus.fitness?.certificateNumber,
+                  },
+                  {
+                    title: "PUC Certificate",
+                    doc: bus.puc,
+                    number: bus.puc?.certificateNumber,
+                  },
+                ].map(({ title, doc, number }) => (
+                  <div
+                    key={title}
+                    className="rounded-xl border border-slate-100 bg-slate-50/70 p-3"
+                  >
+                    <div className="flex items-start gap-2.5">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-teal-50 text-[#078A97]">
+                        <FileText size={15} />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-semibold text-slate-800">{title}</p>
+                        {number && (
+                          <p className="font-mono text-[10.5px] text-slate-600 mt-0.5">
+                            Doc No: {number}
+                          </p>
+                        )}
+                        {doc?.expiryDate && (
+                          <p className="text-[10px] text-slate-400">
+                            Valid till: {new Date(doc.expiryDate).toLocaleDateString()}
+                          </p>
+                        )}
+                        {doc?.url ? (
+                          <a
+                            href={doc.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="mt-1.5 inline-block text-[11px] font-semibold text-[#078A97] hover:underline"
+                          >
+                            View Document ↗
+                          </a>
+                        ) : (
+                          <span className="text-[10px] text-slate-400 block mt-1">
+                            No file preview available
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Review Status & Audit */}
+            <div className="rounded-2xl border border-[#dbe6e9] bg-white p-5 shadow-sm">
+              <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                <ShieldCheck size={16} className="text-[#078A97]" />
+                <h2 className="text-sm font-bold text-slate-800">
+                  Audit &amp; Review History
+                </h2>
+              </div>
+
+              <div className="mt-4 space-y-2.5 text-xs text-slate-600">
+                <div>
+                  <span className="text-[11px] font-semibold text-slate-400 block uppercase">
+                    Current Status
+                  </span>
+                  <span className="font-bold text-slate-800 uppercase mt-0.5 block">
+                    {bus.status}
+                  </span>
+                </div>
+
+                {bus.commission !== null && bus.commission !== undefined && (
+                  <div>
+                    <span className="text-[11px] font-semibold text-slate-400 block uppercase">
+                      Admin Commission
+                    </span>
+                    <span className="font-bold text-emerald-700">
+                      {bus.commission}% <span className="font-medium text-slate-400">per seat</span>
+                    </span>
+                  </div>
+                )}
+
+                {bus.adminRemarks && (
+                  <div>
+                    <span className="text-[11px] font-semibold text-slate-400 block uppercase">
+                      Admin Remarks
+                    </span>
+                    <p className="mt-1 rounded-lg bg-slate-50 p-2 text-[11px] text-slate-700 italic border border-slate-100">
+                      "{bus.adminRemarks}"
+                    </p>
+                  </div>
+                )}
+
+                {bus.reviewHistory?.length > 0 && (
+                  <div className="pt-2 border-t border-slate-100">
+                    <span className="text-[11px] font-semibold text-slate-400 block uppercase mb-1">
+                      History
+                    </span>
+                    {bus.reviewHistory.map((item, idx) => (
+                      <div
+                        key={idx}
+                        className="text-[10.5px] border-l-2 border-slate-200 pl-2 py-1 mb-1.5"
+                      >
+                        <p className="font-semibold text-slate-700 capitalize">
+                          {item.action} ({item.fromStatus} → {item.toStatus})
+                        </p>
+                        {item.remarks && (
+                          <p className="text-slate-500 italic">"{item.remarks}"</p>
+                        )}
+                        <p className="text-slate-400 text-[9.5px]">
+                          {item.timestamp ? new Date(item.timestamp).toLocaleString() : ""}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
       </main>
 
-      {(selectedDocument || selectedTrip) && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/30 p-4" onClick={() => { setSelectedDocument(null); setSelectedTrip(null); }}>
-          <section role="dialog" aria-modal="true" aria-labelledby="detail-modal-title" className="w-full max-w-lg rounded-xl bg-white p-5 shadow-xl" onClick={(event) => event.stopPropagation()}>
-            <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-wide text-[#078a97]">{selectedDocument ? "Document review" : "Trip details"}</p><h2 id="detail-modal-title" className="mt-1 text-lg font-semibold text-slate-800">{selectedDocument?.title || selectedTrip?.reference}</h2></div><button type="button" aria-label="Close details" onClick={() => { setSelectedDocument(null); setSelectedTrip(null); }} className="rounded-full p-1.5 text-slate-500 hover:bg-slate-100"><X size={17} /></button></div>
-            {selectedDocument ? <div className="mt-4 flex min-h-40 flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 p-6 text-center"><FileText size={28} className="text-[#078a97]" aria-hidden="true" /><p className="mt-3 text-sm font-medium text-slate-800">{selectedDocument.filename}</p><p className="mt-1 text-xs text-slate-500">Document preview is not available in this sample.</p></div> : <dl className="mt-5 grid grid-cols-2 gap-4 text-sm">{[["Passenger", selectedTrip?.passenger], ["Route", selectedTrip?.route], ["Travel date", selectedTrip?.date], ["Departure / arrival", selectedTrip?.time], ["Seat berth", selectedTrip?.seats], ["Status", selectedTrip?.status]].map(([label, value]) => <div key={label}><dt className="text-xs text-slate-500">{label}</dt><dd className="mt-1 font-medium text-slate-800">{value}</dd></div>)}</dl>}
-          </section>
+      {/* Full Photo Preview Modal */}
+      {photoPreview && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+          onClick={() => setPhotoPreview(null)}
+        >
+          <div className="relative max-h-[90vh] max-w-[90vw]">
+            <img
+              src={photoPreview}
+              alt="Preview"
+              className="max-h-[85vh] max-w-[85vw] rounded-2xl object-contain shadow-2xl"
+            />
+            <button
+              type="button"
+              onClick={() => setPhotoPreview(null)}
+              className="absolute -right-3 -top-3 rounded-full bg-white p-2 text-slate-800 shadow-lg hover:bg-slate-100"
+            >
+              <X size={18} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Approve Bus Modal */}
+      {approveModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl">
+            <div className="flex items-start justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Approve Bus</h3>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Verify vehicle compliance checklist and set platform commission.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setApproveModalOpen(false)}
+                className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Checklist with progress bar */}
+            <div className="mt-4">
+              <div className="flex items-center justify-between text-xs font-semibold text-slate-700">
+                <span>Compliance Checklist</span>
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 font-mono text-[11px] font-bold text-slate-600">
+                  {checkedApprovalItems.length} / {busApprovalChecklist.length}
+                </span>
+              </div>
+
+              <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+                <div
+                  className="h-full bg-[#078A97] transition-all duration-300"
+                  style={{
+                    width: `${
+                      (checkedApprovalItems.length /
+                        busApprovalChecklist.length) *
+                      100
+                    }%`,
+                  }}
+                />
+              </div>
+
+              <div className="mt-3.5 space-y-2 max-h-56 overflow-y-auto pr-1">
+                {busApprovalChecklist.map((item, idx) => {
+                  const isChecked = checkedApprovalItems.includes(idx);
+                  return (
+                    <div
+                      key={item}
+                      role="checkbox"
+                      aria-checked={isChecked}
+                      tabIndex={0}
+                      onClick={() => toggleApprovalItem(idx)}
+                      onKeyDown={(e) => {
+                        if (e.key === " " || e.key === "Enter") {
+                          e.preventDefault();
+                          toggleApprovalItem(idx);
+                        }
+                      }}
+                      className={`flex cursor-pointer select-none items-center gap-3 rounded-xl border p-3 transition-colors ${
+                        isChecked
+                          ? "border-[#078A97]/40 bg-[#078A97]/5"
+                          : "border-slate-200/90 bg-white hover:bg-slate-50"
+                      }`}
+                    >
+                      <span
+                        className={`flex h-4 w-4 shrink-0 items-center justify-center rounded transition-colors ${
+                          isChecked
+                            ? "bg-[#078A97] text-white border border-[#078A97]"
+                            : "border border-slate-300 bg-white"
+                        }`}
+                      >
+                        {isChecked && <Check size={11} strokeWidth={3} />}
+                      </span>
+                      <span className="text-xs font-medium text-slate-800">
+                        {item}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Commission Input */}
+            <div className="mt-4">
+              <label className="block text-xs font-semibold text-slate-700">
+                Platform Commission Percentage (%) *
+              </label>
+              <div className="relative mt-1.5">
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={commission}
+                  onChange={(e) => setCommission(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 p-2.5 pl-3 pr-8 text-xs font-semibold text-slate-800 outline-none focus:border-[#078A97] focus:ring-1 focus:ring-[#078A97]"
+                  placeholder="e.g. 10"
+                />
+                <Percent
+                  size={14}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+                />
+              </div>
+            </div>
+
+            {/* Remarks Textarea */}
+            <div className="mt-3">
+              <label className="block text-xs font-semibold text-slate-700">
+                Admin Remarks
+              </label>
+              <textarea
+                rows={2}
+                value={remarks}
+                onChange={(e) => setRemarks(e.target.value)}
+                className="mt-1.5 w-full rounded-xl border border-slate-300 p-2.5 text-xs text-slate-800 outline-none focus:border-[#078A97] focus:ring-1 focus:ring-[#078A97]"
+                placeholder="Registration certificate, insurance, fitness verified..."
+              />
+            </div>
+
+            {/* Modal Actions */}
+            <div className="mt-5 flex items-center justify-end gap-2 border-t border-slate-100 pt-3">
+              <button
+                type="button"
+                onClick={() => setApproveModalOpen(false)}
+                className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={!allApprovalChecked || actionLoading}
+                onClick={() => handleReviewBus("approve")}
+                className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-xs font-bold text-white shadow-sm transition ${
+                  allApprovalChecked && !actionLoading
+                    ? "bg-[#078A97] hover:bg-[#06747f] cursor-pointer"
+                    : "bg-slate-300 text-slate-500 cursor-not-allowed opacity-80"
+                }`}
+              >
+                {actionLoading && <RefreshCw size={12} className="animate-spin" />}
+                Approve Bus
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reject Bus Modal */}
+      {rejectModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl">
+            <div className="flex items-start justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-base font-bold text-rose-600">
+                  Reject Bus Registration
+                </h3>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Provide reason for rejection so the operator can correct and resubmit.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRejectModalOpen(false)}
+                className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Remarks Textarea */}
+            <div className="mt-4">
+              <label className="block text-xs font-semibold text-slate-700">
+                Rejection Reason / Remarks *
+              </label>
+              <textarea
+                rows={3}
+                value={rejectionRemarks}
+                onChange={(e) => setRejectionRemarks(e.target.value)}
+                className="mt-1.5 w-full rounded-xl border border-slate-300 p-2.5 text-xs text-slate-800 outline-none focus:border-rose-500 focus:ring-1 focus:ring-rose-500"
+                placeholder="e.g. Fitness certificate scan is illegible..."
+              />
+            </div>
+
+            {/* Modal Actions */}
+            <div className="mt-5 flex items-center justify-end gap-2 border-t border-slate-100 pt-3">
+              <button
+                type="button"
+                onClick={() => setRejectModalOpen(false)}
+                className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={actionLoading || !rejectionRemarks.trim()}
+                onClick={() => handleReviewBus("reject")}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-rose-700 cursor-pointer disabled:opacity-60"
+              >
+                {actionLoading && <RefreshCw size={12} className="animate-spin" />}
+                Reject Bus
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Commission Modal */}
+      {editCommissionModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <div className="flex items-start justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Change Commission</h3>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Update platform commission percentage for this bus.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditCommissionModalOpen(false)}
+                className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="mt-4">
+              <label className="block text-xs font-semibold text-slate-700">
+                Commission Percentage (%) *
+              </label>
+              <div className="relative mt-1.5">
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.5"
+                  value={newCommissionValue}
+                  onChange={(e) => setNewCommissionValue(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 p-2.5 pl-3 pr-8 text-xs font-semibold text-slate-800 outline-none focus:border-[#078A97] focus:ring-1 focus:ring-[#078A97]"
+                  placeholder="e.g. 10"
+                />
+                <Percent
+                  size={14}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+                />
+              </div>
+              <p className="mt-1 text-[11px] text-slate-400">
+                Current: <strong className="text-slate-700">{bus?.commission ?? 10}%</strong>
+              </p>
+            </div>
+
+            <div className="mt-3">
+              <label className="block text-xs font-semibold text-slate-700">
+                Remarks / Reason (Optional)
+              </label>
+              <textarea
+                rows={2}
+                value={commissionRemarks}
+                onChange={(e) => setCommissionRemarks(e.target.value)}
+                className="mt-1.5 w-full rounded-xl border border-slate-300 p-2.5 text-xs text-slate-800 outline-none focus:border-[#078A97] focus:ring-1 focus:ring-[#078A97]"
+                placeholder="e.g. Rate revision agreed with operator..."
+              />
+            </div>
+
+            <div className="mt-5 flex items-center justify-end gap-2 border-t border-slate-100 pt-3">
+              <button
+                type="button"
+                onClick={() => setEditCommissionModalOpen(false)}
+                className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={updatingCommission || newCommissionValue === ""}
+                onClick={handleUpdateCommission}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-[#078A97] px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-[#06747f] cursor-pointer disabled:opacity-60"
+              >
+                {updatingCommission && <RefreshCw size={12} className="animate-spin" />}
+                Save Commission
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

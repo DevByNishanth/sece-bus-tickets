@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 
 const toDateValue = (date) => {
@@ -14,15 +15,18 @@ const parseDateValue = (value) => {
   return new Date(year, month - 1, day);
 };
 
-const CustomDatePicker = ({ label, name, value, onChange, required = false, min }) => {
+const CustomDatePicker = ({ label, name, value, onChange, required = false, min, compact = false }) => {
   const selectedDate = parseDateValue(value);
   const earliestDate = parseDateValue(min);
   const [isOpen, setIsOpen] = useState(false);
+  const [popupStyle, setPopupStyle] = useState({});
   const [displayMonth, setDisplayMonth] = useState(() => {
     const initialDate = selectedDate || new Date();
     return new Date(initialDate.getFullYear(), initialDate.getMonth(), 1);
   });
   const pickerRef = useRef(null);
+  const buttonRef = useRef(null);
+  const popupRef = useRef(null);
   const monthNames = [
     "January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December",
@@ -33,7 +37,7 @@ const CustomDatePicker = ({ label, name, value, onChange, required = false, min 
   useEffect(() => {
     if (!isOpen) return undefined;
     const handlePointerDown = (event) => {
-      if (!pickerRef.current?.contains(event.target)) setIsOpen(false);
+      if (!pickerRef.current?.contains(event.target) && !popupRef.current?.contains(event.target)) setIsOpen(false);
     };
     const handleKeyDown = (event) => {
       if (event.key === "Escape") setIsOpen(false);
@@ -77,8 +81,8 @@ const CustomDatePicker = ({ label, name, value, onChange, required = false, min 
   };
 
   return (
-    <div className="w-full" ref={pickerRef}>
-      <label className="mb-1.5 block text-xs font-medium text-slate-700">
+    <div className={`relative w-full ${isOpen ? "z-[100]" : "z-0"}`} ref={pickerRef}>
+      <label className={`block font-medium text-slate-700 ${compact ? "mb-1 text-[10px] text-[#64748B]" : "mb-1.5 text-xs"}`}>
         {label}{required && <span className="ml-1 text-red-500">*</span>}
       </label>
       <div className="relative">
@@ -89,9 +93,18 @@ const CustomDatePicker = ({ label, name, value, onChange, required = false, min 
           onClick={() => {
             const activeDate = parseDateValue(value) || new Date();
             setDisplayMonth(new Date(activeDate.getFullYear(), activeDate.getMonth(), 1));
+            if (!isOpen) {
+              const rect = buttonRef.current.getBoundingClientRect();
+              const width = 288;
+              const height = 330;
+              const left = Math.min(Math.max(8, rect.left), window.innerWidth - width - 8);
+              const top = rect.bottom + height + 8 <= window.innerHeight ? rect.bottom + 6 : Math.max(8, rect.top - height - 6);
+              setPopupStyle({ position: "fixed", left, top, zIndex: 10000 });
+            }
             setIsOpen((open) => !open);
           }}
-          className="flex h-10 w-full items-center justify-between rounded-lg border border-slate-200 bg-white px-3 text-left text-xs text-slate-700 transition hover:border-slate-300 focus:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-600/10"
+          ref={buttonRef}
+          className={`flex w-full items-center justify-between rounded-lg border border-slate-200 bg-white text-left text-slate-700 transition hover:border-slate-300 focus:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-600/10 ${compact ? "h-[34px] px-2.5 text-[10px]" : "h-10 px-3 text-xs"}`}
         >
           <span className={value ? "text-slate-700" : "text-slate-400"}>
             {selectedDate ? selectedDate.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "Select date"}
@@ -100,8 +113,8 @@ const CustomDatePicker = ({ label, name, value, onChange, required = false, min 
         </button>
         <input tabIndex={-1} aria-hidden="true" className="pointer-events-none absolute h-px w-px opacity-0" type="text" name={name} value={value} required={required} readOnly />
 
-        {isOpen && (
-          <div role="dialog" aria-label={`${label} calendar`} className="absolute left-0 top-full z-30 mt-2 w-72 rounded-xl border border-slate-200 bg-white p-3 shadow-xl">
+        {isOpen && createPortal(
+          <div ref={popupRef} style={popupStyle} role="dialog" aria-label={`${label} calendar`} className="w-72 rounded-xl border border-slate-200 bg-white p-3 shadow-2xl">
             <div className="mb-3 flex items-center justify-between">
               <button type="button" aria-label="Previous month" onClick={() => changeMonth(-1)} className="rounded-md p-1.5 text-slate-500 hover:bg-teal-50 hover:text-teal-800"><ChevronLeft size={16} /></button>
               <div className="flex items-center gap-1.5">
@@ -135,7 +148,7 @@ const CustomDatePicker = ({ label, name, value, onChange, required = false, min 
                 return <button key={day} type="button" onClick={() => chooseDate(day)} disabled={isBeforeMinimum} aria-pressed={isSelected} className={`m-0.5 h-8 rounded-lg text-xs transition disabled:cursor-not-allowed disabled:text-slate-300 ${isSelected ? "bg-[#0E7A88] font-semibold text-white" : isToday ? "bg-teal-50 font-semibold text-teal-800" : "text-slate-700 hover:bg-teal-50 hover:text-teal-800"}`}>{day}</button>;
               })}
             </div>
-          </div>
+          </div>, document.body
         )}
       </div>
     </div>

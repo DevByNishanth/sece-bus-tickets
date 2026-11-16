@@ -1,8 +1,12 @@
 
-import React from "react"
-import { Bus, CalendarDays, Clock, CheckCircle2, ChevronDown } from "lucide-react"
+import React, { useState } from "react"
+import { Bus, CheckCircle2, ChevronDown } from "lucide-react"
+import CustomDatePicker from "../../../components/CustomDatePicker"
+import CustomTimePicker from "../../../components/CustomTimePicker"
 
 const BusJourneyDetails = () => {
+    const [schedule, setSchedule] = useState({ journeyDate: "2025-06-18", departureDate: "2025-06-18", departureTime: "21:30" })
+    const updateSchedule = (key) => (event) => setSchedule((current) => ({ ...current, [key]: event.target.value }))
     return (
         <div className="mt-5 space-y-4">
 
@@ -122,54 +126,15 @@ const BusJourneyDetails = () => {
                 <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
 
                     {/* journey date */}
-                    <div>
-                        <label className="mb-1 block text-[10px] text-[#64748B]">
-                            Journey date
-                        </label>
-
-                        <div className="relative">
-                            <CalendarDays size={13} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#64748B]" />
-
-                            <input
-                                type="date"
-                                defaultValue="2025-06-18"
-                                className="w-full rounded-lg border border-[#E2E8F0] bg-white py-2 pl-8 pr-3 text-[10px] text-[#334155] outline-none focus:border-[#0E7A88]"
-                            />
-                        </div>
-                    </div>
+                    <CustomDatePicker compact label="Journey date" name="journeyDate" value={schedule.journeyDate} onChange={updateSchedule("journeyDate")} />
 
                     {/* departure date */}
-                    <div>
-                        <label className="mb-1 block text-[10px] text-[#64748B]">
-                            Departure date
-                        </label>
-
-                        <div className="relative">
-                            <CalendarDays size={13} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#64748B]" />
-
-                            <input
-                                type="date"
-                                defaultValue="2025-06-18"
-                                className="w-full rounded-lg border border-[#E2E8F0] bg-white py-2 pl-8 pr-3 text-[10px] text-[#334155] outline-none focus:border-[#0E7A88]"
-                            />
-                        </div>
-                    </div>
+                    <CustomDatePicker compact label="Departure date" name="departureDate" value={schedule.departureDate} onChange={updateSchedule("departureDate")} />
 
                     {/* departure time */}
                     <div>
-                        <label className="mb-1 block text-[10px] text-[#64748B]">
-                            Departure time
-                        </label>
-
-                        <div className="relative">
-                            <Clock size={13} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#64748B]" />
-
-                            <input
-                                type="time"
-                                defaultValue="21:30"
-                                className="w-full rounded-lg border border-[#E2E8F0] bg-white py-2 pl-8 pr-3 text-[10px] text-[#334155] outline-none focus:border-[#0E7A88]"
-                            />
-                        </div>
+                        <label className="mb-1 block text-[10px] text-[#64748B]">Departure time</label>
+                        <CustomTimePicker value={schedule.departureTime} onChange={updateSchedule("departureTime")} />
                     </div>
 
                 </div>

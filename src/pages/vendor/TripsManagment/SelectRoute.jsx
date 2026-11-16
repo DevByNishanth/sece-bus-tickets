@@ -1,5 +1,6 @@
 
 import React from "react"
+import CustomTimePicker from "../../../components/CustomTimePicker"
 import {
     Route,
     CheckCircle2,
@@ -187,16 +188,14 @@ const SelectRoute = () => {
                                         </td>
 
                                         <td className="px-1 py-3">
-                                            <div className="flex items-center rounded-lg border border-[#E2E8F0] px-2 py-2">
-                                                <input type="time" defaultValue="21:30" className="w-[70px] text-[9px] text-[#334155] outline-none" />
-                                                <Clock size={10} className="text-[#64748B]" />
+                                            <div>
+                                                <CustomTimePicker compact className="w-[82px]" />
                                             </div>
                                         </td>
 
                                         <td className="px-1 py-3">
-                                            <div className="flex items-center rounded-lg border border-[#E2E8F0] px-2 py-2">
-                                                <input type="time" defaultValue="21:30" className="w-[70px] text-[9px] text-[#334155] outline-none" />
-                                                <Clock size={10} className="text-[#64748B]" />
+                                            <div>
+                                                <CustomTimePicker compact className="w-[82px]" />
                                             </div>
                                         </td>
 
@@ -238,16 +237,14 @@ const SelectRoute = () => {
                                         </td>
 
                                         <td className="px-1 py-3">
-                                            <div className="flex items-center rounded-lg border border-[#E2E8F0] px-2 py-2">
-                                                <input type="time" defaultValue="21:30" className="w-[70px] text-[9px] text-[#334155] outline-none" />
-                                                <Clock size={10} className="text-[#64748B]" />
+                                            <div>
+                                                <CustomTimePicker compact className="w-[82px]" />
                                             </div>
                                         </td>
 
                                         <td className="px-1 py-3">
-                                            <div className="flex items-center rounded-lg border border-[#E2E8F0] px-2 py-2">
-                                                <input type="time" defaultValue="21:30" className="w-[70px] text-[9px] text-[#334155] outline-none" />
-                                                <Clock size={10} className="text-[#64748B]" />
+                                            <div>
+                                                <CustomTimePicker compact className="w-[82px]" />
                                             </div>
                                         </td>
 
@@ -289,16 +286,14 @@ const SelectRoute = () => {
                                         </td>
 
                                         <td className="px-1 py-3">
-                                            <div className="flex items-center rounded-lg border border-[#E2E8F0] px-2 py-2">
-                                                <input type="time" defaultValue="21:30" className="w-[70px] text-[9px] text-[#334155] outline-none" />
-                                                <Clock size={10} className="text-[#64748B]" />
+                                            <div>
+                                                <CustomTimePicker compact className="w-[82px]" />
                                             </div>
                                         </td>
 
                                         <td className="px-1 py-3">
-                                            <div className="flex items-center rounded-lg border border-[#E2E8F0] px-2 py-2">
-                                                <input type="time" defaultValue="21:30" className="w-[70px] text-[9px] text-[#334155] outline-none" />
-                                                <Clock size={10} className="text-[#64748B]" />
+                                            <div>
+                                                <CustomTimePicker compact className="w-[82px]" />
                                             </div>
                                         </td>
 

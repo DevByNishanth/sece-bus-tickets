@@ -41,6 +41,7 @@ import PaymentResult from './pages/User/PaymentResult.jsx';
 import MyBookings from './pages/User/MyBookings.jsx';
 import CreateTripFormPage from "./pages/vendor/TripsManagment/CreateTripFormPage.jsx";
 import VendorCalendar from "./pages/vendor/Calendar/VendorCalendar.jsx";
+import BusDetail from "./pages/vendor/TripsManagment/BusDetail.jsx";
 
 function App() {
   const location = useLocation();
@@ -155,6 +156,8 @@ function App() {
           />
 
           <Route path="/vendor/trip-management" element={<TripsManagmentDashboard />} />
+          <Route path="/vendor/trip-management/vendor/trip-management/busDetail/busId" element={<BusDetail />} />
+
           <Route path="/vendor/trip-management/:busId/createNewTrip" element={<CreateTripFormPage />} />
           <Route path="/vendor/crew-management" element={<DriverManagementDashboard />} />
           <Route path="/vendor/-staff-management" element={<StaffManagementDashboard />} />

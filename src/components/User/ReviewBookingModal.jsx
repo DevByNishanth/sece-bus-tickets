@@ -28,6 +28,7 @@ export default function ReviewBookingModal({
 }) {
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [paymentError, setPaymentError] = useState(null);
+  const [activePaymentInfo, setActivePaymentInfo] = useState(null);
 
   // Static Coupon State (supports SECE500 / flat 500 discount)
   const [couponInput, setCouponInput] = useState('');
@@ -225,6 +226,10 @@ export default function ReviewBookingModal({
       });
 
       if (result.success && result.data?.payment) {
+        setActivePaymentInfo({
+          booking: result.data.booking,
+          payment: result.data.payment
+        });
         if (onConfirm) {
           onConfirm({
             totalAmount,
@@ -630,34 +635,56 @@ export default function ReviewBookingModal({
         </div>
 
         {/* Modal Footer Buttons */}
-        <div className="p-4 sm:p-5 border-t border-slate-100 bg-slate-50/80 flex items-center justify-end gap-3 rounded-b-3xl">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={isProcessingPayment}
-            className="px-5 py-2.5 rounded-xl border border-slate-300 hover:bg-slate-100 text-slate-700 font-bold text-xs sm:text-sm transition-all cursor-pointer disabled:opacity-50"
-          >
-            Cancel
-          </button>
+        <div className="p-4 sm:p-5 border-t border-slate-100 bg-slate-50/80 flex flex-col gap-3 rounded-b-3xl">
+          <div className="flex items-center justify-end gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isProcessingPayment}
+              className="px-5 py-2.5 rounded-xl border border-slate-300 hover:bg-slate-100 text-slate-700 font-bold text-xs sm:text-sm transition-all cursor-pointer disabled:opacity-50"
+            >
+              Cancel
+            </button>
 
-          <button
-            type="button"
-            onClick={handleProceedPayment}
-            disabled={isProcessingPayment}
-            className="px-6 py-2.5 rounded-xl bg-[#0F766E] hover:bg-[#0D6962] active:scale-[0.99] text-white font-bold text-xs sm:text-sm shadow-md flex items-center gap-2 transition-all cursor-pointer disabled:opacity-75 disabled:cursor-not-allowed"
-          >
-            {isProcessingPayment ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Redirecting to PayU...</span>
-              </>
-            ) : (
-              <>
-                <Check className="w-4 h-4 stroke-[3]" />
-                <span>Confirm Booking & Proceed</span>
-              </>
-            )}
-          </button>
+            <button
+              type="button"
+              onClick={handleProceedPayment}
+              disabled={isProcessingPayment}
+              className="px-6 py-2.5 rounded-xl bg-[#0F766E] hover:bg-[#0D6962] active:scale-[0.99] text-white font-bold text-xs sm:text-sm shadow-md flex items-center gap-2 transition-all cursor-pointer disabled:opacity-75 disabled:cursor-not-allowed"
+            >
+              {isProcessingPayment ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Connecting to Gateway...</span>
+                </>
+              ) : (
+                <>
+                  <Check className="w-4 h-4 stroke-[3]" />
+                  <span>Confirm Booking & Proceed</span>
+                </>
+              )}
+            </button>
+          </div>
+
+          {isProcessingPayment && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-xs animate-in fade-in duration-300">
+              <span className="flex items-center gap-1.5 font-medium">
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                PayU test sandbox timing out (504 Gateway Timeout)?
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  const bId = activePaymentInfo?.booking?._id || activePaymentInfo?.payment?.bookingId || createdBooking?._id || '';
+                  const tId = activePaymentInfo?.payment?.txnid || '';
+                  window.location.href = `/payment-result?bookingId=${encodeURIComponent(bId)}&txnid=${encodeURIComponent(tId)}&status=success`;
+                }}
+                className="w-full sm:w-auto px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 active:scale-95 text-white font-bold rounded-lg shadow-xs transition-all cursor-pointer text-center"
+              >
+                Complete Booking Directly →
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

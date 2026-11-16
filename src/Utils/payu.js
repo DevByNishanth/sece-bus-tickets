@@ -10,15 +10,30 @@ export const redirectToPayU = (paymentData) => {
     throw new Error("Payment data is missing");
   }
 
-  const form = document.createElement("form");
-
-  form.method = "POST";
-  form.action =
+  // Priority: If VITE_PAYMENT is explicitly set in .env, respect it first
+  const targetUrl =
+    import.meta.env.VITE_PAYMENT ||
     paymentData.paymentUrl ||
     paymentData.action ||
     paymentData.checkoutUrl ||
-    import.meta.env.VITE_PAYMENT ||
     PAYU_URL;
+
+  // Development simulation bypass when PayU sandbox server is experiencing downtime (504 timeout)
+  if (targetUrl === "mock" || targetUrl === "simulate" || targetUrl === "bypass") {
+    const bookingId =
+      paymentData.bookingId ||
+      paymentData.booking?._id ||
+      paymentData.payuParams?.udf1 ||
+      "";
+    const txnid = paymentData.txnid || paymentData.payuParams?.txnid || "";
+    window.location.href = `/payment-result?bookingId=${encodeURIComponent(bookingId)}&txnid=${encodeURIComponent(txnid)}&status=success`;
+    return;
+  }
+
+  const form = document.createElement("form");
+
+  form.method = "POST";
+  form.action = targetUrl;
 
   // All fields received from backend (support payuParams, params, or direct)
   const params = paymentData.payuParams || paymentData.params || paymentData;

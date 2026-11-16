@@ -37,6 +37,7 @@ import StaffManagementDashboard from "./pages/vendor/CrewManagement/StaffManagem
 import FinanceDashboard from "./pages/vendor/Finance/FinanceDashboard.jsx";
 import CalendarDashboard from "./pages/vendor/Calendar/CalendarDashboard.jsx";
 import BookingsDashboard from "./pages/vendor/Bookings/BookingsDashboard.jsx";
+import CrewDashboard from "./pages/CrewDashboard.jsx";
 import BusListing from './pages/User/BusListing.jsx';
 import TicketBooking from './pages/User/TicketBooking.jsx';
 import PayUCheckout from './pages/User/PayUCheckout.jsx';
@@ -173,6 +174,7 @@ function App() {
           <Route path="/vendor/finance" element={<FinanceDashboard />} />
           <Route path="/vendor/calendar" element={<CalendarDashboard />} />
           <Route path="/vendor/bookings" element={<BookingsDashboard />} />
+          <Route path="/crew-dashboard" element={<CrewDashboard />} />
 
           <Route path="/" element={<BusListing />} />
       <Route path="/buses" element={<BusListing />} />

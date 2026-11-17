@@ -1,5 +1,6 @@
 import React from 'react';
 import { AlertCircle, X, Clock, RefreshCw, CheckCircle2, FastForward } from 'lucide-react';
+import { normalizeSeatLayout } from '../../services/busService';
 
 // Format mm:ss helper
 const formatRemainingTime = (totalSeconds) => {
@@ -278,25 +279,7 @@ const partitionRow = (row) => {
 
   // 3. 4-Seat Layout (Standard 2+2 Seater)
   if (items.length === 4) {
-    let leftGroup = [items[0], items[1]];
-    let rightGroup = [items[2], items[3]];
-
-    // Put Window seat on the window wall edge, Aisle seat near walkway
-    if (
-      (leftGroup[0]?.type || '').toLowerCase().includes('aisle') &&
-      (leftGroup[1]?.type || '').toLowerCase().includes('window')
-    ) {
-      leftGroup = [leftGroup[1], leftGroup[0]];
-    }
-
-    if (
-      (rightGroup[0]?.type || '').toLowerCase().includes('window') &&
-      (rightGroup[1]?.type || '').toLowerCase().includes('aisle')
-    ) {
-      rightGroup = [rightGroup[1], rightGroup[0]];
-    }
-
-    return { left: leftGroup, center: [], right: rightGroup };
+    return { left: [items[0], items[1]], center: [], right: [items[2], items[3]] };
   }
 
   // 4. 3-Seat Layout (2+1 Seater / Sleeper)
@@ -340,17 +323,25 @@ export default function SeatSelection({
   onFastForwardHold = null,
   isRefreshingSeats = false
 }) {
-  const seatLayout = bus?.seatLayout;
+  const activeLayout = React.useMemo(() => {
+    const raw = bus?.seatLayout;
+    if (raw && raw.lowerDeck && Array.isArray(raw.lowerDeck.rows) && raw.lowerDeck.rows.length > 0) {
+      return raw;
+    }
+    return normalizeSeatLayout(raw, bus || {});
+  }, [bus]);
 
-  const lowerDeckData = seatLayout?.lowerDeck;
-  const upperDeckData = seatLayout?.upperDeck;
+  const lowerDeckData = activeLayout?.lowerDeck;
+  const upperDeckData = activeLayout?.upperDeck;
 
   const isSingleDeck =
-    seatLayout?.deckType === 'single' ||
+    activeLayout?.deckType === 'single' ||
+    bus?.deckConfiguration === 'single' ||
+    bus?.deckType === 'single' ||
     (!upperDeckData?.rows?.length && !upperDeckData?.passengerCapacity);
 
   const isSeaterBus =
-    (seatLayout?.layoutType || bus?.layoutType || '').toLowerCase().includes('seat');
+    (activeLayout?.layoutType || bus?.layoutType || bus?.busType || '').toLowerCase().includes('seat');
 
   // Default fallback rows for lower deck if not supplied by API
   const defaultLowerRows = React.useMemo(() => {

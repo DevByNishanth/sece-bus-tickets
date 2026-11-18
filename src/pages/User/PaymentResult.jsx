@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import {
   CheckCircle2,
@@ -71,10 +71,27 @@ export default function PaymentResult() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
-  // Read URL Query Parameters
-  const bookingId = searchParams.get('bookingId') || searchParams.get('id') || '';
-  const txnid = searchParams.get('txnid') || searchParams.get('txnId') || '';
+  // Read URL Query Parameters with session & local storage fallback
+  const urlBookingId = searchParams.get('bookingId') || searchParams.get('id') || searchParams.get('booking_id') || '';
+  const storedBookingId = sessionStorage.getItem('last_booking_id') || localStorage.getItem('last_booking_id') || '';
+  const bookingId = urlBookingId || storedBookingId;
+
+  const urlTxnid = searchParams.get('txnid') || searchParams.get('txnId') || searchParams.get('txId') || '';
+  const storedTxnid = sessionStorage.getItem('last_txnid') || localStorage.getItem('last_txnid') || '';
+  const txnid = urlTxnid || storedTxnid;
+
   const urlStatus = (searchParams.get('status') || '').toLowerCase();
+  const urlError = searchParams.get('error') || '';
+
+  // Recovered booking snapshot from checkout session
+  const storedSnapshot = useMemo(() => {
+    try {
+      const raw = sessionStorage.getItem('last_booking_snapshot') || localStorage.getItem('last_booking_snapshot');
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  }, []);
 
   // Component States
   const [loading, setLoading] = useState(true);
@@ -110,14 +127,14 @@ export default function PaymentResult() {
       if (bookingId) {
         promises.push(fetchBookingDetails(bookingId));
       } else {
-        promises.push(Promise.resolve({ success: false, message: 'No bookingId in URL query', data: null }));
+        promises.push(Promise.resolve({ success: false, message: 'No bookingId available in URL or session storage', data: null }));
       }
 
       // 2. Fetch payment transaction details
       if (txnid) {
         promises.push(fetchPaymentDetails(txnid));
       } else {
-        promises.push(Promise.resolve({ success: false, message: 'No txnid in URL query', data: null }));
+        promises.push(Promise.resolve({ success: false, message: 'No txnid available in URL or session storage', data: null }));
       }
 
       const [bookingResult, paymentResult] = await Promise.all(promises);
@@ -129,6 +146,8 @@ export default function PaymentResult() {
 
       if (hasBookingSuccess) {
         setBookingData(bookingResult.data);
+      } else if (storedSnapshot) {
+        setBookingData(storedSnapshot);
       }
 
       if (hasPaymentSuccess) {
@@ -137,13 +156,23 @@ export default function PaymentResult() {
 
       // If both fail or have critical errors, inform the user
       if (!hasBookingSuccess && !hasPaymentSuccess) {
-        const errorMsg =
-          bookingResult.message ||
-          paymentResult.message ||
-          'Failed to retrieve booking and payment confirmation from the server.';
-        setApiError(errorMsg);
+        if (urlError === 'missing_txnid') {
+          setApiError(
+            `The payment gateway callback completed without passing txnid to backend (error=missing_txnid). ${
+              bookingId || txnid ? 'Booking references were restored from your local session.' : 'Please retry your booking.'
+            }`
+          );
+        } else {
+          const errorMsg =
+            bookingResult.message ||
+            paymentResult.message ||
+            'Failed to retrieve booking and payment confirmation from the server.';
+          setApiError(errorMsg);
+        }
       } else if (!hasBookingSuccess && bookingId) {
-        setApiError(bookingResult.message || 'Unable to load complete booking details.');
+        if (!storedSnapshot) {
+          setApiError(bookingResult.message || 'Unable to load complete booking details from server.');
+        }
       } else if (!hasPaymentSuccess && txnid) {
         // Payment endpoint note if booking loaded
         console.warn('[PaymentResult] Payment details note:', paymentResult.message);
@@ -158,7 +187,7 @@ export default function PaymentResult() {
       }
       isFetchingRef.current = false;
     }
-  }, [bookingId, txnid]);
+  }, [bookingId, txnid, urlError, storedSnapshot]);
 
   useEffect(() => {
     loadPaymentAndBooking();
@@ -224,29 +253,96 @@ export default function PaymentResult() {
     window.print();
   };
 
-  // Safe field extractions
-  const bookingNumber = bookingData?.bookingNumber || 'BK-PENDING';
-  const ticketNumber = bookingData?.ticketNumber || `TK-${(bookingId || '').slice(-6).toUpperCase()}`;
-  const busName = bookingData?.busName || 'Luxury Express Coach';
-  const busNumber = bookingData?.busNumber || 'TN38BZ7887';
-  const sourceCity = bookingData?.source || bookingData?.boardingPoint?.city || 'Origin City';
-  const destinationCity = bookingData?.destination || bookingData?.droppingPoint?.city || 'Destination City';
-  const departureDate = formatDate(bookingData?.journeyDate || bookingData?.departureTime);
-  const departureTime = formatTime(bookingData?.boardingPoint?.scheduledTime || bookingData?.departureTime);
-  const arrivalTime = formatTime(bookingData?.droppingPoint?.scheduledTime || bookingData?.arrivalTime);
-  const seats = Array.isArray(bookingData?.seats) ? bookingData.seats : [];
-  const passengers = Array.isArray(bookingData?.passengerDetails) ? bookingData.passengerDetails : [];
-  const totalAmount = bookingData?.totalAmount || paymentData?.amount || 0;
-  const boardingPoint = bookingData?.boardingPoint || {};
-  const droppingPoint = bookingData?.droppingPoint || {};
-  const qrCodeUrl = bookingData?.qrCode;
+  // Safe field extractions with snapshot and storage fallbacks
+  const bookingNumber =
+    bookingData?.bookingNumber ||
+    storedSnapshot?.bookingNumber ||
+    sessionStorage.getItem('last_booking_number') ||
+    localStorage.getItem('last_booking_number') ||
+    'BK-PENDING';
+  const ticketNumber =
+    bookingData?.ticketNumber ||
+    storedSnapshot?.ticketNumber ||
+    `TK-${(bookingId || '').slice(-6).toUpperCase()}`;
+  const busName =
+    bookingData?.busName ||
+    storedSnapshot?.busName ||
+    'Luxury Express Coach';
+  const busNumber =
+    bookingData?.busNumber ||
+    storedSnapshot?.busNumber ||
+    'TN38BZ7887';
+  const sourceCity =
+    bookingData?.source ||
+    bookingData?.boardingPoint?.city ||
+    storedSnapshot?.source ||
+    storedSnapshot?.boardingPoint?.city ||
+    'Origin City';
+  const destinationCity =
+    bookingData?.destination ||
+    bookingData?.droppingPoint?.city ||
+    storedSnapshot?.destination ||
+    storedSnapshot?.droppingPoint?.city ||
+    'Destination City';
+  const departureDate = formatDate(
+    bookingData?.journeyDate ||
+    bookingData?.departureTime ||
+    storedSnapshot?.journeyDate ||
+    storedSnapshot?.departureTime
+  );
+  const departureTime = formatTime(
+    bookingData?.boardingPoint?.scheduledTime ||
+    bookingData?.departureTime ||
+    storedSnapshot?.boardingPoint?.scheduledTime ||
+    storedSnapshot?.departureTime
+  );
+  const arrivalTime = formatTime(
+    bookingData?.droppingPoint?.scheduledTime ||
+    bookingData?.arrivalTime ||
+    storedSnapshot?.droppingPoint?.scheduledTime ||
+    storedSnapshot?.arrivalTime
+  );
+  const seats =
+    Array.isArray(bookingData?.seats) && bookingData.seats.length > 0
+      ? bookingData.seats
+      : (Array.isArray(storedSnapshot?.seats) && storedSnapshot.seats.length > 0
+          ? storedSnapshot.seats
+          : []);
+  const passengers =
+    Array.isArray(bookingData?.passengerDetails) && bookingData.passengerDetails.length > 0
+      ? bookingData.passengerDetails
+      : (Array.isArray(storedSnapshot?.passengerDetails) && storedSnapshot.passengerDetails.length > 0
+          ? storedSnapshot.passengerDetails
+          : []);
+  const totalAmount =
+    bookingData?.totalAmount ||
+    paymentData?.amount ||
+    storedSnapshot?.totalAmount ||
+    Number(sessionStorage.getItem('last_payment_amount')) ||
+    Number(localStorage.getItem('last_payment_amount')) ||
+    0;
+  const boardingPoint =
+    bookingData?.boardingPoint ||
+    storedSnapshot?.boardingPoint ||
+    {};
+  const droppingPoint =
+    bookingData?.droppingPoint ||
+    storedSnapshot?.droppingPoint ||
+    {};
+  const qrCodeUrl = bookingData?.qrCode || storedSnapshot?.qrCode;
 
   // Payment details
   const displayTxnId = txnid || paymentData?.txnid || 'TXN-PENDING';
   const paymentMethod = paymentData?.paymentMethod || paymentData?.mode || 'UPI (PayU Checkout)';
   const paymentAmount = paymentData?.amount || totalAmount;
-  const paymentTime = paymentData?.createdAt ? formatDate(paymentData.createdAt) + ' • ' + formatTime(paymentData.createdAt) : departureDate;
-  const bankRefNum = paymentData?.bankRefNum || paymentData?.bank_ref_num || paymentData?.payuMoneyId || null;
+  const paymentTime = paymentData?.createdAt
+    ? formatDate(paymentData.createdAt) + ' • ' + formatTime(paymentData.createdAt)
+    : departureDate;
+  const bankRefNum =
+    paymentData?.bankRefNum ||
+    paymentData?.bank_ref_num ||
+    paymentData?.payuMoneyId ||
+    null;
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex flex-col font-sans relative text-slate-800 print:bg-white print:p-0">
@@ -267,7 +363,7 @@ export default function PaymentResult() {
                 Verifying Payment with Server...
               </h2>
               <p className="text-xs sm:text-sm text-slate-500 font-medium mt-1">
-                Fetching booking reference <span className="font-mono font-bold text-slate-700">{bookingId || txnid}</span> from PayU & BusGo gateway.
+                Fetching booking reference <span className="font-mono font-bold text-slate-700">{bookingId || txnid || displayTxnId}</span> from PayU & BusGo gateway.
               </p>
             </div>
             <div className="max-w-md mx-auto pt-4 space-y-2.5">
@@ -278,22 +374,42 @@ export default function PaymentResult() {
         )}
 
         {/* API Error / Network Warning Banner (Requirement 9) */}
-        {!loading && apiError && (
-          <div className="bg-rose-50 border border-rose-200 text-rose-900 p-4 sm:p-5 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs animate-in fade-in">
+        {!loading && (apiError || urlError === 'missing_txnid') && (
+          <div className={`p-4 sm:p-5 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs animate-in fade-in ${
+            urlError === 'missing_txnid'
+              ? 'bg-amber-50 border border-amber-300 text-amber-950'
+              : 'bg-rose-50 border border-rose-200 text-rose-900'
+          }`}>
             <div className="flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+              <AlertCircle className={`w-5 h-5 shrink-0 mt-0.5 ${
+                urlError === 'missing_txnid' ? 'text-amber-600' : 'text-rose-600'
+              }`} />
               <div>
-                <h4 className="text-sm font-bold text-rose-950">Verification Notice</h4>
-                <p className="text-xs text-rose-700 mt-0.5">{apiError}</p>
-                <p className="text-[11px] text-rose-600 mt-1">
-                  Payment confirmation requires authoritative status from the server.
+                <h4 className="text-sm font-bold">
+                  {urlError === 'missing_txnid' ? 'Payment Gateway Callback Notice (missing_txnid)' : 'Verification Notice'}
+                </h4>
+                <p className={`text-xs mt-0.5 ${
+                  urlError === 'missing_txnid' ? 'text-amber-800' : 'text-rose-700'
+                }`}>
+                  {urlError === 'missing_txnid'
+                    ? 'The payment gateway redirected with error=missing_txnid because the backend callback route did not parse the txnid from PayU\'s POST body. Your transaction reference and booking details were recovered from your active session.'
+                    : apiError}
+                </p>
+                <p className={`text-[11px] mt-1 ${
+                  urlError === 'missing_txnid' ? 'text-amber-700' : 'text-rose-600'
+                }`}>
+                  Transaction Ref: <span className="font-mono font-bold">{displayTxnId}</span> {bookingNumber !== 'BK-PENDING' && <>• Booking Ref: <span className="font-mono font-bold">{bookingNumber}</span></>}
                 </p>
               </div>
             </div>
             <button
               type="button"
               onClick={loadPaymentAndBooking}
-              className="bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold px-4 py-2 rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 self-start sm:self-auto cursor-pointer"
+              className={`text-white text-xs font-bold px-4 py-2 rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 self-start sm:self-auto cursor-pointer ${
+                urlError === 'missing_txnid'
+                  ? 'bg-amber-700 hover:bg-amber-800'
+                  : 'bg-rose-600 hover:bg-rose-700'
+              }`}
             >
               <RefreshCw className="w-3.5 h-3.5" />
               <span>Retry Verification</span>

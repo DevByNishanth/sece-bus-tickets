@@ -3,12 +3,12 @@ import { ShieldCheck, X, Star, ArrowRight, Check, Loader2, AlertCircle, Ticket, 
 import { holdSeatsBooking, checkoutBooking } from '../../services/busService';
 import redirectToPayU, { redirectToPayU as namedRedirectToPayU } from '../../Utils/payu';
 
-const redirectPayU = (data) => {
+const redirectPayU = (data, bookingData) => {
   if (typeof redirectToPayU === 'function') {
-    return redirectToPayU(data);
+    return redirectToPayU(data, bookingData);
   }
   if (typeof namedRedirectToPayU === 'function') {
-    return namedRedirectToPayU(data);
+    return namedRedirectToPayU(data, bookingData);
   }
 };
 
@@ -241,7 +241,7 @@ export default function ReviewBookingModal({
           });
         }
         // Redirect to PayU Hosted Checkout using payu.js utility
-        redirectPayU(result.data.payment);
+        redirectPayU(result.data.payment, result.data.booking);
       } else {
         const errorMsg = result.message || 'Payment initiation failed. Please try again.';
         setPaymentError(errorMsg);
@@ -677,7 +677,7 @@ export default function ReviewBookingModal({
                 onClick={() => {
                   const bId = activePaymentInfo?.booking?._id || activePaymentInfo?.payment?.bookingId || createdBooking?._id || '';
                   const tId = activePaymentInfo?.payment?.txnid || '';
-                  window.location.href = `/payment-result?bookingId=${encodeURIComponent(bId)}&txnid=${encodeURIComponent(tId)}&status=success`;
+                  window.location.href = `/booking/payment-result?bookingId=${encodeURIComponent(bId)}&txnid=${encodeURIComponent(tId)}&status=success`;
                 }}
                 className="w-full sm:w-auto px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 active:scale-95 text-white font-bold rounded-lg shadow-xs transition-all cursor-pointer text-center"
               >

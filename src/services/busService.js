@@ -1160,36 +1160,47 @@ export async function createPaymentOrder({
 
 /**
  * Render / Redirect directly to PayU Hosted Checkout Page
- * Automatically creates and submits an HTML form to PayU's payment gateway URL.
+ * Automatically creates and submits an HTML form to PayU's payment gateway URL,
+ * including all parameters from payuParams both in the URL and form inputs.
  */
 export function redirectToPayUCheckout(paymentData) {
   if (!paymentData) return false;
 
-  const actionUrl =
-    import.meta.env.VITE_PAYMENT ||
+  const targetBaseUrl =
     paymentData.action ||
     paymentData.checkoutUrl ||
     paymentData.paymentUrl ||
+    (import.meta.env.VITE_PAYMENT && import.meta.env.VITE_PAYMENT !== 'mock'
+      ? import.meta.env.VITE_PAYMENT
+      : null) ||
     'https://test.payu.in/_payment';
 
-  if (actionUrl === 'mock' || actionUrl === 'simulate' || actionUrl === 'bypass') {
-    const bookingId = paymentData.bookingId || paymentData.booking?._id || '';
-    const txnid = paymentData.txnid || '';
-    window.location.href = `/payment-result?bookingId=${encodeURIComponent(bookingId)}&txnid=${encodeURIComponent(txnid)}&status=success`;
-    return true;
+  const payuParams = paymentData.payuParams || paymentData.params || paymentData;
+
+  const queryParams = new URLSearchParams();
+  if (payuParams && typeof payuParams === 'object') {
+    Object.entries(payuParams).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && typeof value !== 'object') {
+        queryParams.append(key, String(value));
+      }
+    });
   }
 
-  const payuParams = paymentData.payuParams;
+  const queryString = queryParams.toString();
+  const separator = targetBaseUrl.includes('?') ? '&' : '?';
+  const fullUrlWithParams = queryString ? `${targetBaseUrl}${separator}${queryString}` : targetBaseUrl;
+
+  console.log('[PayU Checkout] Navigating to:', fullUrlWithParams);
 
   if (payuParams && typeof payuParams === 'object' && Object.keys(payuParams).length > 0) {
-    // PayU Hosted Checkout Standard Form POST
     const form = document.createElement('form');
     form.method = 'POST';
-    form.action = actionUrl;
+    form.action = fullUrlWithParams;
+    form.name = 'payuCheckoutForm';
     form.style.display = 'none';
 
     Object.entries(payuParams).forEach(([key, value]) => {
-      if (value !== undefined && value !== null) {
+      if (value !== undefined && value !== null && typeof value !== 'object') {
         const input = document.createElement('input');
         input.type = 'hidden';
         input.name = key;
@@ -1203,10 +1214,8 @@ export function redirectToPayUCheckout(paymentData) {
     return true;
   }
 
-  // Fallback: direct URL redirection if params are omitted
-  const redirectUrl = paymentData.checkoutUrl || paymentData.paymentUrl || paymentData.action;
-  if (redirectUrl) {
-    window.location.href = redirectUrl;
+  if (fullUrlWithParams) {
+    window.location.href = fullUrlWithParams;
     return true;
   }
 

@@ -12,12 +12,12 @@ import ReviewBookingModal from '../../components/User/ReviewBookingModal';
 import { holdSeatsBooking, fetchBusSeatLayout, getUserProfile, mapApiBusToUiBus } from '../../services/busService';
 import redirectToPayU, { redirectToPayU as namedRedirectToPayU } from '../../Utils/payu';
 
-const redirectPayU = (data) => {
+const redirectPayU = (data, bookingData) => {
   if (typeof redirectToPayU === 'function') {
-    return redirectToPayU(data);
+    return redirectToPayU(data, bookingData);
   }
   if (typeof namedRedirectToPayU === 'function') {
-    return namedRedirectToPayU(data);
+    return namedRedirectToPayU(data, bookingData);
   }
 };
 
@@ -554,9 +554,7 @@ export default function TicketBooking() {
   };
 
   const handleConfirmAndProceed = (bookingData) => {
-    if (bookingData?.payment) {
-      redirectPayU(bookingData.payment);
-    }
+    // ReviewBookingModal directly triggers the authoritative PayU redirection
   };
 
   const handleBackToSearch = () => {

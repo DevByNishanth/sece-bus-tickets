@@ -38,7 +38,7 @@ function decodeJwt(token) {
 const ROLE_PATHS = {
   admin: "/admin-dashboard",
   travelagent: "/vendor",
-  operationcrew: "/crew",
+  operationcrew: "/crew-dashboard",
   user: "/",
 };
 
@@ -158,7 +158,7 @@ function getRoleRedirect(token, user, data, userEmail) {
   }
 
   if (normalized === "operationcrew" || normalized === "crew" || normalized === "driver") {
-    return "/crew";
+    return ROLE_PATHS.operationcrew;
   }
 
   return ROLE_PATHS[normalized] ?? "/";

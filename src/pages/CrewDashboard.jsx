@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 import {
   ArrowLeft,
   ArrowDownToLine,
@@ -10,13 +11,12 @@ import {
   Camera,
   CalendarDays,
   Check,
-  CheckCircle2,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   Clock3,
   Eye,
-  Map,
+  Map as MapIcon,
   Plus,
   Search,
   SlidersHorizontal,
@@ -24,125 +24,6 @@ import {
   UsersRound,
   X,
 } from "lucide-react";
-
-const bookingRows = [
-  {
-    pnr: "BG240891",
-    passenger: "Arun Kumar",
-    initials: "AK",
-    route: "Coimbatore ↔ Chennai",
-    date: "16 Oct, 2026",
-    seat: "U2",
-    fare: "₹1,250",
-    payment: "Paid (UPI)",
-    status: "Confirmed",
-  },
-  {
-    pnr: "BG240892",
-    passenger: "Priya S",
-    initials: "PS",
-    route: "Chennai ↔ Coimbatore",
-    date: "16 Oct, 2026",
-    seat: "L4",
-    fare: "₹1,100",
-    payment: "Paid (Card)",
-    status: "Confirmed",
-  },
-  {
-    pnr: "BG240893",
-    passenger: "Karthik R",
-    initials: "KR",
-    route: "Coimbatore → Bengaluru",
-    date: "17 Oct, 2026",
-    seat: "U6",
-    fare: "₹1,450",
-    payment: "Pending",
-    status: "Pending",
-  },
-  {
-    pnr: "BG240894",
-    passenger: "Divya M",
-    initials: "DM",
-    route: "Madurai → Chennai",
-    date: "17 Oct, 2026",
-    seat: "L2",
-    fare: "₹1,300",
-    payment: "Paid (UPI)",
-    status: "Confirmed",
-  },
-  {
-    pnr: "BG240895",
-    passenger: "Suresh N",
-    initials: "SN",
-    route: "Coimbatore ↔ Chennai",
-    date: "18 Oct, 2026",
-    seat: "U8",
-    fare: "₹1,250",
-    payment: "Refunded",
-    status: "Cancelled",
-  },
-  {
-    pnr: "BG240896",
-    passenger: "Meena P",
-    initials: "MP",
-    route: "Coimbatore → Madurai",
-    date: "18 Oct, 2026",
-    seat: "L5",
-    fare: "₹950",
-    payment: "Paid (UPI)",
-    status: "Confirmed",
-  },
-  {
-    pnr: "BG240897",
-    passenger: "Vijay K",
-    initials: "VK",
-    route: "Chennai → Bengaluru",
-    date: "19 Oct, 2026",
-    seat: "U3",
-    fare: "₹1,600",
-    payment: "Pending",
-    status: "Pending",
-  },
-  {
-    pnr: "BG240898",
-    passenger: "Nandhini T",
-    initials: "NT",
-    route: "Madurai → Coimbatore",
-    date: "19 Oct, 2026",
-    seat: "L1",
-    fare: "₹900",
-    payment: "Paid (Card)",
-    status: "Confirmed",
-  },
-  {
-    pnr: "BG240899",
-    passenger: "Ramesh B",
-    initials: "RB",
-    route: "Coimbatore → Chennai",
-    date: "20 Oct, 2026",
-    seat: "U5",
-    fare: "₹1,250",
-    payment: "Refunded",
-    status: "Cancelled",
-  },
-  {
-    pnr: "BG240900",
-    passenger: "Anitha R",
-    initials: "AR",
-    route: "Chennai → Coimbatore",
-    date: "20 Oct, 2026",
-    seat: "L3",
-    fare: "₹1,100",
-    payment: "Paid (UPI)",
-    status: "Confirmed",
-  },
-];
-
-const upcomingTrips = [
-  { date: "20", month: "JUN", route: "Coimbatore → Chennai", bus: "TN 38 AJ 7782", time: "Reporting 08:30 PM" },
-  { date: "20", month: "JUN", route: "Coimbatore → Chennai", bus: "TN 38 AJ 7782", time: "Reporting 08:30 PM" },
-  { date: "20", month: "JUN", route: "Coimbatore → Chennai", bus: "TN 38 AJ 7782", time: "Reporting 08:30 PM" },
-];
 
 const navigation = [
   { label: "Dashboard", to: "/crew-dashboard" },
@@ -155,29 +36,44 @@ const navigation = [
 ];
 
 const statusClassNames = {
-  Confirmed: "bg-[#e6f5f4] text-[#188d91]",
-  Pending: "bg-[#fff4e5] text-[#be741c]",
-  Cancelled: "bg-[#fff0ed] text-[#df6655]",
+  scheduled: "bg-[#e9f8f7] text-[#138e91]",
+  in_progress: "bg-[#f1f1ff] text-[#7373d9]",
+  completed: "bg-[#e6f5f4] text-[#188d91]",
+  cancelled: "bg-[#fff0ed] text-[#df6655]",
 };
 
-function exportBookingsToCsv(rows) {
-  const headers = ["PNR / Ticket", "Passenger", "Route", "Travel date", "Seat berth", "Fare", "Payment", "Status"];
+function formatTripDateTime(value, options) {
+  if (!value) return "—";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "—" : date.toLocaleString("en-IN", { ...options, timeZone: "Asia/Kolkata" });
+}
+
+function getTripRoute(trip) {
+  const origin = trip.origin || trip.route?.originCity || "—";
+  const destination = trip.destination || trip.route?.destinationCity || "—";
+  return `${origin} → ${destination}`;
+}
+
+function getTripBusNumber(trip) {
+  return trip.bus?.registrationNumber || trip.bus?.busNumber || "—";
+}
+
+function exportTripsToCsv(rows) {
+  const headers = ["Trip ID", "Route", "Departure", "Bus", "Crew", "Status"];
   const csv = [headers, ...rows.map((row) => [
-    row.pnr,
-    row.passenger,
-    row.route,
-    row.date,
-    row.seat,
-    row.fare,
-    row.payment,
-    row.status,
+    row._id,
+    getTripRoute(row),
+    formatTripDateTime(row.departureDateTime, { dateStyle: "medium", timeStyle: "short" }),
+    getTripBusNumber(row),
+    (row.crews || []).map((member) => member.fullName).join("; "),
+    row.currentStatus || row.status,
   ])]
     .map((row) => row.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(","))
     .join("\n");
   const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
   const downloadLink = document.createElement("a");
   downloadLink.href = url;
-  downloadLink.download = "recent-bookings.csv";
+  downloadLink.download = "recent-trips.csv";
   downloadLink.click();
   URL.revokeObjectURL(url);
 }
@@ -560,28 +456,291 @@ function PassengerAttendance({ onBack }) {
   );
 }
 
-function CrewTripDetails({ onBack }) {
+function CrewTripDetails({ onBack, trip = {} }) {
+  const { BASE_URL, TOKEN_KEY } = useAuth();
   const [isAttendanceOpen, setIsAttendanceOpen] = useState(false);
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
-  const [currentTripStatus, setCurrentTripStatus] = useState("Boarding Started");
+  const [currentTripStatus, setCurrentTripStatus] = useState(trip.currentStatus || trip.latestStatusUpdate?.status || trip.status || "Scheduled");
   const [newTripStatus, setNewTripStatus] = useState("");
   const [statusDate, setStatusDate] = useState("2026-06-18");
   const [statusTime, setStatusTime] = useState("06:55");
+  const [isTimePickerOpen, setIsTimePickerOpen] = useState(false);
   const [statusRemarks, setStatusRemarks] = useState("");
   const [statusPhoto, setStatusPhoto] = useState(null);
   const [statusPhotoError, setStatusPhotoError] = useState("");
-  const stops = [
-    { name: "Coimbatore Omni Bus Stand", detail: "Origin", time: "07:30 AM", state: "done" },
-    { name: "Tiruppur New Bus Stand", detail: "Boarding", time: "08:35 AM", state: "current" },
-    { name: "Karur Bus Stand", detail: "Halt · 10 min", time: "11:10 AM", state: "upcoming" },
-    { name: "Madurai Mattuthavani", detail: "Destination", time: "02:00 PM", state: "upcoming" },
-  ];
+  const [statusSubmitError, setStatusSubmitError] = useState("");
+  const [statusSubmitLoading, setStatusSubmitLoading] = useState(false);
+  const [supportedStatuses, setSupportedStatuses] = useState([
+    "Scheduled",
+    "Preparing for Departure",
+    "Boarding Started",
+    "Boarding Completed",
+    "Departed",
+    "In Transit",
+    "Reached Destination",
+    "Completed",
+    "Delayed",
+    "Cancelled",
+  ]);
+  const [statusDetailsLoading, setStatusDetailsLoading] = useState(false);
+  const [statusDetailsError, setStatusDetailsError] = useState("");
+  const [lastStatusUpdate, setLastStatusUpdate] = useState(null);
+  const [statusHistory, setStatusHistory] = useState([]);
+  const [statusHistoryLoading, setStatusHistoryLoading] = useState(true);
+  const [statusHistoryError, setStatusHistoryError] = useState("");
+  const [routeDetails, setRouteDetails] = useState(null);
+  const [routeDetailsError, setRouteDetailsError] = useState("");
+  const [routeDetailsLoading, setRouteDetailsLoading] = useState(true);
+  const [assignedBus, setAssignedBus] = useState(null);
+  const [busDetailsError, setBusDetailsError] = useState("");
+  const [busDetailsLoading, setBusDetailsLoading] = useState(true);
+  const [assignedCrewDetails, setAssignedCrewDetails] = useState(null);
+  const [crewDetailsError, setCrewDetailsError] = useState("");
+  const [crewDetailsLoading, setCrewDetailsLoading] = useState(true);
+  const routeApiBaseUrl = BASE_URL.replace(/\/+$/, "").replace(/\/api$/, "");
+  const tripId = trip.tripId || trip._id;
+  const route = routeDetails || trip.route || {};
+  const bus = assignedBus || trip.bus || {};
+  const tripOrigin = trip.origin || route.originCity || "—";
+  const tripDestination = trip.destination || route.destinationCity || "—";
 
+  useEffect(() => {
+    if (!tripId) {
+      setRouteDetailsLoading(false);
+      setRouteDetailsError("Trip ID is missing; route details cannot be loaded.");
+      return undefined;
+    }
+
+    const controller = new AbortController();
+    const fetchRouteDetails = async () => {
+      setRouteDetails(null);
+      setRouteDetailsError("");
+      setRouteDetailsLoading(true);
+
+      try {
+        const token = localStorage.getItem(TOKEN_KEY || "exte_key");
+        const response = await fetch(`${routeApiBaseUrl}/api/crew/trips/${encodeURIComponent(tripId)}/route`, {
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          signal: controller.signal,
+        });
+        const payload = await response.json().catch(() => null);
+
+        if (!response.ok || !payload?.success || !payload.data?.route) {
+          throw new Error(payload?.message || "Unable to load trip route details.");
+        }
+
+        setRouteDetails(payload.data.route);
+      } catch (error) {
+        if (error.name !== "AbortError") {
+          setRouteDetailsError(error.message || "Unable to load trip route details.");
+        }
+      } finally {
+        if (!controller.signal.aborted) setRouteDetailsLoading(false);
+      }
+    };
+
+    fetchRouteDetails();
+    return () => controller.abort();
+  }, [routeApiBaseUrl, TOKEN_KEY, tripId]);
+
+  useEffect(() => {
+    if (!tripId) {
+      setBusDetailsLoading(false);
+      setBusDetailsError("Trip ID is missing; assigned bus details cannot be loaded.");
+      return undefined;
+    }
+
+    const controller = new AbortController();
+    const fetchBusDetails = async () => {
+      setAssignedBus(null);
+      setBusDetailsError("");
+      setBusDetailsLoading(true);
+
+      try {
+        const token = localStorage.getItem(TOKEN_KEY || "exte_key");
+        const response = await fetch(`${routeApiBaseUrl}/api/crew/trips/${encodeURIComponent(tripId)}/bus`, {
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          signal: controller.signal,
+        });
+        const payload = await response.json().catch(() => null);
+
+        if (!response.ok || !payload?.success || !payload.data) {
+          throw new Error(payload?.message || "Unable to load assigned bus details.");
+        }
+
+        setAssignedBus(payload.data);
+      } catch (error) {
+        if (error.name !== "AbortError") {
+          setBusDetailsError(error.message || "Unable to load assigned bus details.");
+        }
+      } finally {
+        if (!controller.signal.aborted) setBusDetailsLoading(false);
+      }
+    };
+
+    fetchBusDetails();
+    return () => controller.abort();
+  }, [routeApiBaseUrl, TOKEN_KEY, tripId]);
+
+  useEffect(() => {
+    if (!tripId) {
+      setCrewDetailsLoading(false);
+      setCrewDetailsError("Trip ID is missing; assigned crew details cannot be loaded.");
+      return undefined;
+    }
+
+    const controller = new AbortController();
+    const fetchAssignedCrew = async () => {
+      setAssignedCrewDetails(null);
+      setCrewDetailsError("");
+      setCrewDetailsLoading(true);
+
+      try {
+        const token = localStorage.getItem(TOKEN_KEY || "exte_key");
+        const response = await fetch(`${routeApiBaseUrl}/api/crew/trips/${encodeURIComponent(tripId)}/crew`, {
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          signal: controller.signal,
+        });
+        const payload = await response.json().catch(() => null);
+
+        if (!response.ok || !payload?.success || !payload.data
+          || !Array.isArray(payload.data.drivers) || !Array.isArray(payload.data.crews)) {
+          throw new Error(payload?.message || "Unable to load assigned crew details.");
+        }
+
+        setAssignedCrewDetails(payload.data);
+      } catch (error) {
+        if (error.name !== "AbortError") {
+          setCrewDetailsError(error.message || "Unable to load assigned crew details.");
+        }
+      } finally {
+        if (!controller.signal.aborted) setCrewDetailsLoading(false);
+      }
+    };
+
+    fetchAssignedCrew();
+    return () => controller.abort();
+  }, [routeApiBaseUrl, TOKEN_KEY, tripId]);
+
+  useEffect(() => {
+    if (!tripId) {
+      setStatusHistoryLoading(false);
+      setStatusHistoryError("Trip ID is missing; status history cannot be loaded.");
+      return undefined;
+    }
+
+    const controller = new AbortController();
+    const fetchStatusHistory = async () => {
+      setStatusHistory([]);
+      setStatusHistoryError("");
+      setStatusHistoryLoading(true);
+
+      try {
+        const token = localStorage.getItem(TOKEN_KEY || "exte_key");
+        const response = await fetch(`${routeApiBaseUrl}/api/crew/trips/${encodeURIComponent(tripId)}/status-history`, {
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          signal: controller.signal,
+        });
+        const payload = await response.json().catch(() => null);
+
+        if (!response.ok || !payload?.success || !Array.isArray(payload.data)) {
+          throw new Error(payload?.message || "Unable to load trip status history.");
+        }
+
+        setStatusHistory(payload.data);
+      } catch (error) {
+        if (error.name !== "AbortError") {
+          setStatusHistoryError(error.message || "Unable to load trip status history.");
+        }
+      } finally {
+        if (!controller.signal.aborted) setStatusHistoryLoading(false);
+      }
+    };
+
+    fetchStatusHistory();
+    return () => controller.abort();
+  }, [routeApiBaseUrl, TOKEN_KEY, tripId]);
+
+  const stops = (() => {
+    const routeStops = Array.isArray(route.stops)
+      ? route.stops.map((stop) => ({
+        ...stop,
+        detail: stop.detail || ({
+          boarding: "Boarding point",
+          dropping: "Dropping point",
+          both: "Boarding & dropping point",
+        }[stop.stopType]) || stop.stopType,
+      }))
+      : [];
+    const boardingPoints = Array.isArray(route.boardingPoints)
+      ? route.boardingPoints.map((stop) => ({ ...stop, detail: "Boarding point" }))
+      : [];
+    const droppingPoints = Array.isArray(route.droppingPoints)
+      ? route.droppingPoints.map((stop) => ({ ...stop, detail: "Dropping point" }))
+      : [];
+    const tripStops = routeStops.length ? routeStops : [...boardingPoints, ...droppingPoints];
+    const stopsById = new Map();
+
+    tripStops.forEach((stop, index) => {
+      const key = stop._id || `${stop.sequenceNumber ?? index}-${stop.name || stop.city || "stop"}`;
+      const existingStop = stopsById.get(key);
+      stopsById.set(key, {
+        ...existingStop,
+        ...stop,
+        detail: existingStop && existingStop.detail !== stop.detail
+          ? "Boarding & dropping point"
+          : stop.detail || stop.stopType || (index === 0 ? "Origin" : "Stop"),
+        state: "upcoming",
+      });
+    });
+
+    const orderedStops = [...stopsById.values()].sort((first, second) => (first.sequenceNumber || 0) - (second.sequenceNumber || 0));
+    return orderedStops.map((stop, index) => {
+      const endpointTime = index === 0
+        ? formatTripDateTime(trip.departureDateTime, { hour: "2-digit", minute: "2-digit" })
+        : index === orderedStops.length - 1
+          ? formatTripDateTime(trip.arrivalDateTime, { hour: "2-digit", minute: "2-digit" })
+          : null;
+
+      return {
+        ...stop,
+        time: stop.time || stop.estimatedArrivalTime || (endpointTime && endpointTime !== "—" ? endpointTime : "Not scheduled"),
+      };
+    });
+  })();
+  const crewData = assignedCrewDetails || {
+    drivers: Array.isArray(trip.drivers) ? trip.drivers : [],
+    crews: Array.isArray(trip.crew || trip.crews) ? (trip.crew || trip.crews) : [],
+  };
   const crew = [
-    { initials: "RK", name: "Rajesh Kumar", role: "Driver · On duty" },
-    { initials: "SK", name: "Suresh Kumar", role: "Conductor · On duty" },
-    { initials: "M", name: "Mani", role: "Cleaner · On duty" },
-  ];
+    ...crewData.drivers.map((member) => ({ ...member, role: "Driver" })),
+    ...crewData.crews.map((member) => ({ ...member, role: member.crewRole || "Crew" })),
+  ].map((member) => ({
+    ...member,
+    initials: (member.fullName || "?").split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase(),
+    name: member.fullName || "Crew member",
+  }));
+  const passengerStats = trip.passengerSummary || trip.passengerStats || {};
+  const bookedCount = passengerStats.totalBooked ?? trip.bookedCount ?? null;
+  const boardedCount = passengerStats.boarded ?? trip.boardedCount ?? null;
+  const pendingCount = passengerStats.pending ?? trip.pendingCount ?? null;
+  const boardingProgress = passengerStats.boardingProgress
+    ?? (bookedCount === null ? null : bookedCount ? Math.round(((boardedCount || 0) / bookedCount) * 100) : 0);
+  const scheduledDeparture = trip.departureDateTime ? new Date(trip.departureDateTime) : null;
+  const reportingTime = trip.reportingTime || (scheduledDeparture
+    ? formatTripDateTime(new Date(scheduledDeparture.getTime() - 15 * 60 * 1000), { hour: "2-digit", minute: "2-digit" })
+    : "—");
+  const actualDepartureTime = trip.actualDepartureTime || (trip.departureDateTime
+    ? `${formatTripDateTime(trip.departureDateTime, { hour: "2-digit", minute: "2-digit" })} (scheduled)`
+    : "—");
 
   if (isAttendanceOpen) {
     return <PassengerAttendance onBack={() => setIsAttendanceOpen(false)} />;
@@ -607,15 +766,92 @@ function CrewTripDetails({ onBack }) {
     setStatusPhotoError("");
   };
 
-  const confirmTripStatus = (event) => {
+  const [hour24, minute] = statusTime.split(":");
+  const hour12 = String(Number(hour24) % 12 || 12).padStart(2, "0");
+  const meridiem = Number(hour24) >= 12 ? "PM" : "AM";
+  const updateStatusTime = (hour, minutes, period) => {
+    const hourIn24Format = Number(hour) % 12 + (period === "PM" ? 12 : 0);
+    setStatusTime(`${String(hourIn24Format).padStart(2, "0")}:${minutes}`);
+  };
+
+  const confirmTripStatus = async (event) => {
     event.preventDefault();
     if (!newTripStatus || !statusRemarks.trim()) return;
-    setCurrentTripStatus(newTripStatus);
-    setIsStatusModalOpen(false);
-    setNewTripStatus("");
-    setStatusRemarks("");
-    setStatusPhoto(null);
-    setStatusPhotoError("");
+    setStatusSubmitError("");
+    setStatusSubmitLoading(true);
+
+    try {
+      if (!tripId) throw new Error("Trip ID is missing; status cannot be updated.");
+      const token = localStorage.getItem(TOKEN_KEY || "exte_key");
+      const formData = new FormData();
+      formData.append("status", newTripStatus);
+      formData.append("date", statusDate);
+      formData.append("time", `${hour12}:${minute} ${meridiem}`);
+      formData.append("remarks", statusRemarks.trim());
+      if (statusPhoto) formData.append("photo", statusPhoto);
+
+      const response = await fetch(`${routeApiBaseUrl}/api/crew/trips/${encodeURIComponent(tripId)}/status`, {
+        method: "PUT",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: formData,
+      });
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok || !payload?.success || !payload.data) {
+        throw new Error(payload?.message || "Unable to update trip status.");
+      }
+
+      setCurrentTripStatus(payload.data.currentStatus || newTripStatus);
+      setLastStatusUpdate(payload.data.statusHistory || null);
+      if (payload.data.statusHistory) {
+        setStatusHistory((current) => [
+          payload.data.statusHistory,
+          ...current.filter((entry) => entry._id !== payload.data.statusHistory._id),
+        ]);
+      }
+      setIsStatusModalOpen(false);
+      setNewTripStatus("");
+      setStatusRemarks("");
+      setStatusPhoto(null);
+      setStatusPhotoError("");
+    } catch (error) {
+      setStatusSubmitError(error.message || "Unable to update trip status.");
+    } finally {
+      setStatusSubmitLoading(false);
+    }
+  };
+
+  const openStatusModal = async () => {
+    setIsStatusModalOpen(true);
+    setStatusDetailsLoading(true);
+    setStatusDetailsError("");
+
+    try {
+      if (!tripId) throw new Error("Trip ID is missing; current status cannot be loaded.");
+      const token = localStorage.getItem(TOKEN_KEY || "exte_key");
+      const response = await fetch(`${routeApiBaseUrl}/api/crew/trips/${encodeURIComponent(tripId)}/status`, {
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok || !payload?.success || !payload.data) {
+        throw new Error(payload?.message || "Unable to load current trip status.");
+      }
+
+      setCurrentTripStatus(payload.data.currentStatus || currentTripStatus);
+      setLastStatusUpdate(payload.data.lastUpdated || null);
+      if (Array.isArray(payload.data.supportedStatuses)) {
+        setSupportedStatuses(payload.data.supportedStatuses);
+      }
+    } catch (error) {
+      setStatusDetailsError(error.message || "Unable to load current trip status.");
+    } finally {
+      setStatusDetailsLoading(false);
+    }
   };
 
   return (
@@ -627,12 +863,14 @@ function CrewTripDetails({ onBack }) {
 
         <header className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="text-[12px] font-semibold uppercase tracking-wide text-[#138795]">BUS-TRIP-2026-001</p>
-            <h1 className="mt-1 text-3xl font-semibold tracking-tight text-[#27394b] sm:text-4xl">Coimbatore → Madurai</h1>
-            <p className="mt-1 text-[13px] text-slate-400">18 Jun 2026 · TN 38 AB 1234</p>
+            <p className="text-[12px] font-semibold uppercase tracking-wide text-[#138795]">{trip._id || trip.tripId || "Trip details"}</p>
+            <h1 className="mt-1 text-3xl font-semibold tracking-tight text-[#27394b] sm:text-4xl">{getTripRoute(trip)}</h1>
+            <p className="mt-1 text-[13px] text-slate-400">
+              {formatTripDateTime(trip.departureDateTime, { dateStyle: "medium" })} · {getTripBusNumber(trip)}
+            </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <button type="button" onClick={() => setIsStatusModalOpen(true)} className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#108894] px-3 text-[13px] font-medium text-white transition hover:bg-[#0b6975]">
+            <button type="button" onClick={openStatusModal} className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#108894] px-3 text-[13px] font-medium text-white transition hover:bg-[#0b6975]">
               <TicketCheck size={14} /> Update Status
             </button>
             <button type="button" onClick={() => setIsAttendanceOpen(true)} className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-[13px] font-medium text-[#536777] transition hover:bg-slate-50">
@@ -652,12 +890,16 @@ function CrewTripDetails({ onBack }) {
               <div className="mt-4 grid grid-cols-[1fr_auto_1fr] items-center gap-4">
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Departure</p>
-                  <p className="mt-1 text-2xl font-semibold text-[#27394b]">07:30 AM</p>
-                  <p className="mt-1 text-[13px] font-medium text-[#46596a]">Coimbatore</p>
-                  <p className="text-[11px] text-slate-400">Omni Bus Stand</p>
+                  <p className="mt-1 text-2xl font-semibold text-[#27394b]">{formatTripDateTime(trip.departureDateTime, { hour: "2-digit", minute: "2-digit" })}</p>
+                  <p className="mt-0.5 text-[11px] text-slate-400">{formatTripDateTime(trip.departureDateTime, { dateStyle: "medium" })}</p>
+                  <p className="mt-1 text-[13px] font-medium text-[#46596a]">{tripOrigin}</p>
+                  <p className="text-[11px] text-slate-400">{stops[0]?.name || "—"}</p>
                 </div>
                 <div className="flex min-w-[90px] flex-col items-center sm:min-w-[180px]">
-                  <span className="mb-1 text-[11px] font-medium text-slate-400">214 km · 6h 30m</span>
+                  <span className="mb-1 text-[11px] font-medium text-slate-400">
+                    {route.estimatedDistance ? `${route.estimatedDistance} km` : "—"}
+                    {route.estimatedDurationMinutes ? ` · ${Math.floor(route.estimatedDurationMinutes / 60)}h ${route.estimatedDurationMinutes % 60}m` : ""}
+                  </span>
                   <div className="relative h-px w-full bg-[#dce7eb]">
                     <span className="absolute left-1/2 top-1/2 flex h-6 w-6 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-[#d9efed] bg-white text-[#128f96]">
                       <BusFront size={13} />
@@ -666,17 +908,18 @@ function CrewTripDetails({ onBack }) {
                 </div>
                 <div className="text-right">
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Expected arrival</p>
-                  <p className="mt-1 text-2xl font-semibold text-[#27394b]">02:00 PM</p>
-                  <p className="mt-1 text-[13px] font-medium text-[#46596a]">Madurai</p>
-                  <p className="text-[11px] text-slate-400">Mattuthavani</p>
+                  <p className="mt-1 text-2xl font-semibold text-[#27394b]">{formatTripDateTime(trip.arrivalDateTime, { hour: "2-digit", minute: "2-digit" })}</p>
+                  <p className="mt-0.5 text-[11px] text-slate-400">{formatTripDateTime(trip.arrivalDateTime, { dateStyle: "medium" })}</p>
+                  <p className="mt-1 text-[13px] font-medium text-[#46596a]">{tripDestination}</p>
+                  <p className="text-[11px] text-slate-400">{stops[stops.length - 1]?.name || "—"}</p>
                 </div>
               </div>
               <div className="mt-5 grid grid-cols-2 gap-4 border-t border-slate-100 pt-4 sm:grid-cols-4">
                 {[
-                  ["Reporting", "07:00 AM"],
-                  ["Actual departure", "Not departed"],
-                  ["Service", "Express"],
-                  ["Platform", "Bay 06"],
+                  ["Reporting", reportingTime],
+                  ["Actual departure", actualDepartureTime],
+                  ["Service", route.routeCategory || route.routeName || "—"],
+                 
                 ].map(([label, value]) => (
                   <div key={label}>
                     <p className="text-[11px] text-slate-400">{label}</p>
@@ -688,9 +931,15 @@ function CrewTripDetails({ onBack }) {
 
             <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-[0_3px_12px_rgba(27,65,75,0.04)]">
               <div className="flex items-center justify-between">
-                <h2 className="text-[16px] font-semibold text-[#334454]">Route &amp; stops</h2>
-                <span className="text-[12px] font-medium text-slate-400">4 stops</span>
+                <div>
+                  <h2 className="text-[16px] font-semibold text-[#334454]">Route &amp; stops</h2>
+                  {route.routeName && <p className="mt-1 text-[12px] font-medium text-[#526271]">{route.routeName}</p>}
+                </div>
+                <span className="text-[12px] font-medium text-slate-400">{stops.length} stops</span>
               </div>
+              {route.description && <p className="mt-2 text-[12px] leading-5 text-slate-400">{route.description}</p>}
+              {routeDetailsLoading && <p role="status" className="mt-3 text-[12px] text-slate-400">Loading route details...</p>}
+              {routeDetailsError && <p role="alert" className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[12px] text-rose-700">{routeDetailsError}</p>}
               <ol className="mt-4 space-y-0">
                 {stops.map((stop, index) => (
                   <li key={stop.name} className="relative flex min-h-[48px] gap-3">
@@ -701,12 +950,13 @@ function CrewTripDetails({ onBack }) {
                     <div className="flex flex-1 items-start justify-between gap-3">
                       <div>
                         <p className="text-[13px] font-semibold text-[#46596a]">{stop.name}</p>
-                        <p className="mt-0.5 text-[11px] text-slate-400">{stop.detail}</p>
+                        <p className="mt-0.5 text-[11px] text-slate-400">{[stop.detail, stop.city, stop.landmark].filter(Boolean).join(" · ")}</p>
                       </div>
                       <span className="text-[12px] font-semibold text-[#46596a]">{stop.time}</span>
                     </div>
                   </li>
                 ))}
+                {!stops.length && <li className="py-4 text-[13px] text-slate-400">No route stops available.</li>}
               </ol>
             </section>
 
@@ -716,16 +966,16 @@ function CrewTripDetails({ onBack }) {
                 <button type="button" className="text-[12px] font-medium text-[#148994] hover:underline">Manage</button>
               </div>
               <div className="mt-4 flex flex-wrap items-center justify-around gap-5">
-                <div className="relative flex h-24 w-24 items-center justify-center rounded-full" style={{ background: "conic-gradient(#138c95 0% 68%, #e1f3f5 68% 100%)" }}>
+                <div className="relative flex h-24 w-24 items-center justify-center rounded-full" style={{ background: `conic-gradient(#138c95 0% ${boardingProgress ?? 0}%, #e1f3f5 ${boardingProgress ?? 0}% 100%)` }}>
                   <div className="flex h-[74px] w-[74px] flex-col items-center justify-center rounded-full bg-white">
-                    <span className="text-xl font-semibold text-[#334454]">68%</span>
+                    <span className="text-xl font-semibold text-[#334454]">{boardingProgress === null ? "—" : `${boardingProgress}%`}</span>
                     <span className="text-[11px] text-slate-400">boarded</span>
                   </div>
                 </div>
                 <div className="grid flex-1 grid-cols-3 gap-3 text-center">
-                  {[["25", "Booked"], ["17", "Boarded"], ["5", "Pending"]].map(([value, label]) => (
+                  {[[bookedCount, "Booked"], [boardedCount, "Boarded"], [pendingCount, "Pending"]].map(([value, label]) => (
                     <div key={label}>
-                      <p className="text-xl font-semibold text-[#334454]">{value}</p>
+                      <p className="text-xl font-semibold text-[#334454]">{value ?? "—"}</p>
                       <p className="mt-1 text-[12px] text-slate-400">{label}</p>
                     </div>
                   ))}
@@ -740,17 +990,28 @@ function CrewTripDetails({ onBack }) {
                 <h2 className="text-[15px] font-semibold text-[#334454]">Bus information</h2>
                 <BusFront size={18} className="text-slate-400" />
               </div>
-              <p className="mt-3 text-base font-semibold text-[#334454]">TN 38 AB 1234</p>
-              <p className="mt-1 text-[12px] text-slate-400">Volvo 9600 · AC Sleeper</p>
+              <p className="mt-3 text-base font-semibold text-[#334454]">{bus.registrationNumber || bus.busNumber || getTripBusNumber(trip)}</p>
+              <p className="mt-1 text-[12px] text-slate-400">{bus.busName || bus.busType || "—"}</p>
+              {busDetailsLoading && <p role="status" className="mt-2 text-[11px] text-slate-400">Loading assigned bus details...</p>}
+              {busDetailsError && <p role="alert" className="mt-2 text-[11px] text-rose-600">{busDetailsError}</p>}
               <div className="mt-4 space-y-3 border-t border-slate-100 pt-3">
                 <div className="flex justify-between gap-3 text-[12px]">
-                  <span className="text-slate-400">Capacity</span><span className="font-semibold text-[#46596a]">36 berths</span>
+                  <span className="text-slate-400">Capacity</span><span className="font-semibold text-[#46596a]">{bus.capacity ?? bus.totalSeats ?? "—"} seats</span>
                 </div>
                 <div className="flex justify-between gap-3 text-[12px]">
-                  <span className="text-slate-400">Depot</span><span className="font-semibold text-[#46596a]">Coimbatore Central</span>
+                  <span className="text-slate-400">Service</span><span className="font-semibold text-[#46596a]">{route.routeCategory || "—"}</span>
                 </div>
                 <div className="flex justify-between gap-3 text-[12px]">
-                  <span className="text-slate-400">Last inspection</span><span className="font-semibold text-[#168f7e]">Passed · Today</span>
+                  <span className="text-slate-400">Amenities</span><span className="text-right font-semibold text-[#46596a]">{bus.amenities?.length ? bus.amenities.join(", ") : "—"}</span>
+                </div>
+                <div className="flex justify-between gap-3 text-[12px]">
+                  <span className="text-slate-400">Status</span><span className="font-semibold capitalize text-[#46596a]">{bus.status || "—"}</span>
+                </div>
+                <div className="flex justify-between gap-3 text-[12px]">
+                  <span className="text-slate-400">Deck type</span><span className="font-semibold capitalize text-[#46596a]">{bus.deckType || "—"}</span>
+                </div>
+                <div className="flex justify-between gap-3 text-[12px]">
+                  <span className="text-slate-400">Layout</span><span className="font-semibold text-[#46596a]">{bus.layoutType || "—"}</span>
                 </div>
               </div>
             </section>
@@ -758,60 +1019,75 @@ function CrewTripDetails({ onBack }) {
             <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-[0_3px_12px_rgba(27,65,75,0.04)]">
               <div className="flex items-center justify-between">
                 <h2 className="text-[15px] font-semibold text-[#334454]">Assigned crew</h2>
-                <span className="text-[11px] text-slate-400">3 members</span>
+                <span className="text-[11px] text-slate-400">{crew.length} members</span>
               </div>
+              {crewDetailsLoading && <p role="status" className="mt-2 text-[11px] text-slate-400">Loading assigned crew...</p>}
+              {crewDetailsError && <p role="alert" className="mt-2 text-[11px] text-rose-600">{crewDetailsError}</p>}
               <div className="mt-3 space-y-3">
                 {crew.map((member) => (
                   <div key={member.name} className="flex items-center gap-2.5">
                     <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#eef2f5] text-[10px] font-semibold text-[#617483]">{member.initials}</span>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-[12px] font-semibold text-[#46596a]">{member.name}</p>
-                      <p className="text-[11px] text-slate-400">{member.role}</p>
+                      <p className="text-[11px] text-slate-400">{member.role}{member.vehicleType ? ` · ${member.vehicleType}` : ""}</p>
+                      {member.mobile && <p className="text-[11px] text-slate-400">{member.mobile}</p>}
                     </div>
-                    <span className="inline-flex items-center gap-1 rounded-full bg-[#e8f8f4] px-2 py-1 text-[10px] font-medium text-[#168f7e]">
-                      <span className="h-1 w-1 rounded-full bg-[#18aa91]" /> Active
+                    <span className="inline-flex items-center gap-1 rounded-full bg-[#e8f8f4] px-2 py-1 text-[10px] font-medium capitalize text-[#168f7e]">
+                      <span className="h-1 w-1 rounded-full bg-[#18aa91]" /> {member.status || "Active"}
                     </span>
                   </div>
                 ))}
+                {!crew.length && <p className="text-[12px] text-slate-400">No crew details available.</p>}
               </div>
             </section>
 
             <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-[0_3px_12px_rgba(27,65,75,0.04)]">
               <div className="flex items-center justify-between">
                 <h2 className="text-[15px] font-semibold text-[#334454]">Status timeline</h2>
-                <span className="text-[11px] text-slate-400">Live updates</span>
+                <span className="text-[11px] text-slate-400">{statusHistory.length} updates</span>
               </div>
+              {statusHistoryLoading && <p role="status" className="mt-3 text-[12px] text-slate-400">Loading status history...</p>}
+              {statusHistoryError && <p role="alert" className="mt-3 text-[12px] text-rose-600">{statusHistoryError}</p>}
               <div className="mt-4 space-y-4">
-                <div className="flex gap-2.5">
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#138c95] text-white"><BusFront size={11} /></span>
-                  <div className="flex-1">
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="text-[12px] font-semibold text-[#46596a]">Boarding Started</p>
-                      <span className="text-[11px] text-slate-400">06:48 AM</span>
+                {(statusHistory.length ? statusHistory : trip.latestStatusUpdate ? [trip.latestStatusUpdate] : []).map((entry, index) => {
+                  const crewName = entry.crewName
+                    || [entry.crewId?.firstName, entry.crewId?.lastName].filter(Boolean).join(" ")
+                    || entry.updatedBy;
+                  const dateAndTime = entry.date
+                    ? `${formatTripDateTime(entry.date, { dateStyle: "medium" })}${entry.time ? ` · ${entry.time}` : ""}`
+                    : formatTripDateTime(entry.timestamp, { dateStyle: "medium", timeStyle: "short" });
+
+                  return (
+                    <div key={entry._id || `${entry.timestamp || entry.status}-${index}`} className="flex gap-2.5">
+                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#138c95] text-white"><BusFront size={11} /></span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="text-[12px] font-semibold text-[#46596a]">{entry.status || "Status update"}</p>
+                          <span className="shrink-0 text-[11px] text-slate-400">{dateAndTime}</span>
+                        </div>
+                        {crewName && <p className="mt-0.5 text-[11px] text-slate-400">{crewName}</p>}
+                        <p className="mt-0.5 text-[11px] text-slate-400">{entry.remarks || "No status notes available."}</p>
+                        {Array.isArray(entry.attachments) && entry.attachments.map((attachment, attachmentIndex) => {
+                          const url = typeof attachment === "string" ? attachment : attachment?.url || attachment?.secure_url;
+                          return url ? (
+                            <a
+                              key={attachment?._id || url || attachmentIndex}
+                              href={url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="mt-1 inline-block text-[11px] font-medium text-[#148994] hover:underline"
+                            >
+                              View attachment
+                            </a>
+                          ) : null;
+                        })}
+                      </div>
                     </div>
-                    <p className="mt-0.5 text-[11px] text-slate-400">Boarding opened at Bay 06 · Suresh Kumar</p>
-                  </div>
-                </div>
-                <div className="flex gap-2.5">
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#eef3f6] text-[#7d909d]"><CheckCircle2 size={12} /></span>
-                  <div className="flex-1">
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="text-[12px] font-semibold text-[#46596a]">Preparing for Departure</p>
-                      <span className="text-[11px] text-slate-400">06:32 AM</span>
-                    </div>
-                    <p className="mt-0.5 text-[11px] text-slate-400">Pre-trip checks completed · Rajesh Kumar</p>
-                  </div>
-                </div>
-                <div className="flex gap-2.5">
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#eef3f6] text-[#7d909d]"><CheckCircle2 size={12} /></span>
-                  <div className="flex-1">
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="text-[12px] font-semibold text-[#46596a]">Scheduled</p>
-                      <span className="text-[11px] text-slate-400">Yesterday</span>
-                    </div>
-                    <p className="mt-0.5 text-[11px] text-slate-400">Trip assigned to crew · Operations Desk</p>
-                  </div>
-                </div>
+                  );
+                })}
+                {!statusHistoryLoading && !statusHistoryError && !statusHistory.length && !trip.latestStatusUpdate && (
+                  <p className="text-[12px] text-slate-400">No status history available.</p>
+                )}
               </div>
             </section>
           </aside>
@@ -826,7 +1102,7 @@ function CrewTripDetails({ onBack }) {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-xl font-semibold text-[#202b3d]">Update bus status</h2>
-                <p className="mt-1 text-[13px] text-slate-500">TN 38 AB 1234 · BUS-TRIP-2026-001</p>
+                <p className="mt-1 text-[13px] text-slate-500">{getTripBusNumber(trip)} · {trip._id || trip.tripId || "Trip"}</p>
               </div>
               <button
                 type="button"
@@ -840,8 +1116,16 @@ function CrewTripDetails({ onBack }) {
 
             <label className="mt-5 block text-[12px] font-semibold text-[#334454]">Current status</label>
             <div className="mt-2 flex h-10 items-center rounded-lg border border-slate-200 bg-[#f7f9fb] px-3 text-[12px] text-[#526271]">
-              {currentTripStatus}
+              {statusDetailsLoading ? "Loading current status..." : currentTripStatus}
             </div>
+            {statusDetailsError && <p role="alert" className="mt-2 text-[12px] text-rose-600">{statusDetailsError}</p>}
+            {lastStatusUpdate && (
+              <p className="mt-2 text-[11px] text-slate-400">
+                Last updated {formatTripDateTime(lastStatusUpdate.timestamp, { dateStyle: "medium", timeStyle: "short" })}
+                {lastStatusUpdate.updatedBy ? ` · ${lastStatusUpdate.updatedBy}` : ""}
+                {lastStatusUpdate.remarks ? ` · ${lastStatusUpdate.remarks}` : ""}
+              </p>
+            )}
 
             <label htmlFor="trip-new-status" className="mt-4 block text-[12px] font-semibold text-[#334454]">
               New status <span className="text-rose-500">*</span>
@@ -851,15 +1135,11 @@ function CrewTripDetails({ onBack }) {
               value={newTripStatus}
               onChange={(event) => setNewTripStatus(event.target.value)}
               required
+              disabled={statusDetailsLoading}
               className="mt-2 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-[12px] text-[#46596a] outline-none focus:border-[#138795]"
             >
               <option value="">Select new status</option>
-              <option>Scheduled</option>
-              <option>Preparing for Departure</option>
-              <option>Boarding Started</option>
-              <option>Departed</option>
-              <option>Delayed</option>
-              <option>Arrived</option>
+              {supportedStatuses.map((status) => <option key={status}>{status}</option>)}
             </select>
 
             <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -873,16 +1153,67 @@ function CrewTripDetails({ onBack }) {
                   className="mt-2 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 font-normal text-[#46596a] outline-none focus:border-[#138795]"
                 />
               </label>
-              <label className="block text-[12px] font-semibold text-[#334454]">
-                Time
-                <input
-                  type="time"
-                  value={statusTime}
-                  onChange={(event) => setStatusTime(event.target.value)}
-                  required
-                  className="mt-2 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 font-normal text-[#46596a] outline-none focus:border-[#138795]"
-                />
-              </label>
+              <div>
+                <p className="text-[12px] font-semibold text-[#334454]">Time</p>
+                <div className="relative mt-2">
+                  <button
+                    type="button"
+                    aria-label="Choose time"
+                    aria-expanded={isTimePickerOpen}
+                    onClick={() => setIsTimePickerOpen((isOpen) => !isOpen)}
+                    className="flex h-10 w-full items-center justify-between rounded-lg border border-slate-200 bg-white px-3 text-left font-normal text-[#46596a] outline-none transition focus:border-[#138795]"
+                  >
+                    <span>{hour12}:{minute} {meridiem}</span>
+                    <Clock3 size={14} className="text-slate-500" />
+                  </button>
+                  {isTimePickerOpen && (
+                    <div className="absolute left-0 top-full z-20 mt-2 grid w-full grid-cols-3 gap-2 rounded-lg border border-slate-200 bg-white p-3 shadow-lg">
+                      <label className="text-[11px] font-medium text-slate-500">
+                        Hour
+                        <select
+                          value={hour12}
+                          onChange={(event) => updateStatusTime(event.target.value, minute, meridiem)}
+                          className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-[13px] text-[#46596a]"
+                        >
+                          {Array.from({ length: 12 }, (_, index) => String(index + 1).padStart(2, "0")).map((hour) => (
+                            <option key={hour} value={hour}>{hour}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="text-[11px] font-medium text-slate-500">
+                        Minute
+                        <select
+                          value={minute}
+                          onChange={(event) => updateStatusTime(hour12, event.target.value, meridiem)}
+                          className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-[13px] text-[#46596a]"
+                        >
+                          {Array.from({ length: 60 }, (_, index) => String(index).padStart(2, "0")).map((value) => (
+                            <option key={value} value={value}>{value}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="text-[11px] font-medium text-slate-500">
+                        AM/PM
+                        <select
+                          value={meridiem}
+                          onChange={(event) => updateStatusTime(hour12, minute, event.target.value)}
+                          className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-[13px] text-[#46596a]"
+                        >
+                          <option value="AM">AM</option>
+                          <option value="PM">PM</option>
+                        </select>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setIsTimePickerOpen(false)}
+                        className="col-span-3 mt-1 h-8 rounded-md bg-[#07818a] text-[12px] font-semibold text-white"
+                      >
+                        Done
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
 
             <label htmlFor="trip-status-remarks" className="mt-4 block text-[12px] font-semibold text-[#334454]">
@@ -911,20 +1242,23 @@ function CrewTripDetails({ onBack }) {
               <input type="file" accept="image/jpeg,image/png" onChange={handleStatusPhotoChange} className="sr-only" />
             </label>
             {statusPhotoError && <p role="alert" className="mt-1 text-[11px] text-rose-600">{statusPhotoError}</p>}
+            {statusSubmitError && <p role="alert" className="mt-3 text-[12px] text-rose-600">{statusSubmitError}</p>}
 
             <div className="-mx-5 -mb-5 mt-5 flex justify-end gap-2 border-t border-slate-100 bg-[#fbfcfd] px-5 py-4 sm:-mx-6 sm:-mb-6 sm:px-6">
               <button
                 type="button"
                 onClick={() => setIsStatusModalOpen(false)}
+                disabled={statusSubmitLoading}
                 className="h-10 rounded-lg border border-slate-200 bg-white px-5 text-[13px] font-semibold text-[#526271] transition hover:bg-slate-50"
               >
                 Cancel
               </button>
               <button
                 type="submit"
+                disabled={statusSubmitLoading}
                 className="h-10 rounded-lg bg-[#07818a] px-5 text-[13px] font-semibold text-white transition hover:bg-[#066d75]"
               >
-                Confirm Update
+                {statusSubmitLoading ? "Updating..." : "Confirm Update"}
               </button>
             </div>
           </form>
@@ -935,25 +1269,221 @@ function CrewTripDetails({ onBack }) {
 }
 
 function CrewDashboard() {
+  const { BASE_URL, TOKEN_KEY } = useAuth();
+  const baseUrl = BASE_URL.replace(/\/+$/, "");
+  const apiBaseUrl = baseUrl.endsWith("/api") ? baseUrl : `${baseUrl}/api`;
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All statuses");
   const [page, setPage] = useState(1);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [showCrew, setShowCrew] = useState(false);
   const [isTripDetailsOpen, setIsTripDetailsOpen] = useState(false);
-  const pageSize = 5;
+  const [selectedTrip, setSelectedTrip] = useState(null);
+  const [tripDetailsLoadingId, setTripDetailsLoadingId] = useState("");
+  const [tripDetailsError, setTripDetailsError] = useState("");
+  const [dashboardData, setDashboardData] = useState(null);
+  const [dashboardError, setDashboardError] = useState("");
+  const [dashboardLoading, setDashboardLoading] = useState(true);
+  const [todayTripsResponse, setTodayTripsResponse] = useState(null);
+  const [todayTripsError, setTodayTripsError] = useState("");
+  const [todayTripsLoading, setTodayTripsLoading] = useState(true);
+  const [upcomingTripsResponse, setUpcomingTripsResponse] = useState(null);
+  const [upcomingTripsError, setUpcomingTripsError] = useState("");
+  const [upcomingTripsLoading, setUpcomingTripsLoading] = useState(true);
+  const [completedTripsResponse, setCompletedTripsResponse] = useState(null);
+  const [completedTripsError, setCompletedTripsError] = useState("");
+  const [completedTripsLoading, setCompletedTripsLoading] = useState(true);
+  const [tripsResponse, setTripsResponse] = useState(null);
+  const [tripsError, setTripsError] = useState("");
+  const [tripsLoading, setTripsLoading] = useState(true);
+  const pageSize = 10;
 
-  const filteredBookings = useMemo(() => bookingRows.filter((booking) => {
-    const matchesSearch = `${booking.pnr} ${booking.passenger} ${booking.route}`
-      .toLowerCase()
-      .includes(search.trim().toLowerCase());
-    const matchesStatus = statusFilter === "All statuses" || booking.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  }), [search, statusFilter]);
+  useEffect(() => {
+    const controller = new AbortController();
+    const fetchDashboard = async () => {
+      try {
+        const token = localStorage.getItem(TOKEN_KEY || "exte_key");
+        const response = await fetch(`${apiBaseUrl}/crew/dashboard`, {
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          signal: controller.signal,
+        });
+        const payload = await response.json().catch(() => null);
 
-  const pageCount = Math.max(1, Math.ceil(filteredBookings.length / pageSize));
-  const currentPage = Math.min(page, pageCount);
-  const visibleBookings = filteredBookings.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+        if (!response.ok || !payload?.success || !payload.data) {
+          throw new Error(payload?.message || "Unable to load crew dashboard data.");
+        }
+
+        setDashboardData(payload.data);
+      } catch (error) {
+        if (error.name !== "AbortError") {
+          setDashboardError(error.message || "Unable to load crew dashboard data.");
+        }
+      } finally {
+        if (!controller.signal.aborted) setDashboardLoading(false);
+      }
+    };
+
+    fetchDashboard();
+    return () => controller.abort();
+  }, [apiBaseUrl, TOKEN_KEY]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const fetchTodayTrips = async () => {
+      try {
+        const token = localStorage.getItem(TOKEN_KEY || "exte_key");
+        const response = await fetch(`${apiBaseUrl}/crew/trips/today`, {
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          signal: controller.signal,
+        });
+        const payload = await response.json().catch(() => null);
+
+        if (!response.ok || !payload?.success || !Array.isArray(payload.data)) {
+          throw new Error(payload?.message || "Unable to load today's assigned trips.");
+        }
+
+        setTodayTripsResponse(payload);
+      } catch (error) {
+        if (error.name !== "AbortError") {
+          setTodayTripsError(error.message || "Unable to load today's assigned trips.");
+        }
+      } finally {
+        if (!controller.signal.aborted) setTodayTripsLoading(false);
+      }
+    };
+
+    fetchTodayTrips();
+    return () => controller.abort();
+  }, [apiBaseUrl, TOKEN_KEY]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const fetchUpcomingTrips = async () => {
+      try {
+        const token = localStorage.getItem(TOKEN_KEY || "exte_key");
+        const response = await fetch(`${apiBaseUrl}/crew/trips/upcoming`, {
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          signal: controller.signal,
+        });
+        const payload = await response.json().catch(() => null);
+
+        if (!response.ok || !payload?.success || !Array.isArray(payload.data)) {
+          throw new Error(payload?.message || "Unable to load upcoming trips.");
+        }
+
+        setUpcomingTripsResponse(payload);
+      } catch (error) {
+        if (error.name !== "AbortError") {
+          setUpcomingTripsError(error.message || "Unable to load upcoming trips.");
+        }
+      } finally {
+        if (!controller.signal.aborted) setUpcomingTripsLoading(false);
+      }
+    };
+
+    fetchUpcomingTrips();
+    return () => controller.abort();
+  }, [apiBaseUrl, TOKEN_KEY]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const fetchCompletedTrips = async () => {
+      try {
+        const token = localStorage.getItem(TOKEN_KEY || "exte_key");
+        const response = await fetch(`${apiBaseUrl}/crew/trips/completed`, {
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          signal: controller.signal,
+        });
+        const payload = await response.json().catch(() => null);
+
+        if (!response.ok || !payload?.success || !Array.isArray(payload.data)) {
+          throw new Error(payload?.message || "Unable to load completed trips.");
+        }
+
+        setCompletedTripsResponse(payload);
+      } catch (error) {
+        if (error.name !== "AbortError") {
+          setCompletedTripsError(error.message || "Unable to load completed trips.");
+        }
+      } finally {
+        if (!controller.signal.aborted) setCompletedTripsLoading(false);
+      }
+    };
+
+    fetchCompletedTrips();
+    return () => controller.abort();
+  }, [apiBaseUrl, TOKEN_KEY]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const params = new URLSearchParams({
+      page: String(page),
+      limit: String(pageSize),
+    });
+    if (statusFilter !== "All statuses") params.set("status", statusFilter);
+    if (search.trim()) params.set("search", search.trim());
+
+    setTripsResponse(null);
+    setTripsLoading(true);
+    setTripsError("");
+
+    const timeoutId = setTimeout(async () => {
+      try {
+        const token = localStorage.getItem(TOKEN_KEY || "exte_key");
+        const response = await fetch(`${apiBaseUrl}/crew/trips?${params.toString()}`, {
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          signal: controller.signal,
+        });
+        const payload = await response.json().catch(() => null);
+
+        if (!response.ok || !payload?.success || !Array.isArray(payload.data) || !payload.pagination) {
+          throw new Error(payload?.message || "Unable to load trips.");
+        }
+
+        setTripsResponse(payload);
+      } catch (error) {
+        if (error.name !== "AbortError") {
+          setTripsError(error.message || "Unable to load trips.");
+        }
+      } finally {
+        if (!controller.signal.aborted) setTripsLoading(false);
+      }
+    }, 250);
+
+    return () => {
+      clearTimeout(timeoutId);
+      controller.abort();
+    };
+  }, [apiBaseUrl, TOKEN_KEY, page, pageSize, statusFilter, search]);
+
+  const upcomingTrips = Array.isArray(upcomingTripsResponse?.data) ? upcomingTripsResponse.data : [];
+  const todayTrips = Array.isArray(todayTripsResponse?.data) ? todayTripsResponse.data : [];
+  const stats = dashboardData?.stats || {};
+  const passengerStats = dashboardData?.passengerStats || {};
+  const liveDuty = dashboardData?.currentLiveDuty;
+  const crewProfile = dashboardData?.crewProfile;
+  const liveCrewMembers = liveDuty
+    ? [...(liveDuty.drivers || []), ...(liveDuty.crews || [])]
+    : [];
+  const todayTripsCount = todayTripsResponse?.count ?? (todayTripsResponse ? todayTrips.length : stats.todayTripsCount ?? 0);
+  const upcomingTripsCount = upcomingTripsResponse?.count ?? (upcomingTripsResponse ? upcomingTrips.length : stats.upcomingTripsCount ?? 0);
+  const completedTripsCount = completedTripsResponse?.count ?? (completedTripsResponse ? completedTripsResponse.data.length : stats.completedTripsCount ?? 0);
+
+  const visibleTrips = Array.isArray(tripsResponse?.data) ? tripsResponse.data : [];
+  const pagination = tripsResponse?.pagination || {};
+  const pageCount = Math.max(1, pagination.totalPages ?? 1);
+  const currentPage = pagination.page ?? page;
+  const totalTrips = pagination.totalTrips ?? 0;
 
   const updateSearch = (event) => {
     setSearch(event.target.value);
@@ -966,8 +1496,33 @@ function CrewDashboard() {
     setIsFilterOpen(false);
   };
 
+  const openTripDetails = async (tripId) => {
+    setTripDetailsError("");
+    setTripDetailsLoadingId(tripId);
+    try {
+      const token = localStorage.getItem(TOKEN_KEY || "exte_key");
+      const response = await fetch(`${apiBaseUrl}/crew/trips/${encodeURIComponent(tripId)}/overview`, {
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok || !payload?.success || !payload.data) {
+        throw new Error(payload?.message || "Unable to load trip details.");
+      }
+
+      setSelectedTrip(payload.data.trip || payload.data);
+      setIsTripDetailsOpen(true);
+    } catch (error) {
+      setTripDetailsError(error.message || "Unable to load trip details.");
+    } finally {
+      setTripDetailsLoadingId("");
+    }
+  };
+
   if (isTripDetailsOpen) {
-    return <CrewTripDetails onBack={() => setIsTripDetailsOpen(false)} />;
+    return <CrewTripDetails trip={selectedTrip} onBack={() => setIsTripDetailsOpen(false)} />;
   }
 
   return (
@@ -1026,15 +1581,46 @@ function CrewDashboard() {
         </header> */}
 
         <section className="mt-7">
-          <h1 className="text-3xl font-semibold tracking-tight text-[#27394b]">Crew Dashboard Overview</h1>
+          <h1 className="text-3xl font-semibold tracking-tight text-[#27394b]">Dashboard Overview</h1>
           <p className="mt-1 text-[15px] text-[#718286]">Live bus tracking, intercity routes, and passenger booking engine</p>
+          {dashboardLoading && <p role="status" className="mt-2 text-[13px] text-slate-400">Loading crew dashboard...</p>}
+          {dashboardError && <p role="alert" className="mt-2 text-[13px] text-rose-600">{dashboardError}</p>}
+          {completedTripsError && <p role="alert" className="mt-2 text-[13px] text-rose-600">{completedTripsError}</p>}
 
           <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <OverviewCard icon={Map} value="2" label="Today’s trips" caption="1 ongoing now" />
-            <OverviewCard icon={CalendarDays} value="3" label="Upcoming trips" caption="Next 20 Jun" />
-            <OverviewCard icon={BusFront} value="1" label="Ongoing trip" caption="Boarding window" />
-            <OverviewCard icon={Check} value="18" label="Completed trips" caption="This month" />
+            <OverviewCard icon={MapIcon} value={todayTripsCount} label="Today’s trips" caption={`${stats.totalAssignedTripsCount ?? 0} assigned trips`} />
+            <OverviewCard icon={CalendarDays} value={upcomingTripsCount} label="Upcoming trips" caption={upcomingTrips[0] ? `Next ${formatTripDateTime(upcomingTrips[0].departureDateTime, { day: "2-digit", month: "short" })}` : upcomingTripsLoading ? "Loading trips..." : "No upcoming trips"} />
+            <OverviewCard icon={BusFront} value={stats.ongoingTripsCount ?? 0} label="Ongoing trip" caption={liveDuty?.currentStatus || (liveDuty ? "In progress" : "No live duty")} />
+            <OverviewCard icon={Check} value={completedTripsCount} label="Completed trips" caption={completedTripsLoading ? "Loading trips..." : "This month"} />
           </div>
+        </section>
+
+        <section className="mt-3 rounded-2xl border border-slate-100 bg-white p-5 shadow-[0_3px_12px_rgba(27,65,75,0.04)]">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-[16px] font-semibold text-[#334454]">Today&apos;s assigned trips</h2>
+            <span className="text-[12px] text-slate-400">{todayTripsCount} trips</span>
+          </div>
+          {todayTripsLoading && <p role="status" className="mt-3 text-[13px] text-slate-400">Loading today&apos;s trips...</p>}
+          {todayTripsError && <p role="alert" className="mt-3 text-[13px] text-rose-600">{todayTripsError}</p>}
+          {!todayTripsLoading && !todayTripsError && todayTrips.length === 0 && (
+            <p className="mt-3 rounded-xl border border-slate-100 bg-[#fbfdfd] px-3 py-5 text-center text-[13px] text-slate-400">No trips assigned for today.</p>
+          )}
+          {todayTrips.length > 0 && (
+            <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+              {todayTrips.map((trip) => (
+                <article key={trip._id} className="rounded-xl border border-slate-100 bg-[#fbfdfd] px-3 py-3">
+                  <p className="truncate text-[13px] font-semibold text-[#3e4e5d]">{getTripRoute(trip)}</p>
+                  <p className="mt-1 text-[12px] text-slate-400">
+                    {formatTripDateTime(trip.departureDateTime, { dateStyle: "medium", timeStyle: "short" })}
+                  </p>
+                  <div className="mt-2 flex items-center justify-between gap-2 text-[12px]">
+                    <span className="truncate text-[#526271]">{getTripBusNumber(trip)}</span>
+                    <span className="shrink-0 rounded-full bg-[#e9f8f7] px-2 py-1 text-[#138e91]">{trip.currentStatus || trip.status || "Assigned"}</span>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
         </section>
 
         <section className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-[1.55fr_1fr]">
@@ -1043,20 +1629,20 @@ function CrewDashboard() {
               <span className="text-[13px] font-semibold uppercase tracking-wide text-[#fa6b77]">Live duty</span>
               <span className="inline-flex items-center gap-1.5 rounded-full bg-[#f1f1ff] px-2.5 py-1 text-[13px] font-medium text-[#7373d9]">
                 <span className="h-1.5 w-1.5 rounded-full bg-[#8585f1]" />
-                Boarding Started
+                {liveDuty?.currentStatus || (liveDuty ? "In progress" : "No live duty")}
               </span>
             </div>
-            <h2 className="mt-1 text-2xl font-semibold tracking-tight text-[#293b4e] sm:text-3xl">Coimbatore → Madurai</h2>
-            <p className="mt-0.5 text-[13px] text-slate-400">Kovai Express Travels · BUS-TRIP-2026-001</p>
+            <h2 className="mt-1 text-2xl font-semibold tracking-tight text-[#293b4e] sm:text-3xl">{liveDuty ? getTripRoute(liveDuty) : "No ongoing trip"}</h2>
+            <p className="mt-0.5 text-[13px] text-slate-400">{crewProfile?.fullName || "Crew"} · {liveDuty?._id || crewProfile?.employeeCode || "No active duty"}</p>
 
             <div className="mt-5 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
               <div>
-                <p className="text-[13px] font-semibold text-[#15949c]">CBE</p>
-                <p className="mt-1 text-lg font-semibold">Coimbatore</p>
-                <p className="mt-0.5 text-[13px] text-slate-400">07:30 AM</p>
+                <p className="text-[13px] font-semibold text-[#15949c]">{(liveDuty?.origin || liveDuty?.route?.originCity || "—").slice(0, 3).toUpperCase()}</p>
+                <p className="mt-1 text-lg font-semibold">{liveDuty?.origin || liveDuty?.route?.originCity || "—"}</p>
+                <p className="mt-0.5 text-[13px] text-slate-400">{formatTripDateTime(liveDuty?.departureDateTime, { hour: "2-digit", minute: "2-digit" })}</p>
               </div>
               <div className="w-full min-w-[72px] sm:min-w-[130px]">
-                <p className="mb-1 text-center text-[12px] text-slate-400">6h 30m</p>
+                <p className="mb-1 text-center text-[12px] text-slate-400">{liveDuty?.route?.estimatedDurationMinutes ? `${Math.floor(liveDuty.route.estimatedDurationMinutes / 60)}h ${liveDuty.route.estimatedDurationMinutes % 60}m` : "—"}</p>
                 <div className="relative h-px bg-[#dce7eb]">
                   <span className="absolute left-1/2 top-1/2 flex h-5 w-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-[#e1edef] bg-white text-[#198a97]">
                     <BusFront size={11} />
@@ -1064,9 +1650,9 @@ function CrewDashboard() {
                 </div>
               </div>
               <div className="text-right">
-                <p className="text-[13px] font-semibold text-[#fb735f]">MDU</p>
-                <p className="mt-1 text-lg font-semibold">Madurai</p>
-                <p className="mt-0.5 text-[13px] text-slate-400">02:00 PM</p>
+                <p className="text-[13px] font-semibold text-[#fb735f]">{(liveDuty?.destination || liveDuty?.route?.destinationCity || "—").slice(0, 3).toUpperCase()}</p>
+                <p className="mt-1 text-lg font-semibold">{liveDuty?.destination || liveDuty?.route?.destinationCity || "—"}</p>
+                <p className="mt-0.5 text-[13px] text-slate-400">{formatTripDateTime(liveDuty?.arrivalDateTime, { hour: "2-digit", minute: "2-digit" })}</p>
               </div>
             </div>
 
@@ -1075,21 +1661,21 @@ function CrewDashboard() {
                 <BusFront size={14} className="shrink-0 text-[#15949c]" />
                 <div className="min-w-0">
                   <p className="text-[11px] uppercase tracking-wide text-slate-400">Bus registration</p>
-                  <p className="mt-0.5 truncate text-[13px] font-semibold">TN 38 AB 1234</p>
+                  <p className="mt-0.5 truncate text-[13px] font-semibold">{liveDuty ? getTripBusNumber(liveDuty) : "—"}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2 rounded-lg border border-slate-100 bg-[#fbfcfd] px-2.5 py-2">
                 <Clock3 size={14} className="shrink-0 text-[#15949c]" />
                 <div>
-                  <p className="text-[11px] uppercase tracking-wide text-slate-400">Reporting time</p>
-                  <p className="mt-0.5 text-[13px] font-semibold">07:00 AM</p>
+                  <p className="text-[11px] uppercase tracking-wide text-slate-400">Departure time</p>
+                  <p className="mt-0.5 text-[13px] font-semibold">{formatTripDateTime(liveDuty?.departureDateTime, { hour: "2-digit", minute: "2-digit" })}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2 rounded-lg border border-slate-100 bg-[#fbfcfd] px-2.5 py-2">
                 <UsersRound size={14} className="shrink-0 text-[#15949c]" />
                 <div>
                   <p className="text-[11px] uppercase tracking-wide text-slate-400">Passengers</p>
-                  <p className="mt-0.5 text-[13px] font-semibold">25 booked</p>
+                  <p className="mt-0.5 text-[13px] font-semibold">{passengerStats.totalBooked ?? 0} booked</p>
                 </div>
               </div>
             </div>
@@ -1097,15 +1683,15 @@ function CrewDashboard() {
             <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3">
               <div className="flex items-center gap-2">
                 <div className="flex -space-x-1.5">
-                  {["RK", "SK", "M"].map((initials) => (
-                    <span key={initials} className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-[#e8eef2] text-[10px] font-semibold text-[#556979]">
-                      {initials}
+                  {liveCrewMembers.slice(0, 3).map((member) => (
+                    <span key={member._id || member.email || member.fullName} className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-[#e8eef2] text-[10px] font-semibold text-[#556979]">
+                      {(member.fullName || "?").split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase()}
                     </span>
                   ))}
                 </div>
                 <div>
-                  <p className="text-[13px] font-medium text-[#435465]">Rajesh, Suresh &amp; Mani</p>
-                  <p className="text-[12px] text-slate-400">Driver · Conductor · Cleaner</p>
+                  <p className="text-[13px] font-medium text-[#435465]">{liveCrewMembers.length ? liveCrewMembers.map((member) => member.fullName).join(", ") : "No crew assigned"}</p>
+                  <p className="text-[12px] text-slate-400">{liveCrewMembers.map((member) => member.crewRole || (member.mobile ? "Driver" : "")).filter(Boolean).join(" · ") || crewProfile?.crewRole || "—"}</p>
                 </div>
               </div>
               <button type="button" onClick={() => setShowCrew((isOpen) => !isOpen)} className="text-[13px] font-medium text-[#148994] hover:text-[#0b6570]">
@@ -1114,9 +1700,12 @@ function CrewDashboard() {
             </div>
             {showCrew && (
               <div className="mt-3 grid grid-cols-3 gap-2 rounded-lg bg-[#f4f9fa] p-3 text-[13px]">
-                <div><p className="font-semibold">Rajesh K</p><p className="mt-0.5 text-slate-400">Driver</p></div>
-                <div><p className="font-semibold">Suresh S</p><p className="mt-0.5 text-slate-400">Conductor</p></div>
-                <div><p className="font-semibold">Mani</p><p className="mt-0.5 text-slate-400">Cleaner</p></div>
+                {liveCrewMembers.length ? liveCrewMembers.map((member) => (
+                  <div key={member._id || member.email || member.fullName}>
+                    <p className="font-semibold">{member.fullName}</p>
+                    <p className="mt-0.5 text-slate-400">{member.crewRole || "Crew"}</p>
+                  </div>
+                )) : <p className="col-span-3 text-slate-400">No crew assigned to an active trip.</p>}
               </div>
             )}
           </article>
@@ -1125,24 +1714,27 @@ function CrewDashboard() {
             <div className="flex items-start justify-between">
               <div>
                 <h2 className="text-[16px] font-semibold text-[#334454]">Next upcoming trip</h2>
-                <p className="mt-0.5 text-[13px] text-slate-400">Friday, 20 June</p>
+                <p className="mt-0.5 text-[13px] text-slate-400">{upcomingTrips[0] ? formatTripDateTime(upcomingTrips[0].departureDateTime, { weekday: "long", day: "numeric", month: "long" }) : "No upcoming trips"}</p>
               </div>
               <Link to="/vendor/trip-management" className="text-[13px] font-medium text-[#148994] hover:underline">View all</Link>
             </div>
             <div className="mt-2 space-y-2">
-              {upcomingTrips.map((trip, index) => (
-                <div key={`${trip.bus}-${index}`} className="flex items-center gap-2.5 rounded-xl border border-slate-100 bg-[#fbfdfd] px-2.5 py-2">
+              {upcomingTripsLoading && <p role="status" className="py-4 text-center text-[13px] text-slate-400">Loading upcoming trips...</p>}
+              {upcomingTripsError && <p role="alert" className="py-4 text-center text-[13px] text-rose-600">{upcomingTripsError}</p>}
+              {upcomingTrips.map((trip) => (
+                <div key={trip._id} className="flex items-center gap-2.5 rounded-xl border border-slate-100 bg-[#fbfdfd] px-2.5 py-2">
                   <div className="flex h-9 w-9 shrink-0 flex-col items-center justify-center rounded-lg bg-[#e8f7f6] text-[#138e91]">
-                    <span className="text-[15px] font-semibold leading-none">{trip.date}</span>
-                    <span className="mt-0.5 text-[11px] font-semibold">{trip.month}</span>
+                    <span className="text-[15px] font-semibold leading-none">{formatTripDateTime(trip.departureDateTime, { day: "2-digit" })}</span>
+                    <span className="mt-0.5 text-[11px] font-semibold">{formatTripDateTime(trip.departureDateTime, { month: "short" }).toUpperCase()}</span>
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-[13px] font-semibold text-[#3e4e5d]">{trip.route}</p>
-                    <p className="mt-0.5 truncate text-[12px] text-slate-400">{trip.bus} · {trip.time}</p>
+                    <p className="truncate text-[13px] font-semibold text-[#3e4e5d]">{getTripRoute(trip)}</p>
+                    <p className="mt-0.5 truncate text-[12px] text-slate-400">{getTripBusNumber(trip)} · {formatTripDateTime(trip.departureDateTime, { hour: "2-digit", minute: "2-digit" })}</p>
                   </div>
-                  <span className="shrink-0 rounded-full bg-[#e9f8f7] px-2 py-1 text-[12px] font-medium text-[#138e91]">Upcoming</span>
+                  <span className="shrink-0 rounded-full bg-[#e9f8f7] px-2 py-1 text-[12px] font-medium text-[#138e91]">{trip.currentStatus || "Upcoming"}</span>
                 </div>
               ))}
+              {!upcomingTripsLoading && !upcomingTripsError && !upcomingTrips.length && <p className="rounded-xl border border-slate-100 px-3 py-5 text-center text-[13px] text-slate-400">No upcoming trips assigned.</p>}
             </div>
           </article>
         </section>
@@ -1151,7 +1743,7 @@ function CrewDashboard() {
           <div className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
             <div>
               <h2 className="text-[17px] font-semibold text-[#334454]">Recent Trips</h2>
-              <p className="mt-0.5 text-[13px] text-slate-400">Live passenger ticket reservations &amp; payment receipts across all routes</p>
+              <p className="mt-0.5 text-[13px] text-slate-400">Recent trips assigned across your routes</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <label className="flex h-8 min-w-[160px] flex-1 items-center gap-1.5 rounded-full border border-slate-100 bg-[#fbfcfd] px-2.5 sm:flex-none">
@@ -1160,8 +1752,8 @@ function CrewDashboard() {
                   type="search"
                   value={search}
                   onChange={updateSearch}
-                  placeholder="Search PNR, passenger..."
-                  aria-label="Search bookings"
+                  placeholder="Search trip, route, bus..."
+                  aria-label="Search trips"
                   className="min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-slate-400"
                 />
               </label>
@@ -1172,15 +1764,15 @@ function CrewDashboard() {
                 </button>
                 {isFilterOpen && (
                   <div className="absolute right-0 top-9 z-10 w-36 rounded-xl border border-slate-100 bg-white p-1.5 shadow-lg">
-                    {["All statuses", "Confirmed", "Pending", "Cancelled"].map((status) => (
-                      <button key={status} type="button" onClick={() => updateStatusFilter(status)} className={`block w-full rounded-lg px-2.5 py-2 text-left text-[14px] hover:bg-[#f1f7f7] ${statusFilter === status ? "font-semibold text-[#138795]" : "text-slate-600"}`}>
-                        {status}
+                    {["All statuses", "scheduled", "in_progress", "completed", "cancelled"].map((status) => (
+                      <button key={status} type="button" onClick={() => updateStatusFilter(status)} className={`block w-full rounded-lg px-2.5 py-2 text-left text-[14px] capitalize hover:bg-[#f1f7f7] ${statusFilter === status ? "font-semibold text-[#138795]" : "text-slate-600"}`}>
+                        {status === "All statuses" ? status : status.replaceAll("_", " ")}
                       </button>
                     ))}
                   </div>
                 )}
               </div>
-              <button type="button" onClick={() => exportBookingsToCsv(filteredBookings)} className="inline-flex h-8 items-center gap-1.5 rounded-full bg-[#138795] px-2.5 text-[13px] font-medium text-white transition hover:bg-[#0d6d77]">
+              <button type="button" onClick={() => exportTripsToCsv(visibleTrips)} className="inline-flex h-8 items-center gap-1.5 rounded-full bg-[#138795] px-2.5 text-[13px] font-medium text-white transition hover:bg-[#0d6d77]">
                 <ArrowDownToLine size={12} />
                 Export CSV
               </button>
@@ -1190,55 +1782,55 @@ function CrewDashboard() {
             </div>
           </div>
 
+          {tripDetailsError && (
+            <div role="alert" aria-live="assertive" className="mx-4 mb-3 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-[13px] text-rose-700 sm:mx-5">
+              <p className="font-semibold">Unable to open trip</p>
+              <p className="mt-1">{tripDetailsError}</p>
+            </div>
+          )}
+
           <div className="overflow-x-auto">
             <table className="w-full min-w-[850px] border-collapse text-left">
               <thead>
                 <tr className="bg-[#f7fafb] text-[12px] font-medium uppercase tracking-wide text-[#87979d]">
-                  <th className="px-4 py-2.5 font-medium sm:px-5">PNR / Ticket</th>
-                  <th className="px-3 py-2.5 font-medium">Passenger</th>
+                  <th className="px-4 py-2.5 font-medium sm:px-5">Trip ID</th>
                   <th className="px-3 py-2.5 font-medium">Route</th>
-                  <th className="px-3 py-2.5 font-medium">Travel date</th>
-                  <th className="px-3 py-2.5 font-medium">Seat berth</th>
-                  <th className="px-3 py-2.5 font-medium">Fare</th>
-                  <th className="px-3 py-2.5 font-medium">Payment</th>
+                  <th className="px-3 py-2.5 font-medium">Departure</th>
+                  <th className="px-3 py-2.5 font-medium">Bus</th>
+                  <th className="px-3 py-2.5 font-medium">Crew</th>
                   <th className="px-3 py-2.5 font-medium">Status</th>
                   <th className="px-4 py-2.5 text-center font-medium sm:px-5">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {visibleBookings.map((booking) => (
-                  <tr key={booking.pnr} className="text-[13px] text-[#566978] transition-colors hover:bg-[#fbfdfd]">
-                    <td className="whitespace-nowrap px-4 py-2.5 font-semibold text-[#138795] sm:px-5">{booking.pnr}</td>
+                {tripsLoading && (
+                  <tr><td colSpan="7" role="status" className="px-4 py-8 text-center text-[14px] text-slate-400">Loading trips...</td></tr>
+                )}
+                {tripsError && (
+                  <tr><td colSpan="7" role="alert" className="px-4 py-8 text-center text-[14px] text-rose-600">{tripsError}</td></tr>
+                )}
+                {visibleTrips.map((trip) => (
+                  <tr key={trip._id} className="text-[13px] text-[#566978] transition-colors hover:bg-[#fbfdfd]">
+                    <td className="whitespace-nowrap px-4 py-2.5 font-semibold text-[#138795] sm:px-5">{trip._id?.slice(-8).toUpperCase() || "—"}</td>
+                    <td className="whitespace-nowrap px-3 py-2.5">{getTripRoute(trip)}</td>
+                    <td className="whitespace-nowrap px-3 py-2.5 text-slate-400">{formatTripDateTime(trip.departureDateTime, { dateStyle: "medium", timeStyle: "short" })}</td>
+                    <td className="whitespace-nowrap px-3 py-2.5 font-semibold text-[#46596a]">{getTripBusNumber(trip)}</td>
+                    <td className="whitespace-nowrap px-3 py-2.5">{(trip.crews || []).map((member) => member.fullName).filter(Boolean).join(", ") || "—"}</td>
                     <td className="whitespace-nowrap px-3 py-2.5">
-                      <span className="inline-flex items-center gap-2">
-                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#e5f5f5] text-[10px] font-semibold text-[#138795]">{booking.initials}</span>
-                        <span className="font-medium text-[#425465]">{booking.passenger}</span>
-                      </span>
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-2.5">{booking.route}</td>
-                    <td className="whitespace-nowrap px-3 py-2.5 text-slate-400">{booking.date}</td>
-                    <td className="whitespace-nowrap px-3 py-2.5 font-semibold text-[#46596a]">{booking.seat}</td>
-                    <td className="whitespace-nowrap px-3 py-2.5 font-semibold text-[#425465]">{booking.fare}</td>
-                    <td className="whitespace-nowrap px-3 py-2.5">
-                      <span className={`rounded-full px-2 py-1 text-[12px] font-medium ${booking.payment === "Pending" ? "bg-[#fff4e5] text-[#be741c]" : booking.payment === "Refunded" ? "bg-[#fff0f3] text-[#d66a82]" : "bg-[#f0f3f4] text-[#65777e]"}`}>
-                        {booking.payment}
-                      </span>
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-2.5">
-                      <span className={`rounded-full px-2 py-1 text-[12px] font-medium ${statusClassNames[booking.status]}`}>
-                        {booking.status}
+                      <span className={`rounded-full px-2 py-1 text-[12px] font-medium ${statusClassNames[(trip.status || "").toLowerCase()] || "bg-[#f0f3f4] text-[#65777e]"}`}>
+                        {trip.currentStatus || trip.status || "—"}
                       </span>
                     </td>
                     <td className="px-4 py-2.5 text-center sm:px-5">
-                      <button type="button" onClick={() => setIsTripDetailsOpen(true)} aria-label={`View trip details for ${booking.pnr}`} className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#f0f4f6] text-[#718391] transition hover:bg-[#e2f1f2] hover:text-[#138795]">
+                      <button type="button" onClick={() => openTripDetails(trip._id)} disabled={tripDetailsLoadingId === trip._id} aria-label={`View trip details for ${trip._id}`} className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#f0f4f6] text-[#718391] transition hover:bg-[#e2f1f2] hover:text-[#138795] disabled:cursor-wait disabled:opacity-50">
                         <Eye size={12} />
                       </button>
                     </td>
                   </tr>
                 ))}
-                {visibleBookings.length === 0 && (
+                {!tripsLoading && !tripsError && visibleTrips.length === 0 && (
                   <tr>
-                    <td colSpan="9" className="px-4 py-8 text-center text-[14px] text-slate-400">No bookings match your search.</td>
+                    <td colSpan="7" className="px-4 py-8 text-center text-[14px] text-slate-400">No trips match your filters.</td>
                   </tr>
                 )}
               </tbody>
@@ -1247,10 +1839,10 @@ function CrewDashboard() {
 
           <footer className="flex flex-col gap-3 px-4 py-3 text-[13px] text-slate-400 sm:flex-row sm:items-center sm:justify-between sm:px-5">
             <p>
-              Showing {filteredBookings.length ? (currentPage - 1) * pageSize + 1 : 0}–{Math.min(currentPage * pageSize, filteredBookings.length)} of {filteredBookings.length} bookings
+              Showing {totalTrips ? (currentPage - 1) * pageSize + 1 : 0}–{Math.min(currentPage * pageSize, totalTrips)} of {totalTrips} trips
             </p>
             <div className="flex items-center gap-1">
-              <button type="button" onClick={() => setPage((value) => Math.max(1, value - 1))} disabled={currentPage === 1} className="inline-flex h-7 items-center gap-1 rounded-full border border-slate-100 px-2 text-[13px] disabled:cursor-not-allowed disabled:opacity-40">
+              <button type="button" onClick={() => setPage((value) => Math.max(1, value - 1))} disabled={currentPage === 1 || tripsLoading} className="inline-flex h-7 items-center gap-1 rounded-full border border-slate-100 px-2 text-[13px] disabled:cursor-not-allowed disabled:opacity-40">
                 <ChevronLeft size={12} /> Previous
               </button>
               {Array.from({ length: pageCount }, (_, index) => index + 1).map((pageNumber) => (
@@ -1258,7 +1850,7 @@ function CrewDashboard() {
                   {pageNumber}
                 </button>
               ))}
-              <button type="button" onClick={() => setPage((value) => Math.min(pageCount, value + 1))} disabled={currentPage === pageCount} className="inline-flex h-7 items-center gap-1 rounded-full border border-slate-100 px-2 text-[13px] disabled:cursor-not-allowed disabled:opacity-40">
+              <button type="button" onClick={() => setPage((value) => Math.min(pageCount, value + 1))} disabled={currentPage === pageCount || tripsLoading} className="inline-flex h-7 items-center gap-1 rounded-full border border-slate-100 px-2 text-[13px] disabled:cursor-not-allowed disabled:opacity-40">
                 Next <ChevronRight size={12} />
               </button>
             </div>

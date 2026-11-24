@@ -174,6 +174,7 @@ function App() {
           <Route path="/vendor/finance" element={<FinanceDashboard />} />
           <Route path="/vendor/calendar" element={<CalendarDashboard />} />
           <Route path="/vendor/bookings" element={<BookingsDashboard />} />
+          <Route path="/crew" element={<CrewDashboard />} />
           <Route path="/crew-dashboard" element={<CrewDashboard />} />
 
           <Route path="/" element={<BusListing />} />

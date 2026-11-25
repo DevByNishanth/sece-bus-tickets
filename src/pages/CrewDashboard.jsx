@@ -103,8 +103,20 @@ const initialAttendance = [
   { id: "BG082745", name: "Nandhini R", initials: "NR", seat: "L5", route: "Tiruppur → Madurai", contact: "+91  ••••  8510", status: "Pending" },
 ];
 
-function PassengerAttendance({ onBack }) {
+function PassengerAttendance({ onBack, tripId }) {
+  const { BASE_URL, TOKEN_KEY } = useAuth();
+  const baseUrl = BASE_URL.replace(/\/+$/, "");
+  const apiBaseUrl = baseUrl.endsWith("/api") ? baseUrl : `${baseUrl}/api`;
+  const [attendanceSummary, setAttendanceSummary] = useState(null);
+  const [attendanceSummaryError, setAttendanceSummaryError] = useState("");
+  const [attendanceSummaryLoading, setAttendanceSummaryLoading] = useState(true);
   const [passengers, setPassengers] = useState(initialAttendance);
+  const [passengersError, setPassengersError] = useState("");
+  const [passengersLoading, setPassengersLoading] = useState(true);
+  const [passengerUpdateError, setPassengerUpdateError] = useState("");
+  const [updatingPassengerId, setUpdatingPassengerId] = useState("");
+  const [bulkAttendanceLoading, setBulkAttendanceLoading] = useState(false);
+  const [attendanceRosterRefreshKey, setAttendanceRosterRefreshKey] = useState(0);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [routeFilter, setRouteFilter] = useState("All");
@@ -113,6 +125,119 @@ function PassengerAttendance({ onBack }) {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const [bulkStatus, setBulkStatus] = useState("Boarded");
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const fetchAttendanceSummary = async () => {
+      setAttendanceSummaryError("");
+
+      try {
+        if (!tripId) throw new Error("Trip ID is missing; attendance summary cannot be loaded.");
+        const token = localStorage.getItem(TOKEN_KEY || "exte_key");
+        const response = await fetch(
+          `${apiBaseUrl}/crew/trips/${encodeURIComponent(tripId)}/attendance/summary`,
+          {
+            headers: {
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            signal: controller.signal,
+          },
+        );
+        const payload = await response.json().catch(() => null);
+
+        if (!response.ok || !payload?.success || !payload.data) {
+          throw new Error(payload?.message || "Unable to load attendance summary.");
+        }
+
+        setAttendanceSummary(payload.data);
+      } catch (error) {
+        if (error.name !== "AbortError") {
+          setAttendanceSummaryError(error.message || "Unable to load attendance summary.");
+        }
+      } finally {
+        if (!controller.signal.aborted) setAttendanceSummaryLoading(false);
+      }
+    };
+
+    fetchAttendanceSummary();
+    return () => controller.abort();
+  }, [apiBaseUrl, TOKEN_KEY, tripId]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const fetchPassengers = async () => {
+      setPassengersLoading(true);
+      setPassengersError("");
+      setPassengers([]);
+      setSelectedIds([]);
+
+      try {
+        if (!tripId) throw new Error("Trip ID is missing; passenger attendance cannot be loaded.");
+        const token = localStorage.getItem(TOKEN_KEY || "exte_key");
+        const params = new URLSearchParams({ page: "1", limit: "50" });
+        if (statusFilter !== "All") params.set("status", statusFilter);
+        const response = await fetch(
+          `${apiBaseUrl}/crew/trips/${encodeURIComponent(tripId)}/attendance?${params.toString()}`,
+          {
+            headers: {
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            signal: controller.signal,
+          },
+        );
+        const payload = await response.json().catch(() => null);
+
+        if (!response.ok || !payload?.success || !Array.isArray(payload.data)) {
+          throw new Error(payload?.message || "Unable to load passenger attendance.");
+        }
+
+        setPassengers(payload.data.map((record, index) => {
+          const passenger = record.passenger || record.passengerDetails || {};
+          const booking = record.booking || {};
+          const name = record.passengerName
+            || record.name
+            || passenger.fullName
+            || passenger.name
+            || [passenger.firstName, passenger.lastName].filter(Boolean).join(" ")
+            || "—";
+          const seatValue = record.seatNumbers
+            || booking.seatNumbers
+            || record.seatNumber
+            || record.seat
+            || passenger.seatNumber;
+          const seat = Array.isArray(seatValue) ? seatValue.join(", ") : seatValue || "—";
+          const boardingPoint = record.boardingPoint || record.pickupPoint || record.from || "";
+          const droppingPoint = record.droppingPoint || record.dropoffPoint || record.to || "";
+          const routeValue = record.route;
+          const route = typeof routeValue === "string"
+            ? routeValue
+            : routeValue?.name
+              || [routeValue?.originCity || boardingPoint, routeValue?.destinationCity || droppingPoint].filter(Boolean).join(" → ")
+              || "—";
+
+          return {
+            ...record,
+            id: String(record._id || record.id || record.pnr || record.bookingNumber || booking.bookingNumber || `attendance-${index}`),
+            name,
+            initials: name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase(),
+            seat,
+            route,
+            contact: record.contact || record.phone || record.mobile || passenger.phone || passenger.mobile || "—",
+            status: record.attendanceStatus || record.status || record.boardingStatus || "Pending",
+          };
+        }));
+      } catch (error) {
+        if (error.name !== "AbortError") {
+          setPassengersError(error.message || "Unable to load passenger attendance.");
+        }
+      } finally {
+        if (!controller.signal.aborted) setPassengersLoading(false);
+      }
+    };
+
+    fetchPassengers();
+    return () => controller.abort();
+  }, [apiBaseUrl, TOKEN_KEY, tripId, statusFilter, attendanceRosterRefreshKey]);
 
   const filteredPassengers = useMemo(() => passengers.filter((passenger) => {
     const matchesSearch = `${passenger.name} ${passenger.id} ${passenger.seat}`
@@ -123,11 +248,12 @@ function PassengerAttendance({ onBack }) {
     return matchesSearch && matchesStatus && matchesRoute;
   }), [passengers, search, statusFilter, routeFilter]);
 
-  const boardedInSample = passengers.filter((passenger) => passenger.status === "Boarded").length;
-  const pendingInSample = passengers.filter((passenger) => passenger.status === "Pending").length;
-  const boardedCount = 17 + boardedInSample - 3;
-  const pendingCount = 5 + pendingInSample - 2;
-  const notBoardedCount = 2;
+  const totalBooked = attendanceSummary?.totalBooked ?? 0;
+  const boardedCount = attendanceSummary?.boarded ?? 0;
+  const notBoardedCount = attendanceSummary?.notBoarded ?? 0;
+  const pendingCount = attendanceSummary?.pending ?? 0;
+  const boardingProgress = attendanceSummary?.boardingProgress ?? 0;
+  const attendanceSummaryUnavailable = attendanceSummaryLoading || !attendanceSummary;
 
   const togglePassenger = (passengerId) => {
     setSelectedIds((ids) => ids.includes(passengerId)
@@ -143,20 +269,86 @@ function PassengerAttendance({ onBack }) {
       : [...new Set([...ids, ...visibleIds])]);
   };
 
-  const updatePassengerStatus = (passengerId) => {
-    setPassengers((rows) => rows.map((passenger) => passenger.id === passengerId
-      ? { ...passenger, status: passenger.status === "Boarded" ? "Pending" : "Boarded" }
-      : passenger));
-    setIsSubmitted(false);
+  const updatePassengerStatus = async (passenger) => {
+    const nextStatus = passenger.status === "Boarded" ? "Pending" : "Boarded";
+    const passengerId = passenger.passengerId || passenger.passenger?._id || passenger._id || passenger.id;
+    setPassengerUpdateError("");
+    setUpdatingPassengerId(passenger.id);
+
+    try {
+      if (!tripId) throw new Error("Trip ID is missing; attendance cannot be updated.");
+      if (!passengerId) throw new Error("Passenger ID is missing; attendance cannot be updated.");
+      const token = localStorage.getItem(TOKEN_KEY || "exte_key");
+      const response = await fetch(
+        `${apiBaseUrl}/crew/trips/${encodeURIComponent(tripId)}/attendance/${encodeURIComponent(passengerId)}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ status: nextStatus }),
+        },
+      );
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok || !payload?.success) {
+        throw new Error(payload?.message || "Unable to update passenger attendance.");
+      }
+
+      setPassengers((rows) => rows.map((row) => row.id === passenger.id
+        ? { ...row, status: nextStatus }
+        : row));
+      setIsSubmitted(false);
+    } catch (error) {
+      setPassengerUpdateError(error.message || "Unable to update passenger attendance.");
+    } finally {
+      setUpdatingPassengerId("");
+    }
   };
 
-  const confirmBulkAttendance = () => {
-    setPassengers((rows) => rows.map((passenger) => selectedIds.includes(passenger.id)
-      ? { ...passenger, status: bulkStatus }
-      : passenger));
-    setIsSubmitted(false);
-    setSelectedIds([]);
-    setIsBulkModalOpen(false);
+  const confirmBulkAttendance = async () => {
+    const passengerIds = selectedPassengers
+      .map((passenger) => passenger.passengerId || passenger.passenger?._id || passenger._id || passenger.id)
+      .filter(Boolean)
+      .map(String);
+    setPassengerUpdateError("");
+    setBulkAttendanceLoading(true);
+
+    try {
+      if (!tripId) throw new Error("Trip ID is missing; attendance cannot be updated.");
+      if (!passengerIds.length || passengerIds.length !== selectedPassengers.length) {
+        throw new Error("One or more selected passengers are missing an ID.");
+      }
+
+      const token = localStorage.getItem(TOKEN_KEY || "exte_key");
+      const response = await fetch(
+        `${apiBaseUrl}/crew/trips/${encodeURIComponent(tripId)}/attendance/bulk`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ passengerIds, status: bulkStatus }),
+        },
+      );
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok || !payload?.success) {
+        throw new Error(payload?.message || "Unable to update passenger attendance.");
+      }
+
+      if (payload.data?.summary) setAttendanceSummary(payload.data.summary);
+      setIsSubmitted(false);
+      setSelectedIds([]);
+      setIsBulkModalOpen(false);
+      setAttendanceRosterRefreshKey((current) => current + 1);
+    } catch (error) {
+      setPassengerUpdateError(error.message || "Unable to update passenger attendance.");
+    } finally {
+      setBulkAttendanceLoading(false);
+    }
   };
 
   const allVisibleSelected = filteredPassengers.length > 0
@@ -190,33 +382,42 @@ function PassengerAttendance({ onBack }) {
         {isSubmitted && (
           <p role="status" className="mt-3 text-[13px] font-medium text-[#168f7e]">Attendance summary submitted successfully.</p>
         )}
+        {attendanceSummaryError && (
+          <p role="alert" className="mt-3 text-[13px] text-rose-600">{attendanceSummaryError}</p>
+        )}
+        {passengersError && (
+          <p role="alert" className="mt-3 text-[13px] text-rose-600">{passengersError}</p>
+        )}
+        {passengerUpdateError && (
+          <p role="alert" className="mt-3 text-[13px] text-rose-600">{passengerUpdateError}</p>
+        )}
 
         <section className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-[repeat(4,minmax(0,1fr))_2.2fr]">
           <article className="flex min-h-[72px] items-center gap-3 rounded-xl border border-slate-100 bg-white px-3 py-3">
             <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#e8f8f5] text-[#139992]"><UsersRound size={17} /></span>
-            <div><p className="text-xl font-semibold leading-none">{25}</p><p className="mt-1 text-[12px] text-slate-400">Total booked</p></div>
+            <div><p className="text-xl font-semibold leading-none">{attendanceSummaryUnavailable ? "—" : totalBooked}</p><p className="mt-1 text-[12px] text-slate-400">Total booked</p></div>
           </article>
           <article className="flex min-h-[72px] items-center gap-3 rounded-xl border border-slate-100 bg-white px-3 py-3">
             <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#e8faf6] text-[#13a895]"><Check size={17} /></span>
-            <div><p className="text-xl font-semibold leading-none">{boardedCount}</p><p className="mt-1 text-[12px] text-slate-400">Boarded</p></div>
+            <div><p className="text-xl font-semibold leading-none">{attendanceSummaryUnavailable ? "—" : boardedCount}</p><p className="mt-1 text-[12px] text-slate-400">Boarded</p></div>
           </article>
           <article className="flex min-h-[72px] items-center gap-3 rounded-xl border border-slate-100 bg-white px-3 py-3">
             <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#effaf8] text-[#16a99c]"><X size={17} /></span>
-            <div><p className="text-xl font-semibold leading-none">{notBoardedCount}</p><p className="mt-1 text-[12px] text-slate-400">Not boarded</p></div>
+            <div><p className="text-xl font-semibold leading-none">{attendanceSummaryUnavailable ? "—" : notBoardedCount}</p><p className="mt-1 text-[12px] text-slate-400">Not boarded</p></div>
           </article>
           <article className="flex min-h-[72px] items-center gap-3 rounded-xl border border-slate-100 bg-white px-3 py-3">
             <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#eefaf7] text-[#13a895]"><Clock3 size={17} /></span>
-            <div><p className="text-xl font-semibold leading-none">{pendingCount}</p><p className="mt-1 text-[12px] text-slate-400">Pending</p></div>
+            <div><p className="text-xl font-semibold leading-none">{attendanceSummaryUnavailable ? "—" : pendingCount}</p><p className="mt-1 text-[12px] text-slate-400">Pending</p></div>
           </article>
           <article className="rounded-xl border border-slate-100 bg-white px-3 py-3">
             <div className="flex items-center justify-between text-[12px]">
               <span className="text-slate-500">Boarding progress</span>
-              <span className="font-semibold text-[#334454]">{Math.round((boardedCount / 25) * 100)}%</span>
+              <span className="font-semibold text-[#334454]">{attendanceSummaryUnavailable ? "—" : `${boardingProgress}%`}</span>
             </div>
             <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[#edf1f3]">
-              <div className="h-full rounded-full bg-[#108b80] transition-all" style={{ width: `${(boardedCount / 25) * 100}%` }} />
+              <div className="h-full rounded-full bg-[#108b80] transition-all" style={{ width: `${attendanceSummaryUnavailable ? 0 : boardingProgress}%` }} />
             </div>
-            <p className="mt-1.5 text-[11px] text-slate-400">{boardedCount} of 25 passengers boarded</p>
+            <p className="mt-1.5 text-[11px] text-slate-400">{attendanceSummaryUnavailable ? (attendanceSummaryLoading ? "Loading attendance summary..." : "Attendance summary unavailable.") : `${boardedCount} of ${totalBooked} passengers boarded`}</p>
           </article>
         </section>
 
@@ -305,18 +506,19 @@ function PassengerAttendance({ onBack }) {
                     <td className="px-4 py-3 text-center">
                       <button
                         type="button"
-                        onClick={() => updatePassengerStatus(passenger.id)}
+                        onClick={() => updatePassengerStatus(passenger)}
+                        disabled={Boolean(updatingPassengerId)}
                         className={`inline-flex min-w-[72px] items-center justify-center gap-1 rounded-md border px-2.5 py-1.5 text-[11px] font-medium transition ${
                           passenger.status === "Boarded" ? "border-slate-200 bg-white text-[#526271] hover:bg-slate-50" : "border-[#d7ece6] bg-white text-[#168f7e] hover:bg-[#f1faf7]"
                         }`}
                       >
-                        {passenger.status === "Boarded" ? "Correct" : <><Check size={11} /> Boarded</>}
+                        {updatingPassengerId === passenger.id ? "Updating..." : passenger.status === "Boarded" ? "Correct" : <><Check size={11} /> Boarded</>}
                       </button>
                     </td>
                   </tr>
                 ))}
                 {filteredPassengers.length === 0 && (
-                  <tr><td colSpan="8" className="px-4 py-8 text-center text-[13px] text-slate-400">No passengers match your search or filters.</td></tr>
+                  <tr><td colSpan="8" className="px-4 py-8 text-center text-[13px] text-slate-400">{passengersLoading ? "Loading passengers..." : passengersError ? "Unable to load passengers." : "No passengers match your search or filters."}</td></tr>
                 )}
               </tbody>
             </table>
@@ -348,7 +550,7 @@ function PassengerAttendance({ onBack }) {
 
               <div className="mt-5 grid grid-cols-4 divide-x divide-slate-200 rounded-xl border border-slate-200">
                 {[
-                  ["25", "Booked"],
+                  [String(totalBooked), "Booked"],
                   [String(boardedCount), "Boarded"],
                   [String(notBoardedCount), "Not boarded"],
                   [String(pendingCount), "Pending"],
@@ -443,9 +645,10 @@ function PassengerAttendance({ onBack }) {
                 <button
                   type="button"
                   onClick={confirmBulkAttendance}
-                  className="h-10 rounded-xl bg-[#108b93] px-5 text-[13px] font-semibold text-white transition hover:bg-[#0b737b]"
+                  disabled={bulkAttendanceLoading}
+                  className="h-10 rounded-xl bg-[#108b93] px-5 text-[13px] font-semibold text-white transition hover:bg-[#0b737b] disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  Confirm Update
+                  {bulkAttendanceLoading ? "Updating..." : "Confirm Update"}
                 </button>
               </div>
             </section>
@@ -743,7 +946,7 @@ function CrewTripDetails({ onBack, trip = {} }) {
     : "—");
 
   if (isAttendanceOpen) {
-    return <PassengerAttendance onBack={() => setIsAttendanceOpen(false)} />;
+    return <PassengerAttendance onBack={() => setIsAttendanceOpen(false)} tripId={tripId} />;
   }
 
   const handleStatusPhotoChange = (event) => {
@@ -783,19 +986,31 @@ function CrewTripDetails({ onBack, trip = {} }) {
     try {
       if (!tripId) throw new Error("Trip ID is missing; status cannot be updated.");
       const token = localStorage.getItem(TOKEN_KEY || "exte_key");
-      const formData = new FormData();
-      formData.append("status", newTripStatus);
-      formData.append("date", statusDate);
-      formData.append("time", `${hour12}:${minute} ${meridiem}`);
-      formData.append("remarks", statusRemarks.trim());
-      if (statusPhoto) formData.append("photo", statusPhoto);
+      const submittedTime = `${hour12}:${minute} ${meridiem}`;
+      const statusDetails = {
+        status: newTripStatus,
+        date: statusDate,
+        time: submittedTime,
+        remarks: statusRemarks.trim(),
+      };
+      const headers = {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      };
+      let body;
+
+      if (statusPhoto) {
+        body = new FormData();
+        Object.entries(statusDetails).forEach(([key, value]) => body.append(key, value));
+        body.append("photo", statusPhoto);
+      } else {
+        headers["Content-Type"] = "application/json";
+        body = JSON.stringify(statusDetails);
+      }
 
       const response = await fetch(`${routeApiBaseUrl}/api/crew/trips/${encodeURIComponent(tripId)}/status`, {
         method: "PUT",
-        headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: formData,
+        headers,
+        body,
       });
       const payload = await response.json().catch(() => null);
 
@@ -803,12 +1018,15 @@ function CrewTripDetails({ onBack, trip = {} }) {
         throw new Error(payload?.message || "Unable to update trip status.");
       }
 
+      const statusHistoryEntry = payload.data.statusHistory
+        ? { ...payload.data.statusHistory, date: statusDate, time: submittedTime }
+        : null;
       setCurrentTripStatus(payload.data.currentStatus || newTripStatus);
-      setLastStatusUpdate(payload.data.statusHistory || null);
-      if (payload.data.statusHistory) {
+      setLastStatusUpdate(statusHistoryEntry);
+      if (statusHistoryEntry) {
         setStatusHistory((current) => [
-          payload.data.statusHistory,
-          ...current.filter((entry) => entry._id !== payload.data.statusHistory._id),
+          statusHistoryEntry,
+          ...current.filter((entry) => entry._id !== statusHistoryEntry._id),
         ]);
       }
       setIsStatusModalOpen(false);
